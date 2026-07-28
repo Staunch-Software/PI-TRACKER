@@ -1,0 +1,1524 @@
+:root {
+  --color-primary: #0f4c81;
+  --color-primary-dark: #0b3a63;
+  --color-accent: #14919b;
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-success: #16a34a;
+  --color-success-bg: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fee2e2;
+  --color-info: #0369a1;
+  --color-info-bg: #e0f2fe;
+  --color-neutral: #475569;
+  --color-neutral-bg: #e2e8f0;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.1);
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+/* Form controls */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--color-text);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.form-error {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* App shell */
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-nav {
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 56px;
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.top-nav .brand {
+  font-weight: 700;
+  font-size: 16px;
+  margin-right: 32px;
+  white-space: nowrap;
+}
+
+.top-nav nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.top-nav .nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.top-nav .nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.top-nav .nav-link.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+/* User menu (dropdown) */
+.user-menu-wrapper {
+  position: relative;
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 8px;
+  width: 260px;
+  box-sizing: border-box;
+}
+.user-menu-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.user-menu-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+}
+
+.user-menu-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.user-menu-role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.user-menu-caret {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  flex-shrink: 0;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #fff;
+  color: var(--color-text);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  width: 260px;
+  z-index: 30;
+  overflow: hidden;
+}
+
+.user-menu-dropdown-header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.user-menu-dropdown-header .user-menu-name {
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.user-menu-dropdown-header .user-menu-email {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.user-menu-dropdown-header .role-pill {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.user-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.user-menu-item:hover {
+  background: #f8fafc;
+}
+.user-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.page-content {
+  flex: 1;
+  padding: 24px 28px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.page-header p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.toolbar input[type='search'],
+.toolbar select {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.toolbar input[type='search'] {
+  min-width: 240px;
+}
+
+/* Card / table container */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius);
+}
+
+/* PiEntriesTable renders its header and body as two separate <table>s in their own scroll
+   divs (see PiEntriesTable.tsx) instead of one <table> with a sticky <thead>. That split is
+   required because position:sticky always resolves against the nearest ancestor that has a
+   scrolling mechanism — and this table's body NEEDS overflow-x:auto for horizontal scroll,
+   which unavoidably makes it (not the page) that reference for anything sticky inside it. A
+   sticky header nested in there can only "stick" against the page if that ancestor is
+   ALSO bounded/scrollable vertically, which conflicts with the requirement that every row of
+   the current page size renders without its own scrollbar. Splitting them lets the header
+   live outside the horizontally-scrolling box, sticky at the page level like the toolbar,
+   with its horizontal position mirrored to the body via JS (onScroll → scrollLeft). */
+.table-header-scroll {
+  position: sticky;
+  /* --toolbar-bottom is the toolbar's actual live bottom edge (getBoundingClientRect().bottom
+     in TrackerPage.tsx, re-read on resize and scroll) — using the real measured edge instead
+     of a hand-added-up nav-height + toolbar-height guess, which kept drifting from reality. */
+  top: var(--toolbar-bottom, 132px);
+  z-index: 10;
+  overflow-x: hidden;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: #f8fafc;
+  /* Scrolled only programmatically (mirroring the body) — hide the scrollbar this needs. */
+  scrollbar-width: none;
+}
+.table-header-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.table-body-scroll {
+  overflow-x: auto;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* Once column widths are measured off the body's real rows and copied onto the header via a
+   <colgroup> (see PiEntriesTable.tsx), table-layout:fixed makes those widths authoritative
+   instead of just a hint — otherwise the header-only table (no body rows to size against)
+   would size its columns from the header text alone and drift out of alignment. */
+.data-table.table-fixed {
+  table-layout: fixed;
+}
+
+table.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+table.data-table th,
+table.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+table.data-table thead th {
+  background: #f8fafc;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+table.data-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+table.data-table th.sticky-col,
+table.data-table td.sticky-col {
+  position: sticky;
+  z-index: 3;
+  background: #fff;
+}
+
+/* Within the header's own row, sticky-col cells (Actions/S.No/DPR No) must out-rank their
+   plain sibling header cells or, once scrolled horizontally, the passing siblings paint over
+   — and hide — the pinned ones (later DOM siblings paint on top by default at equal z-index). */
+table.data-table thead th.sticky-col {
+  z-index: 4;
+  background: #f8fafc;
+}
+
+/* Sticky column widths are pinned (width, not just min-width) so the "left" offset
+   below always matches the real rendered width — otherwise the actions column widens
+   when a row enters edit mode (two icon buttons instead of one) and every sticky
+   column after it drifts out of alignment/overlaps on horizontal scroll. */
+table.data-table td.col-actions,
+table.data-table th.col-actions {
+  left: 0;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  text-align: center;
+  overflow: hidden;
+}
+
+table.data-table td.col-dpr,
+table.data-table th.col-dpr {
+  left: 80px;
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 2px 0 4px -2px rgba(15, 23, 42, 0.15);
+}
+table.data-table td.col-dpr-noactions,
+table.data-table th.col-dpr-noactions {
+  left: 0;
+}
+
+/* Sortable column headers */
+table.data-table th.sortable-col {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+table.data-table th.sortable-col:hover {
+  color: var(--color-text);
+}
+.sort-arrow {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+/* Inline row editing */
+tr.row-editing td {
+  background: #fffbeb;
+  vertical-align: middle;
+  padding: 6px 8px;
+}
+tr.row-editing td.sticky-col {
+  background: #fffbeb;
+}
+tr.row-editing input,
+tr.row-editing select,
+tr.row-editing textarea {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0 7px;
+  font-size: 13px;
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  background: #fff;
+  vertical-align: middle;
+}
+tr.row-editing input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+/* LookupSelect's inline "+ New" button, and any other button embedded in an editing cell,
+   should match the 30px control height so the row doesn't visually zig-zag. */
+tr.row-editing .btn {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.row-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* Momentary highlight for a row jumped to from the Activity Feed's "View" button */
+tr.row-flash td {
+  animation: rowFlash 2.5s ease-out;
+}
+
+@keyframes rowFlash {
+  0% {
+    background-color: #fde68a;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+tr.add-row-trigger {
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+tr.add-row-trigger td {
+  padding: 12px 16px;
+  text-align: center;
+}
+tr.add-row-trigger:hover td {
+  background: var(--color-info-bg);
+}
+
+/* Status badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Empty / loading states */
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.modal-panel {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  max-width: 760px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  line-height: 1;
+  padding: 4px;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.form-grid .span-2 {
+  grid-column: span 2;
+}
+
+.form-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: 18px 0 10px;
+}
+
+.form-section-title:first-child {
+  margin-top: 0;
+}
+
+/* Login page */
+.login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  padding: 20px;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-card h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.login-card .subtitle {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin: 0 0 24px;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card .btn-primary {
+  justify-content: center;
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.pagination .pager-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.page-size-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-size-control label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Button group (segmented tabs) */
+.btn-group {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.btn-group .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Feed */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Panel fills most of the viewport (looks right even with only a couple of items) but
+   caps out and scrolls internally once there are enough entries to overflow it. */
+.feed-list-scroll {
+  min-height: 60vh;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+/* Each entry is its own card with breathing room between them, not a bordered list row. */
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  border-left: 3px solid transparent;
+  margin-bottom: 10px;
+}
+
+.feed-item:last-child {
+  margin-bottom: 0;
+}
+
+.feed-item.unread {
+  background: #f0f7ff;
+  border-left-color: var(--color-primary);
+}
+
+.feed-item .feed-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.feed-item .feed-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-item .feed-summary {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.feed-item.unread .feed-summary {
+  font-weight: 600;
+}
+
+.feed-item .feed-time {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.feed-item .feed-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.feed-item .feed-actions .btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Admin Panel — its own full-page shell, separate from the main app's top nav */
+.admin-shell {
+  min-height: 100%;
+  display: flex;
+}
+
+.admin-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid var(--color-border);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0 8px 14px;
+}
+
+.admin-shield {
+  color: var(--color-primary);
+}
+
+.admin-back-link {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: 8px;
+  margin-bottom: 14px;
+}
+.admin-back-link:hover {
+  color: var(--color-primary);
+}
+
+.admin-nav-section {
+  margin-bottom: 18px;
+}
+
+.admin-nav-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  padding: 0 8px 6px;
+}
+
+.admin-nav-link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.admin-nav-link:hover {
+  background: #f1f5f9;
+}
+.admin-nav-link.active {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.admin-content {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+/* Dashboard KPI cards — fixed 5 per row (wraps to a second row for the remaining cards) */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.kpi-card {
+  border-radius: var(--radius);
+  padding: 20px 20px;
+}
+
+.kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.kpi-label {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: normal;
+  line-height: 1.3;
+}
+
+/* Toolbar: search + filter + actions in one row, styled as a distinct control bar */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  /* Square top corners: once stuck, this sits pixel-flush against the nav bar's bottom edge,
+     and rounding those two corners left a sliver of pale background poking into the seam. */
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 10px 12px;
+  box-shadow: var(--shadow-sm);
+  /* Keeps the search bar and "+ Add New PI" button reachable without scrolling back to the
+     top — important with larger page sizes (e.g. 50 rows/page) where the table runs long. */
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+}
+
+.toolbar-row .search-wrap {
+  position: relative;
+  flex: 0 1 320px;
+}
+
+/* Variant: every filter control shares the row equally, no leftover empty space */
+.toolbar-row-fill > * {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+.toolbar-row-fill .search-wrap {
+  flex: 1 1 0;
+}
+.toolbar-row-fill .multi-select,
+.toolbar-row-fill .date-range-field {
+  width: 100%;
+}
+.toolbar-row-fill .multi-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbar-row .search-wrap .search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.toolbar-row input[type='search'],
+.toolbar-row select,
+.toolbar-row .btn {
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.toolbar-row .search-wrap input[type='search'] {
+  width: 100%;
+  padding-left: 32px;
+  border-radius: 8px;
+}
+
+.toolbar-row select {
+  border-radius: 8px;
+  min-width: 170px;
+}
+
+.toolbar-row .toolbar-spacer {
+  flex: 1;
+}
+
+.date-range-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.date-range-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.date-range-field input[type='date'] {
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-text);
+  outline: none;
+}
+
+.page-size-select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  background: #fff;
+  cursor: pointer;
+}
+.page-size-select:hover {
+  border-color: var(--color-accent);
+}
+
+/* Fixed-width, clamped columns (Payment Reference, Notes) */
+table.data-table td.col-fixed,
+table.data-table th.col-fixed {
+  width: 340px;
+  max-width: 340px;
+  white-space: normal;
+}
+
+/* Extra-wide fixed column (Service Details) */
+table.data-table td.col-fixed-wide,
+table.data-table th.col-fixed-wide {
+  width: 460px;
+  max-width: 460px;
+  white-space: normal;
+}
+
+/* Widest fixed column (Last Known Remark) */
+table.data-table td.col-fixed-xwide,
+table.data-table th.col-fixed-xwide {
+  width: 600px;
+  max-width: 600px;
+  white-space: normal;
+}
+
+/* Short-value columns (currency codes, dates, Yes/No, dashes) read better centered than
+   left-aligned once their column is wide enough to hold a full header label. */
+table.data-table td.col-center,
+table.data-table th.col-center {
+  text-align: center;
+}
+
+.expandable-cell {
+  position: relative;
+}
+
+.expandable-cell-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.expandable-cell-text:hover {
+  color: var(--color-primary);
+}
+
+/* Rendered via a portal into document.body with position:fixed + JS-computed coordinates,
+   so it isn't clipped by the table's horizontally-scrolling container. */
+.expandable-cell-popover {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  padding: 10px 12px;
+  width: 340px;
+  max-width: 90vw;
+  white-space: normal;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Multi-select dropdown (status filter) */
+.multi-select {
+  position: relative;
+}
+
+.multi-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  min-width: 260px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.multi-select-trigger:hover {
+  border-color: var(--color-accent);
+}
+.multi-select-trigger span:first-child {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi-select-caret {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.multi-select-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 25;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  min-width: 260px;
+  overflow: hidden;
+}
+
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.multi-select-option:hover {
+  background: #f8fafc;
+}
+
+.multi-select-all {
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+.multi-select-list {
+  max-height: 152px;
+  overflow-y: auto;
+}
+
+/* Evidence Gallery (attachment viewer) */
+.gallery-panel {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  z-index: 100;
+}
+
+.gallery-sidebar {
+  width: 340px;
+  flex-shrink: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--color-border);
+}
+
+.gallery-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gallery-sidebar-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.gallery-file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gallery-file-card {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+}
+.gallery-file-card:hover {
+  border-color: var(--color-accent);
+}
+.gallery-file-card.active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-info-bg);
+}
+
+.gallery-file-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.gallery-file-thumb {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.gallery-file-icon {
+  font-size: 28px;
+  color: var(--color-primary);
+}
+
+.gallery-file-name {
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.gallery-file-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.gallery-close-btn {
+  margin: 16px;
+  justify-content: center;
+}
+
+.gallery-preview {
+  flex: 1;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  min-width: 0;
+}
+
+.gallery-preview-frame-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gallery-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gallery-preview-toolbar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-preview-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.gallery-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.gallery-preview-placeholder {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 20px;
+  font-weight: 600;
+  margin: auto;
+}
+
+.gallery-preview-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* Attachment column cell (Tracker table) */
+.attachment-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attachment-view-btn,
+.attachment-add-btn {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.attachment-view-btn:hover,
+.attachment-add-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.attachment-add-btn {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.attachment-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.attachment-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.attachment-error {
+  color: var(--color-danger);
+  font-weight: 700;
+  cursor: help;
+}
+
+/* Custom scrollbars — thin, rounded, subtle, instead of the default OS chrome. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark surfaces (Evidence Gallery preview) get a lighter thumb so it stays visible. */
+.gallery-preview {
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+.gallery-preview::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+.gallery-preview::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Dashboard panels (Needs Attention / Recent Activity) — same height, each scrolls internally */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-panel {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  height: 520px;
+}
+
+.dashboard-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dashboard-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.dashboard-panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dashboard-panel-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.dashboard-panel-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dashboard-panel-link:hover {
+  text-decoration: underline;
+}
+
+.dashboard-mini-table {
+  white-space: normal;
+}
+.dashboard-mini-table th,
+.dashboard-mini-table td {
+  padding: 8px 10px;
+}
+.dashboard-mini-table tbody tr:hover {
+  background: #f8fafc;
+}
