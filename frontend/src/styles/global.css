@@ -371,13 +371,21 @@ a {
 /* PiEntriesTable renders its header and body as two separate <table>s in their own scroll
    divs (see PiEntriesTable.tsx) instead of one <table> with a sticky <thead>. That split is
    required because position:sticky always resolves against the nearest ancestor that has a
-   scrolling mechanism — and this table's body NEEDS overflow-x:auto for horizontal scroll,
-   which unavoidably makes it (not the page) that reference for anything sticky inside it. A
-   sticky header nested in there can only "stick" against the page if that ancestor is
-   ALSO bounded/scrollable vertically, which conflicts with the requirement that every row of
-   the current page size renders without its own scrollbar. Splitting them lets the header
-   live outside the horizontally-scrolling box, sticky at the page level like the toolbar,
-   with its horizontal position mirrored to the body via JS (onScroll → scrollLeft). */
+   scrolling mechanism — and this table's body NEEDS overflow-x:auto for horizontal scroll.
+   Per the CSS overflow spec, an element with overflow-x set to anything but 'visible' has its
+   overflow-y forced to 'auto' too (even if authored as 'visible' — the UA overrides it), so
+   the body div unavoidably becomes a scrolling container on BOTH axes the moment it can
+   scroll horizontally, which would make any sticky header nested inside it resolve against
+   that div (which has no bounded height, so it never actually stickies against the page)
+   instead of the page. Splitting them lets the header live outside the horizontally-scrolling
+   box, sticky at the page level like the toolbar, with its horizontal position mirrored to the
+   body via JS (onScroll → scrollLeft).
+   Column widths are NOT measured off the DOM at runtime (that used to be the source of a real
+   bug: two independently-laid-out tables given the "same" measured widths could still round
+   fractional pixels differently, and the drift compounds left-to-right, landing hardest on the
+   rightmost columns). Instead every column gets a static, hardcoded pixel width (COL_WIDTHS in
+   PiEntriesTable.tsx) applied identically to both tables' <colgroup>s — with no measurement
+   step, there is nothing left that could ever diverge between the two tables. */
 .table-header-scroll {
   position: sticky;
   /* --toolbar-bottom is the toolbar's actual live bottom edge (getBoundingClientRect().bottom
@@ -400,15 +408,8 @@ a {
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
-/* Once column widths are measured off the body's real rows and copied onto the header via a
-   <colgroup> (see PiEntriesTable.tsx), table-layout:fixed makes those widths authoritative
-   instead of just a hint — otherwise the header-only table (no body rows to size against)
-   would size its columns from the header text alone and drift out of alignment. */
-.data-table.table-fixed {
-  table-layout: fixed;
-}
-
 table.data-table {
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
@@ -421,9 +422,19 @@ table.data-table td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--color-border);
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 table.data-table thead th {
+  /* Header labels wrap instead of being ellipsis-clipped like body cells — a column's fixed
+     width (COL_WIDTHS in PiEntriesTable.tsx) is sized for realistic data, which is often
+     shorter than its own header text (e.g. "Attachment", "Final Invoice Received"). Wrapping
+     to two lines only changes this row's height, which doesn't affect column alignment since
+     that's governed entirely by the shared <colgroup> widths, not row content. */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
   background: #f8fafc;
   color: var(--color-text-muted);
   font-weight: 600;
@@ -484,7 +495,6 @@ table.data-table th.col-dpr-noactions {
 table.data-table th.sortable-col {
   cursor: pointer;
   user-select: none;
-  white-space: nowrap;
 }
 table.data-table th.sortable-col:hover {
   color: var(--color-text);

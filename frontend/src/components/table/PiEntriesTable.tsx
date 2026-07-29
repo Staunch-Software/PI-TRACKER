@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type UIEvent } from 'react';
+import { useRef, type UIEvent } from 'react';
 import {
   Currency,
   FOLLOW_UP_STATUS_LABELS,
@@ -15,14 +15,56 @@ import { ExpandableCell } from './ExpandableCell';
 import { StatusBadge } from './StatusBadge';
 
 // Fixed pixel widths for the free-text columns. Applied on the inner content wrapper
-// (not just the <td>) because the table uses default auto layout, under which a <td>'s own
-// width/max-width is only a hint the browser can override based on content in other rows.
+// (not just the <td>) because a <td>'s own width is just a hint under table-layout:fixed —
+// the <colgroup> below (COL_WIDTHS) is what's actually authoritative.
 const COL_WIDTH = {
   serviceDetails: 460,
   paymentReference: 340,
   lastKnownRemark: 600,
   notes: 340,
 };
+
+// Every column's width, static and hardcoded — used to build an identical <colgroup> for both
+// the header and body <table>s (see PiEntriesTable's render and the .table-header-scroll
+// comment in global.css for why they're two separate tables). Deliberately NOT measured off
+// the DOM at runtime: two independently-laid-out tables given "the same" measured widths could
+// still round fractional pixels differently, and that drift compounds left-to-right, landing
+// worst on the rightmost columns (Attached By / Date Attached / Notes). A static width has
+// nothing left to measure, so nothing can diverge between the two tables.
+const COL_WIDTHS = {
+  actions: 80,
+  dpr: 140,
+  attachment: 90,
+  invoiceNo: 130,
+  dprDate: 110,
+  vessel: 170,
+  vendor: 200,
+  serviceDetails: COL_WIDTH.serviceDetails,
+  amountInr: 130,
+  fcAmount: 110,
+  currency: 100,
+  paymentDate: 120,
+  paymentReference: COL_WIDTH.paymentReference,
+  daysSincePayment: 150,
+  followupStatus: 190,
+  lastKnownRemark: COL_WIDTH.lastKnownRemark,
+  reminder1: 140,
+  reminder2: 140,
+  finalInvoiceReceived: 160,
+  invoiceDate: 120,
+  attachedBy: 120,
+  dateAttached: 170,
+  notes: COL_WIDTH.notes,
+} as const;
+
+// Column order exactly as rendered below, with and without the Actions column (canEdit).
+const COLUMN_ORDER_WITH_ACTIONS = [
+  'actions', 'dpr', 'attachment', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
+  'amountInr', 'fcAmount', 'currency', 'paymentDate', 'paymentReference', 'daysSincePayment',
+  'followupStatus', 'lastKnownRemark', 'reminder1', 'reminder2', 'finalInvoiceReceived',
+  'invoiceDate', 'attachedBy', 'dateAttached', 'notes',
+] as const satisfies readonly (keyof typeof COL_WIDTHS)[];
+const COLUMN_ORDER_NO_ACTIONS = COLUMN_ORDER_WITH_ACTIONS.filter((c) => c !== 'actions');
 
 export type SortColumn =
   | 'dprNo'
@@ -263,70 +305,6 @@ export function PiEntriesTable({
   saveError,
 }: Props) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
-  const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const headerTableRef = useRef<HTMLTableElement>(null);
-  const bodyTableRef = useRef<HTMLTableElement>(null);
-  const [colWidths, setColWidths] = useState<number[] | null>(null);
-  const hasRows = entries.length > 0 || isAddingNew;
-
-  // Columns that already have an explicit CSS width (col-fixed/-wide/-xwide, col-actions,
-  // col-dpr) use that known value directly instead of measuring — measuring would pick up
-  // ExpandableCell's full unclamped text width (way more than the 340/460/600px the column
-  // should stay at). Every OTHER column still gets every one of its <col> entries below, with
-  // no gaps: under table-layout:fixed, leaving even one column to size itself from a "hint"
-  // (its own cell's CSS width) instead of an explicit <col> width left the browser free to
-  // distribute rounding slack there — which is exactly what made the last column (Notes)
-  // drift out of sync between the two independently-fixed-layout tables.
-  function fixedWidthFor(className: string): number | null {
-    if (/\bcol-fixed-xwide\b/.test(className)) return 600;
-    if (/\bcol-fixed-wide\b/.test(className)) return 460;
-    if (/\bcol-fixed\b/.test(className)) return 340;
-    if (/\bcol-actions\b/.test(className)) return 80;
-    if (/\bcol-dpr\b/.test(className)) return 140;
-    return null;
-  }
-
-  // Header and body are separate <table>s (see the .table-header-scroll comment in
-  // global.css for why) so they no longer share one auto-layout pass the way one
-  // thead/tbody table would, and can each independently settle on different column widths.
-  // Force them identical by measuring BOTH — via scrollWidth, which reports a cell's true
-  // natural content width even while it's currently constrained by a previous table-fixed
-  // pass, so a later column that needs to grow (e.g. a longer value on a new page) still
-  // gets picked up — and copying the max of the two onto an identical <colgroup> applied to
-  // both tables, so there's no independent per-table algorithm left to diverge between them.
-  useLayoutEffect(() => {
-    if (!hasRows) return;
-    const bodyRows = bodyScrollRef.current?.querySelectorAll('tbody tr');
-    const headerRow = headerScrollRef.current?.querySelector('thead tr');
-    if (!bodyRows?.length || !headerRow) return;
-    const headerCells = Array.from(headerRow.children) as HTMLElement[];
-
-    const widths = headerCells.map((headerCell) => fixedWidthFor(headerCell.className) ?? headerCell.scrollWidth);
-    // Scan every currently-rendered row (not just the first) — a flexible column's true
-    // required width is whatever its longest value on THIS page needs, and other rows can
-    // easily be longer than the first (e.g. a longer payment reference further down).
-    bodyRows.forEach((row) => {
-      Array.from(row.children).forEach((cell, i) => {
-        const el = cell as HTMLElement;
-        if (fixedWidthFor(el.className) != null) return;
-        widths[i] = Math.max(widths[i], el.scrollWidth);
-      });
-    });
-    setColWidths(widths);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, editingId, isAddingNew, canEdit]);
-
-  // Column-by-column the header and body tables now use identical widths, but their SUMS can
-  // still differ by a stray sub-pixel here and there (two separate tables independently
-  // rounding the same fractional widths). That's enough to give them different scrollWidths,
-  // and since scrolling is synced by copying a raw scrollLeft number, the narrower one clamps
-  // a few pixels short at the far-right edge — most visible on the last column (Notes), where
-  // the header looks like it's stuck early while the body keeps going. Forcing the header
-  // table to the body's exact measured width removes the discrepancy at its source.
-  useLayoutEffect(() => {
-    if (!colWidths || !headerTableRef.current || !bodyTableRef.current) return;
-    headerTableRef.current.style.width = `${bodyTableRef.current.scrollWidth}px`;
-  }, [colWidths]);
 
   function syncHeaderScroll(e: UIEvent<HTMLDivElement>) {
     if (headerScrollRef.current) {
@@ -334,19 +312,19 @@ export function PiEntriesTable({
     }
   }
 
-  const colgroup = colWidths && (
+  const columnOrder = canEdit ? COLUMN_ORDER_WITH_ACTIONS : COLUMN_ORDER_NO_ACTIONS;
+  const colgroup = (
     <colgroup>
-      {colWidths.map((w, i) => (
-        <col key={i} style={{ width: w }} />
+      {columnOrder.map((col) => (
+        <col key={col} style={{ width: COL_WIDTHS[col] }} />
       ))}
     </colgroup>
   );
-  const dataTableClassName = colWidths ? 'data-table table-fixed' : 'data-table';
 
   return (
     <div className="card">
       <div className="table-header-scroll" ref={headerScrollRef}>
-        <table className={dataTableClassName} ref={headerTableRef}>
+        <table className="data-table">
           {colgroup}
           <thead>
             <tr>
@@ -377,8 +355,8 @@ export function PiEntriesTable({
           </thead>
         </table>
       </div>
-      <div className="table-body-scroll" ref={bodyScrollRef} onScroll={syncHeaderScroll}>
-        <table className={dataTableClassName} ref={bodyTableRef}>
+      <div className="table-body-scroll" onScroll={syncHeaderScroll}>
+        <table className="data-table">
           {colgroup}
         <tbody>
           {entries.length === 0 && !isAddingNew && (

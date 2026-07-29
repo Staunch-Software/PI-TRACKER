@@ -1,0 +1,32 @@
+# systemd unit for the FastAPI backend.
+#
+# Install:
+#   sudo cp deploy/pi-tracker-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pi-tracker-backend
+#
+# Adjust User/WorkingDirectory/paths below if you clone the repo somewhere other than
+# /opt/pi-tracker, or run it as a different Linux user.
+
+[Unit]
+Description=PI Follow-up Tracker backend (FastAPI/Uvicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=pitracker
+Group=pitracker
+WorkingDirectory=/opt/pi-tracker/backend
+EnvironmentFile=/opt/pi-tracker/backend/.env
+ExecStart=/opt/pi-tracker/backend/.venv/bin/gunicorn -k uvicorn.workers.UvicornWorker -w 2 --bind 127.0.0.1:8080 --timeout 120 app.main:app
+Restart=on-failure
+RestartSec=5
+
+# Basic hardening — harmless defaults for a service that only reads its own working
+# directory and talks to Postgres/Azure Blob over the network.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
