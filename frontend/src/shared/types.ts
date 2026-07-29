@@ -12,6 +12,7 @@ export interface User {
 export interface Vessel {
   id: string;
   name: string;
+  imoNumber: string | null;
   isActive: boolean;
 }
 

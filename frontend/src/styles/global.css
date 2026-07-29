@@ -148,7 +148,7 @@ a {
   box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 25;
 }
 
 .top-nav .brand {
@@ -581,6 +581,18 @@ tr.row-flash td {
   cursor: not-allowed;
 }
 
+/* Destructive actions (deactivate/delete) — uses TrashIcon (an inline SVG with
+   stroke="currentColor"), not an emoji, specifically so this color actually applies to it. */
+.icon-btn-danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+.icon-btn-danger:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: #fecaca;
+}
+
 tr.add-row-trigger {
   cursor: pointer;
   color: var(--color-primary);
@@ -695,14 +707,49 @@ tr.add-row-trigger:hover td {
   margin-top: 0;
 }
 
-/* Login page */
+/* Login page — split screen: hero image panel + form panel. The hero image
+   (frontend/src/assets/login-hero.png) already has the product name/tagline/description baked
+   in, so this panel is just the image — no separate HTML heading duplicating that text. */
 .login-page {
   min-height: 100%;
   display: flex;
+}
+
+.login-brand-panel {
+  flex: 1.1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  overflow: hidden;
+  /* Matches the image's own background gradient (sampled from its corners) so if the panel's
+     aspect ratio doesn't exactly match the image's, the letterboxed edges are seamless. */
+  background: linear-gradient(180deg, #00194f 0%, #002878 100%);
+}
+
+.login-hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.login-form-panel {
+  flex: 1;
+  min-width: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
+  background: var(--color-bg);
+}
+
+@media (max-width: 860px) {
+  .login-page {
+    flex-direction: column;
+  }
+  .login-brand-panel {
+    flex: none;
+    min-height: 240px;
+  }
 }
 
 .login-card {
@@ -714,15 +761,17 @@ tr.add-row-trigger:hover td {
   max-width: 380px;
 }
 
-.login-card h1 {
+.login-card h2 {
   font-size: 20px;
   margin: 0 0 4px;
+  text-align: center;
 }
 
 .login-card .subtitle {
   color: var(--color-text-muted);
   font-size: 13px;
   margin: 0 0 24px;
+  text-align: center;
 }
 
 .login-card form {
@@ -935,6 +984,16 @@ tr.add-row-trigger:hover td {
   font-weight: 600;
 }
 
+/* "+ Create User" / "+ Create Vessel" — highlighted only while their create modal is actually
+   open (tracked via AdminCreateModalContext, since the modal's own open/closed state lives in
+   AdminUsersPage/AdminVesselsPage, not in the URL — the ?new=1 query param that triggers it
+   gets stripped from the URL immediately after opening). Reuses .active's look. */
+.admin-nav-link.create.active {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 .admin-content {
   flex: 1;
   padding: 28px 32px;
@@ -987,7 +1046,12 @@ tr.add-row-trigger:hover td {
      top — important with larger page sizes (e.g. 50 rows/page) where the table runs long. */
   position: sticky;
   top: 56px;
-  z-index: 10;
+  /* Must outrank .table-header-scroll's z-index (10, in global.css) — position:sticky always
+     creates a new stacking context, so a tie here would be broken by DOM order (the table
+     header comes later in the DOM and would win), sending the status dropdown open below it
+     regardless of the dropdown panel's own z-index, which only matters within this element's
+     own stacking context. */
+  z-index: 20;
 }
 
 .toolbar-row .search-wrap {
@@ -1490,6 +1554,7 @@ table.data-table th.col-center {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 .dashboard-panel-header {
@@ -1522,12 +1587,21 @@ table.data-table th.col-center {
   text-decoration: underline;
 }
 
-.dashboard-mini-table {
+table.dashboard-mini-table {
+  table-layout: auto;
   white-space: normal;
 }
 .dashboard-mini-table th,
 .dashboard-mini-table td {
   padding: 8px 10px;
+}
+/* Sticky within .dashboard-panel-body (the nearest scrolling ancestor, overflow-y:auto) so the
+   column labels stay visible while scrolling through the overdue list. */
+table.dashboard-mini-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface);
 }
 .dashboard-mini-table tbody tr:hover {
   background: #f8fafc;

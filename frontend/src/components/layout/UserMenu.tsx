@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useRole } from '../../auth/useRole';
+import { ChangePasswordModal } from '../modals/ChangePasswordModal';
 
 export function UserMenu() {
   const { user, logout } = useAuth();
   const { isAdmin } = useRole();
   const [isOpen, setIsOpen] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -60,11 +62,21 @@ export function UserMenu() {
               Admin Panel
             </button>
           )}
+          <button
+            className="user-menu-item"
+            onClick={() => {
+              setIsOpen(false);
+              setIsChangingPassword(true);
+            }}
+          >
+            Change Password
+          </button>
           <button className="user-menu-item danger" onClick={() => logout()}>
             Log out
           </button>
         </div>
       )}
+      {isChangingPassword && <ChangePasswordModal onClose={() => setIsChangingPassword(false)} />}
     </div>
   );
 }

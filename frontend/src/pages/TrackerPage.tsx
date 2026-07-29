@@ -116,6 +116,10 @@ export function TrackerPage() {
     // instead of clearing the table to the "Loading tracker…" placeholder every click — that
     // full-table swap is what read as "the whole page reloading" when clicking a column header.
     placeholderData: keepPreviousData,
+    // Days Since Payment is computed live off CURRENT_DATE on the backend — refetch
+    // periodically so a tab left open still picks up the day rolling over instead of showing
+    // a stale snapshot until the next manual reload/refocus.
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / pageSize)) : 1;

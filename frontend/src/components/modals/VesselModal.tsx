@@ -11,13 +11,16 @@ interface Props {
 export function VesselModal({ vessel, onClose }: Props) {
   const isEdit = vessel !== null;
   const [name, setName] = useState(vessel?.name ?? '');
+  const [imoNumber, setImoNumber] = useState(vessel?.imoNumber ?? '');
   const [isActive, setIsActive] = useState(vessel?.isActive ?? true);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      isEdit ? api.patch<Vessel>(`/vessels/${vessel.id}`, { name, isActive }) : api.post<Vessel>('/vessels', { name }),
+      isEdit
+        ? api.patch<Vessel>(`/vessels/${vessel.id}`, { name, imoNumber, isActive })
+        : api.post<Vessel>('/vessels', { name, imoNumber }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-vessels'] });
       queryClient.invalidateQueries({ queryKey: ['vessels'] });
@@ -47,6 +50,10 @@ export function VesselModal({ vessel, onClose }: Props) {
             <div className="field">
               <label>Vessel Name</label>
               <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+            </div>
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>IMO Number</label>
+              <input value={imoNumber} onChange={(e) => setImoNumber(e.target.value)} placeholder="e.g. 9481219" required />
             </div>
             {isEdit && (
               <div className="field" style={{ marginTop: 14 }}>

@@ -7,11 +7,12 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
     create_session_token,
+    hash_password,
     verify_password,
 )
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.user import LoginRequest, UserOut
+from app.schemas.user import ChangePasswordRequest, LoginRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,3 +47,19 @@ def logout(response: Response) -> dict[str, bool]:
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    return {"ok": True}

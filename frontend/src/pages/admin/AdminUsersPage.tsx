@@ -6,12 +6,15 @@ import { api } from '../../lib/api';
 import type { User } from '../../shared';
 import { UserModal } from '../../components/modals/UserModal';
 import { formatDate } from '../../lib/format';
+import { TrashIcon } from '../../components/common/TrashIcon';
+import { useAdminCreateModal } from './AdminCreateModalContext';
 
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalUser, setModalUser] = useState<User | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const { setIsUsersCreateOpen } = useAdminCreateModal();
   const queryClient = useQueryClient();
 
   const usersQuery = useQuery({ queryKey: ['users'], queryFn: () => api.get<User[]>('/users') });
@@ -23,6 +26,14 @@ export function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
     },
   });
+
+  // Mirrors isAdding into shared context so the sidebar's "+ Create User" link can highlight
+  // only while this modal is actually open — reset on unmount too, so navigating away while
+  // it's open (e.g. clicking "Back to Tracker") doesn't leave a stale highlight behind.
+  useEffect(() => {
+    setIsUsersCreateOpen(isAdding);
+    return () => setIsUsersCreateOpen(false);
+  }, [isAdding, setIsUsersCreateOpen]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -91,12 +102,12 @@ export function AdminUsersPage() {
                       ✎
                     </button>
                     <button
-                      className="icon-btn"
+                      className={`icon-btn${u.isActive ? ' icon-btn-danger' : ''}`}
                       title={isSelf ? "You can't deactivate your own account" : u.isActive ? 'Deactivate' : 'Reactivate'}
                       onClick={() => handleDelete(u)}
                       disabled={deactivateMutation.isPending || isSelf}
                     >
-                      {u.isActive ? '🗑' : '↺'}
+                      {u.isActive ? <TrashIcon /> : '↺'}
                     </button>
                   </div>
                 </td>

@@ -161,18 +161,32 @@ sudo systemctl restart pi-tracker-backend
 
 (Nginx doesn't need restarting — it just serves whatever's currently in `/var/www/pi-tracker`.)
 
-## Adding a domain + HTTPS later
+## Domain + HTTPS
 
-Once you point a domain's DNS A record at the VM's public IP:
+This VM already has a wildcard TLS certificate for `*.ozellar.com` (`/etc/ssl/ozellar/`), shared
+across all the projects hosted here — no certbot issuance needed for a `*.ozellar.com`
+subdomain like this one. `deploy/nginx.conf` is already set up for `pitracker.ozellar.com` using
+that certificate: an HTTP→HTTPS redirect block plus the real HTTPS server block, matching the
+pattern the VM's other projects (`workplace.ozellar.com`, `drs.ozellar.com`, etc.) already use.
 
-1. Edit `/etc/nginx/sites-available/pi-tracker` and change `server_name _;` to
-   `server_name your-domain.com;`.
-2. Install certbot and get a certificate — it edits the nginx config for you to add HTTPS:
-   ```bash
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d your-domain.com
-   ```
-3. Update `backend/.env`: set `CORS_ALLOWED_ORIGIN=https://your-domain.com` and
+DNS for `ozellar.com` is not wildcarded — each subdomain needs its own explicit `A` record. Add
+one for `pitracker.ozellar.com` pointing at this VM's public IP (with whoever manages `ozellar.com`'s
+DNS), then once it resolves (`dig +short pitracker.ozellar.com` returns the VM's IP):
+
+1. `sudo cp deploy/nginx.conf /etc/nginx/sites-available/pi_tracker && sudo nginx -t && sudo systemctl reload nginx`
+2. Update `backend/.env`: set `CORS_ALLOWED_ORIGIN=https://pitracker.ozellar.com` and
    `ENVIRONMENT=production` (this is what turns the session cookie `Secure`, which now works
    correctly since you have HTTPS).
-4. `sudo systemctl restart pi-tracker-backend`
+3. `sudo systemctl restart pi_tracker`
+
+Note this config has no `default_server` / bare-IP fallback — like every other project here,
+it's only reachable via its own domain. If you were previously testing via the bare public IP
+before this domain existed, that stops working once this config is deployed (by design — matches
+how the rest of this VM's projects behave).
+
+If you ever need a brand-new domain that ISN'T a `*.ozellar.com` subdomain (so the existing
+wildcard cert doesn't cover it), use certbot instead:
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```

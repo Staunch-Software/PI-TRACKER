@@ -4,11 +4,14 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Vessel } from '../../shared';
 import { VesselModal } from '../../components/modals/VesselModal';
+import { TrashIcon } from '../../components/common/TrashIcon';
+import { useAdminCreateModal } from './AdminCreateModalContext';
 
 export function AdminVesselsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalVessel, setModalVessel] = useState<Vessel | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const { setIsVesselsCreateOpen } = useAdminCreateModal();
   const queryClient = useQueryClient();
 
   const vesselsQuery = useQuery({
@@ -24,6 +27,14 @@ export function AdminVesselsPage() {
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
     },
   });
+
+  // Mirrors isAdding into shared context so the sidebar's "+ Create Vessel" link can highlight
+  // only while this modal is actually open — reset on unmount too, so navigating away while
+  // it's open (e.g. clicking "Back to Tracker") doesn't leave a stale highlight behind.
+  useEffect(() => {
+    setIsVesselsCreateOpen(isAdding);
+    return () => setIsVesselsCreateOpen(false);
+  }, [isAdding, setIsVesselsCreateOpen]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -58,6 +69,7 @@ export function AdminVesselsPage() {
           <thead>
             <tr>
               <th>Vessel Name</th>
+              <th>IMO Number</th>
               <th>Status</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
@@ -66,6 +78,7 @@ export function AdminVesselsPage() {
             {(vesselsQuery.data ?? []).map((v) => (
               <tr key={v.id}>
                 <td>{v.name}</td>
+                <td>{v.imoNumber ?? '—'}</td>
                 <td>
                   <span
                     className="status-badge"
@@ -84,12 +97,12 @@ export function AdminVesselsPage() {
                       ✎
                     </button>
                     <button
-                      className="icon-btn"
+                      className={`icon-btn${v.isActive ? ' icon-btn-danger' : ''}`}
                       title={v.isActive ? 'Deactivate' : 'Reactivate'}
                       onClick={() => handleDelete(v)}
                       disabled={deactivateMutation.isPending}
                     >
-                      {v.isActive ? '🗑' : '↺'}
+                      {v.isActive ? <TrashIcon /> : '↺'}
                     </button>
                   </div>
                 </td>

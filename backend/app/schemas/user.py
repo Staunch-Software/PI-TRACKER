@@ -19,3 +19,8 @@ class UserOut(CamelModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class ChangePasswordRequest(CamelModel):
+    current_password: str
+    new_password: str

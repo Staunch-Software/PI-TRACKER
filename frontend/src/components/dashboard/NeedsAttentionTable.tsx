@@ -10,6 +10,9 @@ export function NeedsAttentionTable() {
   const overdueQuery = useQuery({
     queryKey: ['dashboard-overdue'],
     queryFn: () => api.get<OverdueEntry[]>('/dashboard/overdue?limit=10'),
+    // Days overdue is computed live off CURRENT_DATE on the backend — refetch periodically so
+    // a tab left open still picks up the day rolling over instead of showing a stale snapshot.
+    refetchInterval: 5 * 60 * 1000,
   });
 
   return (

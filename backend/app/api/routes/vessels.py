@@ -8,7 +8,7 @@ from app.core.enums import AuditAction, AuditEntityType, UserRole
 from app.db.session import get_db
 from app.models.user import User
 from app.models.vessel import Vessel
-from app.schemas.lookup import LookupCreateRequest, LookupUpdateRequest, VesselOut
+from app.schemas.lookup import VesselCreateRequest, VesselOut, VesselUpdateRequest
 from app.services.audit import diff_fields, write_audit_log
 
 router = APIRouter(prefix="/vessels", tags=["vessels"])
@@ -28,7 +28,7 @@ def list_vessels(
 
 @router.post("", response_model=VesselOut, status_code=status.HTTP_201_CREATED)
 def create_vessel(
-    payload: LookupCreateRequest,
+    payload: VesselCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
 ) -> Vessel:
@@ -36,7 +36,7 @@ def create_vessel(
     if existing:
         return existing
 
-    vessel = Vessel(name=payload.name, created_by=current_user.id)
+    vessel = Vessel(name=payload.name, imo_number=payload.imo_number, created_by=current_user.id)
     db.add(vessel)
     db.flush()
 
@@ -56,7 +56,7 @@ def create_vessel(
 @router.patch("/{vessel_id}", response_model=VesselOut)
 def update_vessel(
     vessel_id: uuid.UUID,
-    payload: LookupUpdateRequest,
+    payload: VesselUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Vessel:

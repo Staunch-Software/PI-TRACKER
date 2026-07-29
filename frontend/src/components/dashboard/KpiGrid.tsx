@@ -24,7 +24,15 @@ const TONE_VARS: Record<string, { bg: string; color: string }> = {
 };
 
 export function KpiGrid() {
-  const kpiQuery = useQuery({ queryKey: ['dashboard-kpis'], queryFn: () => api.get<DashboardKpis>('/dashboard/kpis') });
+  const kpiQuery = useQuery({
+    queryKey: ['dashboard-kpis'],
+    queryFn: () => api.get<DashboardKpis>('/dashboard/kpis'),
+    // Counts like "Overdue > 30 Days" are computed live off CURRENT_DATE on the backend, so
+    // they tick over at midnight even with nothing else changing — refetch periodically so a
+    // tab left open (no refocus/remount to trigger React Query's default refetch) still picks
+    // that up instead of showing yesterday's snapshot indefinitely.
+    refetchInterval: 5 * 60 * 1000,
+  });
 
   if (!kpiQuery.data) return null;
 

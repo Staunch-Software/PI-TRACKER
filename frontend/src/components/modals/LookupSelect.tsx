@@ -18,19 +18,25 @@ interface Props {
 }
 
 export function LookupSelect({ label, items, value, onChange, createPath, queryKey, compact = false }: Props) {
+  const isVessel = createPath === '/vessels';
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newImoNumber, setNewImoNumber] = useState('');
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => api.post<LookupItem>(createPath, { name }),
+    mutationFn: (name: string) =>
+      api.post<LookupItem>(createPath, isVessel ? { name, imoNumber: newImoNumber.trim() } : { name }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       onChange(created.id);
       setIsAdding(false);
       setNewName('');
+      setNewImoNumber('');
     },
   });
+
+  const canSave = newName.trim() && (!isVessel || newImoNumber.trim()) && !createMutation.isPending;
 
   const body = isAdding ? (
     <div style={{ display: 'flex', gap: 6 }}>
@@ -40,10 +46,18 @@ export function LookupSelect({ label, items, value, onChange, createPath, queryK
         onChange={(e) => setNewName(e.target.value)}
         placeholder={`New ${label.toLowerCase()} name`}
       />
+      {isVessel && (
+        <input
+          value={newImoNumber}
+          onChange={(e) => setNewImoNumber(e.target.value)}
+          placeholder="IMO number"
+          style={{ width: 120 }}
+        />
+      )}
       <button
         type="button"
         className="btn btn-secondary"
-        disabled={!newName.trim() || createMutation.isPending}
+        disabled={!canSave}
         onClick={() => createMutation.mutate(newName.trim())}
       >
         Save
