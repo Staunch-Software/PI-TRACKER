@@ -305,12 +305,17 @@ a {
   color: var(--color-danger);
 }
 
+/* No max-width cap — the top nav bar above it already spans the full viewport width, so
+   capping this at a fixed pixel value (previously 1600px) left growing, very visible empty
+   gutters on both sides the moment the effective viewport got wider than that, most noticeably
+   when the page is zoomed out (zooming out increases the viewport's *CSS pixel* width, so even
+   a normal-width monitor window can exceed a fixed cap once zoomed out enough). Every page here
+   (Tracker's table, Dashboard's panels, Feed's list) is either internally scrollable or a fluid
+   grid, so there's no readability reason to withhold the extra width once it's available. */
 .page-content {
   flex: 1;
   padding: 24px 28px;
-  max-width: 1600px;
   width: 100%;
-  margin: 0 auto;
 }
 
 .page-header {
@@ -1231,6 +1236,7 @@ table.data-table th.col-status {
 .expandable-cell-text {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   cursor: pointer;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 
 const POPOVER_WIDTH = 340;
@@ -69,7 +69,7 @@ export function ExpandableCell({ text, lines = 2 }: { text: string | null; lines
       <div
         className="expandable-cell-text"
         ref={textRef}
-        style={{ WebkitLineClamp: lines }}
+        style={{ WebkitLineClamp: lines, lineClamp: lines } as CSSProperties}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
