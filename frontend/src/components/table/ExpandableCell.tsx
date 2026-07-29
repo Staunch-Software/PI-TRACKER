@@ -4,8 +4,12 @@ import { createPortal } from 'react-dom';
 const POPOVER_WIDTH = 340;
 const VIEWPORT_MARGIN = 12;
 
-export function ExpandableCell({ text, width }: { text: string | null; width: number }) {
+export function ExpandableCell({ text, lines = 2 }: { text: string | null; lines?: number }) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  // Tracks whether the popover was opened by a click (stays open until an outside click) as
+  // opposed to just a hover preview (closes as soon as the mouse leaves) — otherwise a click
+  // to "pin" it open would get immediately undone by the mouseleave that follows.
+  const pinnedRef = useRef(false);
   const textRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -17,10 +21,12 @@ export function ExpandableCell({ text, width }: { text: string | null; width: nu
         textRef.current && !textRef.current.contains(target) &&
         popoverRef.current && !popoverRef.current.contains(target)
       ) {
+        pinnedRef.current = false;
         setPosition(null);
       }
     }
     function handleScroll() {
+      pinnedRef.current = false;
       setPosition(null);
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -33,20 +39,41 @@ export function ExpandableCell({ text, width }: { text: string | null; width: nu
 
   if (!text) return <>—</>;
 
-  function handleClick() {
-    if (position) {
-      setPosition(null);
-      return;
-    }
+  function computePosition() {
     const rect = textRef.current?.getBoundingClientRect();
     if (!rect) return;
     const left = Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - VIEWPORT_MARGIN);
     setPosition({ top: rect.bottom + 4, left: Math.max(VIEWPORT_MARGIN, left) });
   }
 
+  function handleClick() {
+    if (position) {
+      pinnedRef.current = false;
+      setPosition(null);
+      return;
+    }
+    pinnedRef.current = true;
+    computePosition();
+  }
+
+  function handleMouseEnter() {
+    if (!position) computePosition();
+  }
+
+  function handleMouseLeave() {
+    if (position && !pinnedRef.current) setPosition(null);
+  }
+
   return (
-    <div className="expandable-cell" style={{ width }}>
-      <div className="expandable-cell-text" ref={textRef} onClick={handleClick}>
+    <div className="expandable-cell">
+      <div
+        className="expandable-cell-text"
+        ref={textRef}
+        style={{ WebkitLineClamp: lines }}
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
         {text}
       </div>
       {position &&
@@ -55,6 +82,7 @@ export function ExpandableCell({ text, width }: { text: string | null; width: nu
             className="expandable-cell-popover"
             ref={popoverRef}
             style={{ top: position.top, left: position.left }}
+            onMouseLeave={handleMouseLeave}
           >
             {text}
           </div>,

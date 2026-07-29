@@ -1,4 +1,4 @@
-import { useRef, type UIEvent } from 'react';
+import { useEffect, useRef, type FocusEvent, type UIEvent } from 'react';
 import {
   Currency,
   FOLLOW_UP_STATUS_LABELS,
@@ -10,6 +10,7 @@ import {
 import type { PiEntryFormState } from '../../lib/piEntryForm';
 import { formatAmount, formatDate, formatDateTime } from '../../lib/format';
 import { LookupSelect } from '../modals/LookupSelect';
+import { SearchableSelect } from '../common/SearchableSelect';
 import { AttachmentCell } from './AttachmentCell';
 import { ExpandableCell } from './ExpandableCell';
 import { StatusBadge } from './StatusBadge';
@@ -20,7 +21,11 @@ import { StatusBadge } from './StatusBadge';
 const COL_WIDTH = {
   serviceDetails: 460,
   paymentReference: 340,
-  lastKnownRemark: 600,
+  // Sized for realistic remarks (2-line clamp via ExpandableCell) — the longest seen so far,
+  // "Final Invoice will be sent after Installation at Vizag- 22nd July 2026" (~72 chars), fits
+  // comfortably in 2 lines at this width. Was 600, which left a lot of dead space since most
+  // remarks are one short sentence.
+  lastKnownRemark: 300,
   notes: 340,
 };
 
@@ -38,7 +43,7 @@ const COL_WIDTHS = {
   invoiceNo: 130,
   dprDate: 110,
   vessel: 170,
-  vendor: 200,
+  vendor: 220,
   serviceDetails: COL_WIDTH.serviceDetails,
   amountInr: 130,
   fcAmount: 110,
@@ -46,7 +51,10 @@ const COL_WIDTHS = {
   paymentDate: 120,
   paymentReference: COL_WIDTH.paymentReference,
   daysSincePayment: 150,
-  followupStatus: 190,
+  // Wide enough for the longest label ("Pending - Discrepancy to Resolve") on one line without
+  // the badge getting silently hard-clipped — see .col-status in global.css for the overflow
+  // fallback that also guards against this if a future label ends up even longer.
+  followupStatus: 260,
   lastKnownRemark: COL_WIDTH.lastKnownRemark,
   reminder1: 140,
   reminder2: 140,
@@ -170,7 +178,7 @@ function EditableFields({
           queryKey="vessels"
         />
       </td>
-      <td style={{ minWidth: 200 }}>
+      <td className="col-vendor" style={{ minWidth: 220 }}>
         <LookupSelect
           compact
           label="Vendor"
@@ -182,11 +190,7 @@ function EditableFields({
         />
       </td>
       <td className="col-fixed-wide">
-        <input
-          value={form.serviceDetails}
-          onChange={(e) => onChange('serviceDetails', e.target.value)}
-          style={{ width: COL_WIDTH.serviceDetails }}
-        />
+        <input value={form.serviceDetails} onChange={(e) => onChange('serviceDetails', e.target.value)} />
       </td>
       <td>
         <input
@@ -207,44 +211,28 @@ function EditableFields({
         />
       </td>
       <td className="col-center">
-        <select value={form.currency} onChange={(e) => onChange('currency', e.target.value as Currency)}>
-          {Object.values(Currency).map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          options={Object.values(Currency).map((c) => ({ value: c, label: c }))}
+          value={form.currency}
+          onChange={(v) => onChange('currency', v as Currency)}
+        />
       </td>
       <td>
         <input type="date" value={form.paymentDate} onChange={(e) => onChange('paymentDate', e.target.value)} />
       </td>
       <td className="col-fixed">
-        <input
-          value={form.paymentReference}
-          onChange={(e) => onChange('paymentReference', e.target.value)}
-          style={{ width: COL_WIDTH.paymentReference }}
-        />
+        <input value={form.paymentReference} onChange={(e) => onChange('paymentReference', e.target.value)} />
       </td>
       <td className="col-center">—</td>
-      <td>
-        <select
+      <td className="col-status">
+        <SearchableSelect
+          options={Object.values(FollowUpStatus).map((s) => ({ value: s, label: FOLLOW_UP_STATUS_LABELS[s] }))}
           value={form.followupStatus}
-          onChange={(e) => onChange('followupStatus', e.target.value as FollowUpStatus)}
-          style={{ minWidth: 180 }}
-        >
-          {Object.values(FollowUpStatus).map((s) => (
-            <option key={s} value={s}>
-              {FOLLOW_UP_STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onChange('followupStatus', v as FollowUpStatus)}
+        />
       </td>
       <td className="col-fixed-xwide">
-        <input
-          value={form.lastKnownRemark}
-          onChange={(e) => onChange('lastKnownRemark', e.target.value)}
-          style={{ width: COL_WIDTH.lastKnownRemark }}
-        />
+        <input value={form.lastKnownRemark} onChange={(e) => onChange('lastKnownRemark', e.target.value)} />
       </td>
       <td className="col-center">
         <input
@@ -274,7 +262,7 @@ function EditableFields({
       <td className="col-center">—</td>
       <td className="col-center">—</td>
       <td className="col-fixed">
-        <input value={form.notes} onChange={(e) => onChange('notes', e.target.value)} style={{ width: COL_WIDTH.notes }} />
+        <input value={form.notes} onChange={(e) => onChange('notes', e.target.value)} />
       </td>
     </>
   );
@@ -305,10 +293,29 @@ export function PiEntriesTable({
   saveError,
 }: Props) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
 
   function syncHeaderScroll(e: UIEvent<HTMLDivElement>) {
     if (headerScrollRef.current) {
       headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  }
+
+  // Starting a new row always begins at its first field (DPR No.), so the table should be
+  // scrolled back to the leftmost column too — otherwise a user who'd scrolled right to check
+  // older columns would land on the new row still scrolled away from where they need to type.
+  useEffect(() => {
+    if (isAddingNew) {
+      bodyScrollRef.current?.scrollTo({ left: 0 });
+    }
+  }, [isAddingNew]);
+
+  // As focus moves between fields in the row being edited/added (via Tab or a click), bring the
+  // focused field into view horizontally — without this, a field past the visible width stays
+  // off-screen until the user manually scrolls the table right to find it.
+  function handleEditingFocus(e: FocusEvent<HTMLDivElement>) {
+    if (e.target.closest('tr.row-editing')) {
+      e.target.scrollIntoView({ inline: 'nearest', block: 'nearest' });
     }
   }
 
@@ -334,7 +341,7 @@ export function PiEntriesTable({
               <th>Invoice No.</th>
               <SortHeader column="dprDate" label="DPR Date" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>Vessel</th>
-              <th>Vendor</th>
+              <th className="col-vendor">Vendor</th>
               <th className="col-fixed-wide">Service Details</th>
               <SortHeader column="amountInr" label="Amount (INR)" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>FC Amount</th>
@@ -342,7 +349,7 @@ export function PiEntriesTable({
               <SortHeader column="paymentDate" label="Payment Date" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th className="col-fixed">Payment Reference</th>
               <SortHeader column="daysSincePayment" label="Days Since Payment" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="col-center" />
-              <SortHeader column="followupStatus" label="Follow-up Status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortHeader column="followupStatus" label="Follow-up Status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="col-status" />
               <th className="col-fixed-xwide">Last Known Remark</th>
               <th className="col-center">Reminder 1 Sent</th>
               <th className="col-center">Reminder 2 Sent</th>
@@ -355,7 +362,7 @@ export function PiEntriesTable({
           </thead>
         </table>
       </div>
-      <div className="table-body-scroll" onScroll={syncHeaderScroll}>
+      <div className="table-body-scroll" ref={bodyScrollRef} onScroll={syncHeaderScroll} onFocus={handleEditingFocus}>
         <table className="data-table">
           {colgroup}
         <tbody>
@@ -422,23 +429,25 @@ export function PiEntriesTable({
                     <td>{entry.invoiceNo ?? '—'}</td>
                     <td>{formatDate(entry.dprDate)}</td>
                     <td>{entry.vesselName}</td>
-                    <td>{entry.vendorName}</td>
+                    <td className="col-vendor">
+                      <ExpandableCell text={entry.vendorName} />
+                    </td>
                     <td className="col-fixed-wide">
-                      <ExpandableCell text={entry.serviceDetails} width={COL_WIDTH.serviceDetails} />
+                      <ExpandableCell text={entry.serviceDetails} />
                     </td>
                     <td>{formatAmount(entry.amountInr)}</td>
                     <td>{formatAmount(entry.fcAmount)}</td>
                     <td className="col-center">{entry.currency}</td>
                     <td>{formatDate(entry.paymentDate)}</td>
                     <td className="col-fixed">
-                      <ExpandableCell text={entry.paymentReference} width={COL_WIDTH.paymentReference} />
+                      <ExpandableCell text={entry.paymentReference} />
                     </td>
                     <td className="col-center">{entry.daysSincePayment ?? '—'}</td>
-                    <td>
+                    <td className="col-status">
                       <StatusBadge status={entry.followupStatus} />
                     </td>
                     <td className="col-fixed-xwide">
-                      <ExpandableCell text={entry.lastKnownRemark} width={COL_WIDTH.lastKnownRemark} />
+                      <ExpandableCell text={entry.lastKnownRemark} />
                     </td>
                     <td className="col-center">{formatDate(entry.reminder1SentDate)}</td>
                     <td className="col-center">{formatDate(entry.reminder2SentDate)}</td>
@@ -447,7 +456,7 @@ export function PiEntriesTable({
                     <td className="col-center">{entry.attachedByName ?? '—'}</td>
                     <td className="col-center">{formatDateTime(entry.dateAttached)}</td>
                     <td className="col-fixed">
-                      <ExpandableCell text={entry.notes} width={COL_WIDTH.notes} />
+                      <ExpandableCell text={entry.notes} />
                     </td>
                   </>
                 )}

@@ -827,6 +827,23 @@ tr.add-row-trigger:hover td {
   font-size: 13px;
 }
 
+/* Unread count badge on the Feed page's "Unread" tab */
+.unread-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* Feed */
 .feed-list {
   display: flex;
@@ -841,7 +858,7 @@ tr.add-row-trigger:hover td {
   overflow-y: auto;
   background: var(--color-bg);
   border-radius: var(--radius);
-  padding: 12px;
+  padding: 20px;
 }
 
 /* Each entry is its own card with breathing room between them, not a bordered list row. */
@@ -1164,11 +1181,12 @@ table.data-table th.col-fixed-wide {
   white-space: normal;
 }
 
-/* Widest fixed column (Last Known Remark) */
+/* Last Known Remark — sized for a short remark sentence, not a paragraph (see COL_WIDTH.lastKnownRemark
+   in PiEntriesTable.tsx for the sizing rationale) */
 table.data-table td.col-fixed-xwide,
 table.data-table th.col-fixed-xwide {
-  width: 600px;
-  max-width: 600px;
+  width: 300px;
+  max-width: 300px;
   white-space: normal;
 }
 
@@ -1179,8 +1197,35 @@ table.data-table th.col-center {
   text-align: center;
 }
 
+/* Vendor column — sized for realistic vendor names, wraps to 2 lines via ExpandableCell
+   instead of hard-clipping, with the full name reachable on hover/click. */
+table.data-table td.col-vendor,
+table.data-table th.col-vendor {
+  width: 220px;
+  max-width: 220px;
+  white-space: normal;
+}
+
+/* Follow-up Status column — wide enough for the longest label ("Pending - Discrepancy to
+   Resolve") on one line. overflow:visible is a fallback only: if a future label is ever even
+   longer than this width accounts for, the pill spills into view instead of getting silently
+   hard-clipped with no ellipsis (which is what the default td overflow rule did here before —
+   ellipsis doesn't apply cleanly to a nested inline-flex badge). */
+table.data-table td.col-status,
+table.data-table th.col-status {
+  overflow: visible;
+}
+
+/* Fills the <td>'s own content box exactly (width:100%, not a hardcoded pixel value matching
+   the column's outer width) — the td already has padding, so a width equal to the column's full
+   outer width would be ~24px wider than what's actually visible inside the td, causing text to
+   size its wrapping for the wider box while only the narrower area painted. That mismatch let
+   text sit on one line "unwrapped" (line-clamp had no overflow to truncate) and get hard-clipped
+   by the td's own overflow:hidden with no ellipsis — read as the text "colliding" with the next
+   column since there was no visible space or "…" where it cut off. */
 .expandable-cell {
   position: relative;
+  width: 100%;
 }
 
 .expandable-cell-text {
@@ -1280,6 +1325,102 @@ table.data-table th.col-center {
 .multi-select-list {
   max-height: 152px;
   overflow-y: auto;
+}
+
+/* Searchable single-select (Vessel/Vendor/Currency/Follow-up Status inline table editors) —
+   replaces the browser's native <select> popup, which can't be styled, capped to a few visible
+   rows, or given a search box. Rendered via a portal into document.body (position:fixed), same
+   approach as ExpandableCell's popover, so it isn't clipped by the table's own scroll container. */
+.searchable-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.searchable-select-trigger:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.searchable-select-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.searchable-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-select-placeholder {
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-select-caret {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.searchable-select-panel {
+  position: fixed;
+  z-index: 300;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.searchable-select-search {
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 10px;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+/* Deliberately capped to show only ~4 options at a time (see VISIBLE_OPTIONS in
+   SearchableSelect.tsx) — the rest scroll into view, so the panel's size stays predictable
+   regardless of how many vessels/vendors/statuses exist. */
+.searchable-select-list {
+  overflow-y: auto;
+}
+
+.searchable-select-option {
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.searchable-select-option:hover {
+  background: #f8fafc;
+}
+.searchable-select-option.selected {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.searchable-select-empty {
+  padding: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 /* Evidence Gallery (attachment viewer) */

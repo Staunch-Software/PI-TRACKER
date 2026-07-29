@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface LookupItem {
   id: string;
@@ -68,16 +69,14 @@ export function LookupSelect({ label, items, value, onChange, createPath, queryK
     </div>
   ) : (
     <div style={{ display: 'flex', gap: 6 }}>
-      <select value={value} onChange={(e) => onChange(e.target.value)} required style={{ flex: 1 }}>
-        <option value="" disabled>
-          Select {label.toLowerCase()}…
-        </option>
-        {items.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <SearchableSelect
+          options={items.map((item) => ({ value: item.id, label: item.name }))}
+          value={value}
+          onChange={onChange}
+          placeholder={`Select ${label.toLowerCase()}…`}
+        />
+      </div>
       <button type="button" className="btn btn-secondary" onClick={() => setIsAdding(true)}>
         + New
       </button>

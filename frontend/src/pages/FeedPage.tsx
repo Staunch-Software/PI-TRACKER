@@ -61,9 +61,21 @@ export function FeedPage() {
     queryFn: () => api.get<PaginatedResult<AuditLogEntry>>(`/audit-log?${params.toString()}`),
   });
 
+  // Independent of the tab/search/vessel/action/date filters above — this is the total unread
+  // count across the whole feed, for the badge next to the "Unread" tab, not just whatever the
+  // current filters happen to match. page_size=1 since only `total` is needed, not the rows.
+  const unreadCountQuery = useQuery({
+    queryKey: ['audit-log-unread-count'],
+    queryFn: () => api.get<PaginatedResult<AuditLogEntry>>('/audit-log?read_state=unread&page=1&page_size=1'),
+  });
+  const unreadCount = unreadCountQuery.data?.total ?? 0;
+
   const markReadMutation = useMutation({
     mutationFn: (id: number) => api.post(`/audit-log/${id}/read`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['audit-log'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['audit-log'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-log-unread-count'] });
+    },
   });
 
   function handleView(item: AuditLogEntry) {
@@ -97,6 +109,7 @@ export function FeedPage() {
               onClick={() => resetPage(setReadTab)(tab)}
             >
               {tab === 'all' ? 'All' : tab === 'unread' ? 'Unread' : 'Read'}
+              {tab === 'unread' && unreadCount > 0 && <span className="unread-count-badge">{unreadCount}</span>}
             </button>
           ))}
         </div>
