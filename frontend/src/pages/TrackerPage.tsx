@@ -17,14 +17,45 @@ import {
   type Vendor,
   type Vessel,
 } from '../shared';
-import { PiEntriesTable, type SortColumn } from '../components/table/PiEntriesTable';
+import {
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_COL_WIDTHS,
+  PiEntriesTable,
+  type ReorderableColumnKey,
+  type SortColumn,
+} from '../components/table/PiEntriesTable';
 import { MultiSelectDropdown } from '../components/common/MultiSelectDropdown';
 import { SearchIcon } from '../components/common/SearchIcon';
 import { ImportWizardModal } from '../components/modals/ImportWizardModal';
 
 const STATUS_OPTIONS = Object.values(FollowUpStatus).map((s) => ({ value: s, label: FOLLOW_UP_STATUS_LABELS[s] }));
 
-const PAGE_SIZE_OPTIONS = [10, 15, 20, 25, 50];
+const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
+const MIN_PAGE_SIZE = 5;
+const MAX_PAGE_SIZE = 1000;
+
+interface TableLayoutPreference {
+  tableKey: string;
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+  pageSize: number | null;
+}
+
+function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableColumnKey[] {
+  const known = new Set<string>(DEFAULT_COLUMN_ORDER);
+  const filtered = (saved ?? []).filter((k): k is ReorderableColumnKey => known.has(k));
+  const missing = DEFAULT_COLUMN_ORDER.filter((k) => !filtered.includes(k));
+  return [...filtered, ...missing];
+}
+
+function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const key of DEFAULT_COLUMN_ORDER) {
+    const w = saved?.[key];
+    result[key] = typeof w === 'number' && w >= 60 && w <= 1000 ? w : DEFAULT_COL_WIDTHS[key];
+  }
+  return result;
+}
 
 export function TrackerPage() {
   const { canEdit } = useRole();
@@ -32,10 +63,17 @@ export function TrackerPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FollowUpStatus[]>([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
+  const [customPageSizeInput, setCustomPageSizeInput] = useState('');
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [isImporting, setIsImporting] = useState(false);
+
+  const [layoutEditable, setLayoutEditable] = useState(false);
+  const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
+  const [savedColumnWidths, setSavedColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS });
+  const [columnOrder, setColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<PiEntryFormState | null>(null);
@@ -72,6 +110,61 @@ export function TrackerPage() {
 
   const vesselsQuery = useQuery({ queryKey: ['vessels'], queryFn: () => api.get<Vessel[]>('/vessels') });
   const vendorsQuery = useQuery({ queryKey: ['vendors'], queryFn: () => api.get<Vendor[]>('/vendors') });
+
+  const tableLayoutQuery = useQuery({
+    queryKey: ['table-layout', 'pi_entries'],
+    queryFn: () => api.get<TableLayoutPreference | null>('/table-layout/pi_entries'),
+  });
+
+  // Seed the column layout and page size from the user's saved preference once it loads —
+  // sanitized against the current known columns so a stale/edited-elsewhere layout (missing a
+  // column, or naming one that no longer exists) degrades gracefully instead of breaking.
+  useEffect(() => {
+    if (tableLayoutQuery.data === undefined) return;
+    const order = sanitizeColumnOrder(tableLayoutQuery.data?.columnOrder);
+    const widths = sanitizeColumnWidths(tableLayoutQuery.data?.columnWidths);
+    setSavedColumnOrder(order);
+    setSavedColumnWidths(widths);
+    setColumnOrder(order);
+    setColumnWidths(widths);
+    if (tableLayoutQuery.data?.pageSize) {
+      setPageSize(tableLayoutQuery.data.pageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableLayoutQuery.data]);
+
+  const saveLayoutMutation = useMutation({
+    mutationFn: () => api.put<TableLayoutPreference>('/table-layout/pi_entries', { columnOrder, columnWidths }),
+    onSuccess: () => {
+      setSavedColumnOrder(columnOrder);
+      setSavedColumnWidths(columnWidths);
+      setLayoutEditable(false);
+    },
+  });
+
+  const savePageSizeMutation = useMutation({
+    mutationFn: (size: number) => api.put<TableLayoutPreference>('/table-layout/pi_entries', { pageSize: size }),
+  });
+
+  function startLayoutEdit() {
+    cancelEdit();
+    cancelAdd();
+    setLayoutEditable(true);
+  }
+
+  function cancelLayoutEdit() {
+    setColumnOrder(savedColumnOrder);
+    setColumnWidths(savedColumnWidths);
+    setLayoutEditable(false);
+  }
+
+  function applyPageSize(size: number) {
+    const clamped = Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, Math.round(size)));
+    setPageSize(clamped);
+    setPage(1);
+    setCustomPageSizeInput('');
+    savePageSizeMutation.mutate(clamped);
+  }
 
   // Deep link from the Activity Feed's "View" button (?entryId=...) — keeps the list exactly
   // as it normally looks (no filtering), jumps to whichever page the entry actually falls on,
@@ -226,9 +319,23 @@ export function TrackerPage() {
             {/* <button className="btn btn-secondary" onClick={() => setIsImporting(true)}>
               ⇪ Import from Excel
             </button> */}
-            <button className="btn btn-primary" onClick={startAdd} disabled={isAddingNew}>
+            <button className="btn btn-primary" onClick={startAdd} disabled={isAddingNew || layoutEditable}>
               + Add New PI
             </button>
+            {layoutEditable ? (
+              <>
+                <button className="btn btn-primary" onClick={() => saveLayoutMutation.mutate()} disabled={saveLayoutMutation.isPending}>
+                  {saveLayoutMutation.isPending ? 'Saving…' : 'Save Layout'}
+                </button>
+                <button className="btn btn-secondary" onClick={cancelLayoutEdit}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-secondary" onClick={startLayoutEdit} disabled={isAddingNew || editingId !== null}>
+                ⚙ Edit Layout
+              </button>
+            )}
           </>
         )}
       </div>
@@ -267,6 +374,11 @@ export function TrackerPage() {
               onCancelNew={cancelAdd}
               isSavingNew={addMutation.isPending}
               saveError={saveError}
+              columnOrder={columnOrder}
+              columnWidths={columnWidths}
+              layoutEditable={layoutEditable}
+              onReorderColumn={setColumnOrder}
+              onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
             />
           </div>
           <div className="pagination">
@@ -275,18 +387,40 @@ export function TrackerPage() {
               <select
                 id="page-size"
                 className="page-size-select"
-                value={pageSize}
+                value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
                 onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
+                  if (e.target.value) applyPageSize(Number(e.target.value));
                 }}
               >
+                {!PAGE_SIZE_OPTIONS.includes(pageSize) && (
+                  <option value="">{pageSize} (custom)</option>
+                )}
                 {PAGE_SIZE_OPTIONS.map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
                 ))}
               </select>
+              <input
+                type="number"
+                className="page-size-custom-input"
+                placeholder="Custom"
+                min={MIN_PAGE_SIZE}
+                max={MAX_PAGE_SIZE}
+                value={customPageSizeInput}
+                onChange={(e) => setCustomPageSizeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customPageSizeInput) applyPageSize(Number(customPageSizeInput));
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary page-size-apply-btn"
+                onClick={() => customPageSizeInput && applyPageSize(Number(customPageSizeInput))}
+                disabled={!customPageSizeInput}
+              >
+                Set
+              </button>
             </div>
             <span>
               Page {page} of {totalPages}

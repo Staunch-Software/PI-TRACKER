@@ -509,6 +509,33 @@ table.data-table th.sortable-col:hover {
   color: var(--color-text-muted);
 }
 
+/* Edit Layout mode: draggable-to-reorder, resizable header cells */
+table.data-table th.col-layout-editable {
+  position: relative;
+  cursor: grab;
+  background: #eef2ff;
+}
+table.data-table th.col-layout-editable:active {
+  cursor: grabbing;
+}
+table.data-table th.col-drag-over {
+  background: #c7d2fe;
+}
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  background: var(--color-accent);
+  opacity: 0.5;
+}
+
 /* Inline row editing */
 tr.row-editing td {
   background: #fffbeb;
@@ -1168,6 +1195,20 @@ tr.add-row-trigger:hover td {
 }
 .page-size-select:hover {
   border-color: var(--color-accent);
+}
+
+.page-size-custom-input {
+  width: 72px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-text);
+  background: #fff;
+}
+.page-size-apply-btn {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 /* Fixed-width, clamped columns (Payment Reference, Notes) */

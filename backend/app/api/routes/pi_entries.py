@@ -61,7 +61,7 @@ def list_pi_entries(
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=50, ge=1, le=1000),
 ) -> dict:
     where_clauses = []
     params: dict = {}
