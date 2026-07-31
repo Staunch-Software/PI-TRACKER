@@ -1206,23 +1206,20 @@ tr.add-row-trigger:hover td {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-border);
 }
+/* Grid, not flex — each of the 3 rows (DPR/Payment/Invoice) has different label text lengths
+   ("DPR From" vs "Payment From"), so flex-basis let each row size its own fields independently,
+   leaving the columns (and the clear button) misaligned row to row. A shared grid forces every
+   row onto identical column tracks regardless of label length. */
 .more-filters-dates {
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr 1fr 24px;
+  gap: 10px;
+  align-items: center;
 }
 .date-range-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-/* Fixed (not flex-grown) width — a date field's content is always the same compact shape, so
-   letting it stretch to fill the popover's row just spreads the typed value and calendar icon
-   further apart, leaving dead space before the clear "×" button. */
-.date-range-group .date-range-field {
-  flex: 0 0 170px;
+  display: contents;
 }
 .date-range-clear {
-  flex: 0 0 auto;
   width: 24px;
   height: 24px;
   border: none;

@@ -517,16 +517,15 @@ export function TrackerPage() {
                 <label>DPR To</label>
                 <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
               </div>
-              {(filters.dprDateFrom || filters.dprDateTo) && (
-                <button
-                  type="button"
-                  className="date-range-clear"
-                  title="Clear DPR date range"
-                  onClick={() => clearDateRange('dprDateFrom', 'dprDateTo')}
-                >
-                  ×
-                </button>
-              )}
+              <button
+                type="button"
+                className="date-range-clear"
+                style={{ visibility: filters.dprDateFrom || filters.dprDateTo ? 'visible' : 'hidden' }}
+                title="Clear DPR date range"
+                onClick={() => clearDateRange('dprDateFrom', 'dprDateTo')}
+              >
+                ×
+              </button>
             </div>
             <div className="date-range-group">
               <div className="date-range-field">
@@ -537,16 +536,15 @@ export function TrackerPage() {
                 <label>Payment To</label>
                 <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
               </div>
-              {(filters.paymentDateFrom || filters.paymentDateTo) && (
-                <button
-                  type="button"
-                  className="date-range-clear"
-                  title="Clear payment date range"
-                  onClick={() => clearDateRange('paymentDateFrom', 'paymentDateTo')}
-                >
-                  ×
-                </button>
-              )}
+              <button
+                type="button"
+                className="date-range-clear"
+                style={{ visibility: filters.paymentDateFrom || filters.paymentDateTo ? 'visible' : 'hidden' }}
+                title="Clear payment date range"
+                onClick={() => clearDateRange('paymentDateFrom', 'paymentDateTo')}
+              >
+                ×
+              </button>
             </div>
             <div className="date-range-group">
               <div className="date-range-field">
@@ -557,16 +555,15 @@ export function TrackerPage() {
                 <label>Invoice To</label>
                 <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
               </div>
-              {(filters.invoiceDateFrom || filters.invoiceDateTo) && (
-                <button
-                  type="button"
-                  className="date-range-clear"
-                  title="Clear invoice date range"
-                  onClick={() => clearDateRange('invoiceDateFrom', 'invoiceDateTo')}
-                >
-                  ×
-                </button>
-              )}
+              <button
+                type="button"
+                className="date-range-clear"
+                style={{ visibility: filters.invoiceDateFrom || filters.invoiceDateTo ? 'visible' : 'hidden' }}
+                title="Clear invoice date range"
+                onClick={() => clearDateRange('invoiceDateFrom', 'invoiceDateTo')}
+              >
+                ×
+              </button>
             </div>
           </div>
         </MoreFiltersPopover>
