@@ -305,6 +305,18 @@ export function TrackerPage() {
     updateFilters({ [field]: !filters[field] });
   }
 
+  // Clears every filter (search, status, vessel/vendor, both chips, all 6 dates) back to
+  // defaults in one go — distinct from clearing a single date pair below.
+  function clearAllFilters() {
+    setPage(1);
+    setFilters(DEFAULT_FILTERS);
+  }
+
+  // Clears just one date-range pair's From/To fields, leaving every other filter untouched.
+  function clearDateRange(fromField: keyof TrackerFilters, toField: keyof TrackerFilters) {
+    updateFilters({ [fromField]: '', [toField]: '' });
+  }
+
   // Deep link from the Activity Feed's "View" button (?entryId=...) — keeps the list exactly
   // as it normally looks (no filtering), jumps to whichever page the entry actually falls on,
   // and briefly flashes its row so it's obvious which one was clicked.
@@ -437,6 +449,10 @@ export function TrackerPage() {
       filters.invoiceDateTo,
     ].filter(Boolean).length;
 
+  // Drives the toolbar-level "Clear all" button — active if ANY filter is set, including
+  // Search/Status which live outside the More filters popover.
+  const hasAnyActiveFilter = filters.search !== '' || filters.status.length > 0 || moreFiltersActiveCount > 0;
+
   return (
     <div>
       <div className="toolbar-row" ref={toolbarRef}>
@@ -455,6 +471,11 @@ export function TrackerPage() {
           onChange={(next) => updateFilters({ status: next as FollowUpStatus[] })}
           allLabel="All statuses"
         />
+        {hasAnyActiveFilter && (
+          <button type="button" className="btn btn-secondary" onClick={clearAllFilters}>
+            Clear all filters
+          </button>
+        )}
         <MoreFiltersPopover activeCount={moreFiltersActiveCount}>
           <div className="more-filters-section">
             <MultiSelectDropdown
@@ -487,29 +508,65 @@ export function TrackerPage() {
             </button>
           </div>
           <div className="more-filters-section more-filters-dates">
-            <div className="date-range-field">
-              <label>DPR From</label>
-              <input type="date" value={filters.dprDateFrom} onChange={(e) => updateFilters({ dprDateFrom: e.target.value })} />
+            <div className="date-range-group">
+              <div className="date-range-field">
+                <label>DPR From</label>
+                <input type="date" value={filters.dprDateFrom} onChange={(e) => updateFilters({ dprDateFrom: e.target.value })} />
+              </div>
+              <div className="date-range-field">
+                <label>DPR To</label>
+                <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
+              </div>
+              {(filters.dprDateFrom || filters.dprDateTo) && (
+                <button
+                  type="button"
+                  className="date-range-clear"
+                  title="Clear DPR date range"
+                  onClick={() => clearDateRange('dprDateFrom', 'dprDateTo')}
+                >
+                  ×
+                </button>
+              )}
             </div>
-            <div className="date-range-field">
-              <label>DPR To</label>
-              <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
+            <div className="date-range-group">
+              <div className="date-range-field">
+                <label>Payment From</label>
+                <input type="date" value={filters.paymentDateFrom} onChange={(e) => updateFilters({ paymentDateFrom: e.target.value })} />
+              </div>
+              <div className="date-range-field">
+                <label>Payment To</label>
+                <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
+              </div>
+              {(filters.paymentDateFrom || filters.paymentDateTo) && (
+                <button
+                  type="button"
+                  className="date-range-clear"
+                  title="Clear payment date range"
+                  onClick={() => clearDateRange('paymentDateFrom', 'paymentDateTo')}
+                >
+                  ×
+                </button>
+              )}
             </div>
-            <div className="date-range-field">
-              <label>Payment From</label>
-              <input type="date" value={filters.paymentDateFrom} onChange={(e) => updateFilters({ paymentDateFrom: e.target.value })} />
-            </div>
-            <div className="date-range-field">
-              <label>Payment To</label>
-              <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
-            </div>
-            <div className="date-range-field">
-              <label>Invoice From</label>
-              <input type="date" value={filters.invoiceDateFrom} onChange={(e) => updateFilters({ invoiceDateFrom: e.target.value })} />
-            </div>
-            <div className="date-range-field">
-              <label>Invoice To</label>
-              <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
+            <div className="date-range-group">
+              <div className="date-range-field">
+                <label>Invoice From</label>
+                <input type="date" value={filters.invoiceDateFrom} onChange={(e) => updateFilters({ invoiceDateFrom: e.target.value })} />
+              </div>
+              <div className="date-range-field">
+                <label>Invoice To</label>
+                <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
+              </div>
+              {(filters.invoiceDateFrom || filters.invoiceDateTo) && (
+                <button
+                  type="button"
+                  className="date-range-clear"
+                  title="Clear invoice date range"
+                  onClick={() => clearDateRange('invoiceDateFrom', 'invoiceDateTo')}
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
         </MoreFiltersPopover>

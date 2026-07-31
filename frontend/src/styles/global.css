@@ -1209,6 +1209,34 @@ tr.add-row-trigger:hover td {
 .more-filters-dates .date-range-field {
   flex: 1 1 150px;
 }
+.more-filters-dates {
+  flex-direction: column;
+  align-items: stretch;
+}
+.date-range-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.date-range-group .date-range-field {
+  flex: 1 1 150px;
+}
+.date-range-clear {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.date-range-clear:hover {
+  background: #f1f5f9;
+  color: var(--color-text);
+}
 
 /* Quick-filter chips (e.g. "Overdue > 30 days") — small toggle pills, active state mirrors
    StatusBadge's CSS-var-driven styling for visual consistency with the rest of the tracker. */
