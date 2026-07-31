@@ -19,4 +19,5 @@ class TableLayoutPreference(Base):
     column_order: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     column_widths: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     page_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    filters: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now(), onupdate=func.now())

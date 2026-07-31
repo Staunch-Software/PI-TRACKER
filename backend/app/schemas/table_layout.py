@@ -6,9 +6,11 @@ class TableLayoutPreferenceOut(CamelModel):
     column_order: list[str]
     column_widths: dict[str, int]
     page_size: int | None
+    filters: dict
 
 
 class TableLayoutPreferenceUpsertRequest(CamelModel):
     column_order: list[str] | None = None
     column_widths: dict[str, int] | None = None
     page_size: int | None = None
+    filters: dict | None = None

@@ -10,6 +10,7 @@ import {
   type PiEntryFormState,
 } from '../lib/piEntryForm';
 import {
+  Currency,
   FOLLOW_UP_STATUS_LABELS,
   FollowUpStatus,
   type PaginatedResult,
@@ -39,6 +40,94 @@ interface TableLayoutPreference {
   columnOrder: string[];
   columnWidths: Record<string, number>;
   pageSize: number | null;
+  filters: Partial<TrackerFilters> | null;
+}
+
+// The full set of tracker filters — mirrored to the URL (so a filtered view is shareable/
+// bookmarkable) and auto-saved per user (so it survives a refresh or a new session). Query param
+// names on the wire match backend/app/api/routes/pi_entries.py's query params 1:1.
+interface TrackerFilters {
+  search: string;
+  status: FollowUpStatus[];
+  vesselIds: string[];
+  vendorIds: string[];
+  currencies: Currency[];
+  overdue: boolean;
+  noInvoiceAttached: boolean;
+  dprDateFrom: string;
+  dprDateTo: string;
+  paymentDateFrom: string;
+  paymentDateTo: string;
+  invoiceDateFrom: string;
+  invoiceDateTo: string;
+}
+
+const DEFAULT_FILTERS: TrackerFilters = {
+  search: '',
+  status: [],
+  vesselIds: [],
+  vendorIds: [],
+  currencies: [],
+  overdue: false,
+  noInvoiceAttached: false,
+  dprDateFrom: '',
+  dprDateTo: '',
+  paymentDateFrom: '',
+  paymentDateTo: '',
+  invoiceDateFrom: '',
+  invoiceDateTo: '',
+};
+
+// Only returns keys actually present in the URL — callers merge this over defaults/saved
+// preferences, so an absent param means "not specified here", not "explicitly cleared".
+function readFiltersFromParams(sp: URLSearchParams): Partial<TrackerFilters> {
+  const result: Partial<TrackerFilters> = {};
+  if (sp.has('search')) result.search = sp.get('search') ?? '';
+  if (sp.has('status')) result.status = sp.getAll('status') as FollowUpStatus[];
+  if (sp.has('vessel_id')) result.vesselIds = sp.getAll('vessel_id');
+  if (sp.has('vendor_id')) result.vendorIds = sp.getAll('vendor_id');
+  if (sp.has('currency')) result.currencies = sp.getAll('currency') as Currency[];
+  if (sp.has('overdue')) result.overdue = sp.get('overdue') === 'true';
+  if (sp.has('no_invoice_attached')) result.noInvoiceAttached = sp.get('no_invoice_attached') === 'true';
+  if (sp.has('dpr_date_from')) result.dprDateFrom = sp.get('dpr_date_from') ?? '';
+  if (sp.has('dpr_date_to')) result.dprDateTo = sp.get('dpr_date_to') ?? '';
+  if (sp.has('payment_date_from')) result.paymentDateFrom = sp.get('payment_date_from') ?? '';
+  if (sp.has('payment_date_to')) result.paymentDateTo = sp.get('payment_date_to') ?? '';
+  if (sp.has('invoice_date_from')) result.invoiceDateFrom = sp.get('invoice_date_from') ?? '';
+  if (sp.has('invoice_date_to')) result.invoiceDateTo = sp.get('invoice_date_to') ?? '';
+  return result;
+}
+
+// Builds the query params shared by both the actual API fetch and the URL-sync effect below —
+// the backend's query param names were designed to match these 1:1, so one function serves both.
+function buildQueryParams(
+  filters: TrackerFilters,
+  sortBy: SortColumn | null,
+  sortDir: 'asc' | 'desc',
+  page: number,
+  pageSize: number
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  filters.status.forEach((s) => params.append('status', s));
+  filters.vesselIds.forEach((v) => params.append('vessel_id', v));
+  filters.vendorIds.forEach((v) => params.append('vendor_id', v));
+  filters.currencies.forEach((c) => params.append('currency', c));
+  if (filters.overdue) params.set('overdue', 'true');
+  if (filters.noInvoiceAttached) params.set('no_invoice_attached', 'true');
+  if (filters.dprDateFrom) params.set('dpr_date_from', filters.dprDateFrom);
+  if (filters.dprDateTo) params.set('dpr_date_to', filters.dprDateTo);
+  if (filters.paymentDateFrom) params.set('payment_date_from', filters.paymentDateFrom);
+  if (filters.paymentDateTo) params.set('payment_date_to', filters.paymentDateTo);
+  if (filters.invoiceDateFrom) params.set('invoice_date_from', filters.invoiceDateFrom);
+  if (filters.invoiceDateTo) params.set('invoice_date_to', filters.invoiceDateTo);
+  if (sortBy) {
+    params.set('sort_by', sortBy);
+    params.set('sort_dir', sortDir);
+  }
+  params.set('page', String(page));
+  params.set('page_size', String(pageSize));
+  return params;
 }
 
 function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableColumnKey[] {
@@ -48,9 +137,12 @@ function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableCol
   return [...filtered, ...missing];
 }
 
+// Iterates every known column (not just DEFAULT_COLUMN_ORDER) so the Follow-up Status column's
+// width still restores correctly even though it's a fixed sticky column, absent from
+// DEFAULT_COLUMN_ORDER (which only lists the draggable/reorderable columns).
 function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
   const result: Record<string, number> = {};
-  for (const key of DEFAULT_COLUMN_ORDER) {
+  for (const key of Object.keys(DEFAULT_COL_WIDTHS) as ReorderableColumnKey[]) {
     const w = saved?.[key];
     result[key] = typeof w === 'number' && w >= 60 && w <= 1000 ? w : DEFAULT_COL_WIDTHS[key];
   }
@@ -60,8 +152,10 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
 export function TrackerPage() {
   const { canEdit } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<FollowUpStatus[]>([]);
+  const [filters, setFilters] = useState<TrackerFilters>(() => ({
+    ...DEFAULT_FILTERS,
+    ...readFiltersFromParams(searchParams),
+  }));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
@@ -85,6 +179,10 @@ export function TrackerPage() {
   const tableRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  // Guards the one-time restore (URL > saved preference > defaults) and the URL-sync/save-filters
+  // effects below so neither fires before that restore has settled — otherwise they'd overwrite
+  // the just-loaded saved preference before it ever reaches the screen.
+  const initializedRef = useRef(false);
 
   // The table's own sticky header (PiEntriesTable) needs to sit directly under this toolbar's
   // bottom edge. Reading that edge straight off getBoundingClientRect() — rather than adding up
@@ -116,9 +214,11 @@ export function TrackerPage() {
     queryFn: () => api.get<TableLayoutPreference | null>('/table-layout/pi_entries'),
   });
 
-  // Seed the column layout and page size from the user's saved preference once it loads —
-  // sanitized against the current known columns so a stale/edited-elsewhere layout (missing a
-  // column, or naming one that no longer exists) degrades gracefully instead of breaking.
+  // Seed the column layout, page size, and filters from the user's saved preference once it
+  // loads. Column layout is sanitized against the current known columns so a stale/edited-
+  // elsewhere layout degrades gracefully. Filters use restore precedence URL > saved > defaults —
+  // any field already present in the URL on first load wins over the saved snapshot, since a
+  // shared/bookmarked link should reproduce exactly what it shows regardless of what's saved.
   useEffect(() => {
     if (tableLayoutQuery.data === undefined) return;
     const order = sanitizeColumnOrder(tableLayoutQuery.data?.columnOrder);
@@ -129,6 +229,11 @@ export function TrackerPage() {
     setColumnWidths(widths);
     if (tableLayoutQuery.data?.pageSize) {
       setPageSize(tableLayoutQuery.data.pageSize);
+    }
+    if (!initializedRef.current) {
+      const fromUrl = readFiltersFromParams(searchParams);
+      setFilters({ ...DEFAULT_FILTERS, ...(tableLayoutQuery.data?.filters ?? {}), ...fromUrl });
+      initializedRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableLayoutQuery.data]);
@@ -145,6 +250,29 @@ export function TrackerPage() {
   const savePageSizeMutation = useMutation({
     mutationFn: (size: number) => api.put<TableLayoutPreference>('/table-layout/pi_entries', { pageSize: size }),
   });
+
+  const saveFiltersMutation = useMutation({
+    mutationFn: (next: TrackerFilters) => api.put<TableLayoutPreference>('/table-layout/pi_entries', { filters: next }),
+  });
+
+  // Debounced auto-save of the last-used filters, so typing in Search or toggling a chip doesn't
+  // fire a PUT per keystroke. Skipped until the initial restore has settled, so loading the saved
+  // snapshot doesn't immediately re-save itself.
+  useEffect(() => {
+    if (!initializedRef.current) return;
+    const timeout = setTimeout(() => saveFiltersMutation.mutate(filters), 600);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  // Mirrors current filters/sort/page state into the URL (replace, not push, so back/forward
+  // isn't spammed) — makes a filtered/sorted view shareable and survivable across a refresh.
+  // Also skipped until the initial restore has settled, for the same reason as above.
+  useEffect(() => {
+    if (!initializedRef.current) return;
+    setSearchParams(buildQueryParams(filters, sortBy, sortDir, page, pageSize), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, sortBy, sortDir, page, pageSize]);
 
   function startLayoutEdit() {
     cancelEdit();
@@ -166,14 +294,24 @@ export function TrackerPage() {
     savePageSizeMutation.mutate(clamped);
   }
 
+  // Every filter control goes through this so changing any filter always resets to page 1.
+  function updateFilters(patch: Partial<TrackerFilters>) {
+    setPage(1);
+    setFilters((prev) => ({ ...prev, ...patch }));
+  }
+
+  function toggleChip(field: 'overdue' | 'noInvoiceAttached') {
+    updateFilters({ [field]: !filters[field] });
+  }
+
   // Deep link from the Activity Feed's "View" button (?entryId=...) — keeps the list exactly
   // as it normally looks (no filtering), jumps to whichever page the entry actually falls on,
   // and briefly flashes its row so it's obvious which one was clicked.
   useEffect(() => {
     const entryId = searchParams.get('entryId');
     if (!entryId) return;
-    setSearch('');
-    setStatusFilter([]);
+    initializedRef.current = true;
+    setFilters(DEFAULT_FILTERS);
     setSortBy(null);
     setSortDir('desc');
     Promise.all([
@@ -192,19 +330,9 @@ export function TrackerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  statusFilter.forEach((s) => params.append('status', s));
-  if (sortBy) {
-    params.set('sort_by', sortBy);
-    params.set('sort_dir', sortDir);
-  }
-  params.set('page', String(page));
-  params.set('page_size', String(pageSize));
-
   const entriesQuery = useQuery({
-    queryKey: ['pi-entries', search, statusFilter, sortBy, sortDir, page, pageSize],
-    queryFn: () => api.get<PaginatedResult<PiEntry>>(`/pi-entries?${params.toString()}`),
+    queryKey: ['pi-entries', filters, sortBy, sortDir, page, pageSize],
+    queryFn: () => api.get<PaginatedResult<PiEntry>>(`/pi-entries?${buildQueryParams(filters, sortBy, sortDir, page, pageSize).toString()}`),
     // Keeps the current rows on screen while a re-sort/re-filter fetches in the background,
     // instead of clearing the table to the "Loading tracker…" placeholder every click — that
     // full-table swap is what read as "the whole page reloading" when clicking a column header.
@@ -289,6 +417,9 @@ export function TrackerPage() {
     onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to add PI entry.'),
   });
 
+  const vesselOptions = (vesselsQuery.data ?? []).map((v) => ({ value: v.id, label: v.name }));
+  const vendorOptions = (vendorsQuery.data ?? []).map((v) => ({ value: v.id, label: v.name }));
+
   return (
     <div>
       <div className="toolbar-row" ref={toolbarRef}>
@@ -297,22 +428,66 @@ export function TrackerPage() {
           <input
             type="search"
             placeholder="Search DPR No., vessel, vendor, service…"
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
+            value={filters.search}
+            onChange={(e) => updateFilters({ search: e.target.value })}
           />
         </div>
         <MultiSelectDropdown
           options={STATUS_OPTIONS}
-          selected={statusFilter}
-          onChange={(next) => {
-            setPage(1);
-            setStatusFilter(next as FollowUpStatus[]);
-          }}
+          selected={filters.status}
+          onChange={(next) => updateFilters({ status: next as FollowUpStatus[] })}
           allLabel="All statuses"
         />
+        <MultiSelectDropdown
+          options={vesselOptions}
+          selected={filters.vesselIds}
+          onChange={(next) => updateFilters({ vesselIds: next })}
+          allLabel="All vessels"
+        />
+        <MultiSelectDropdown
+          options={vendorOptions}
+          selected={filters.vendorIds}
+          onChange={(next) => updateFilters({ vendorIds: next })}
+          allLabel="All vendors"
+        />
+        <button
+          type="button"
+          className={`filter-chip${filters.overdue ? ' active' : ''}`}
+          onClick={() => toggleChip('overdue')}
+        >
+          Overdue &gt; 30 days
+        </button>
+        <button
+          type="button"
+          className={`filter-chip${filters.noInvoiceAttached ? ' active' : ''}`}
+          onClick={() => toggleChip('noInvoiceAttached')}
+        >
+          No invoice attached
+        </button>
+        <div className="date-range-field">
+          <label>DPR From</label>
+          <input type="date" value={filters.dprDateFrom} onChange={(e) => updateFilters({ dprDateFrom: e.target.value })} />
+        </div>
+        <div className="date-range-field">
+          <label>DPR To</label>
+          <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
+        </div>
+        <div className="date-range-field">
+          <label>Payment From</label>
+          <input type="date" value={filters.paymentDateFrom} onChange={(e) => updateFilters({ paymentDateFrom: e.target.value })} />
+        </div>
+        <div className="date-range-field">
+          <label>Payment To</label>
+          <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
+        </div>
+        <div className="date-range-field">
+          <label>Invoice From</label>
+          <input type="date" value={filters.invoiceDateFrom} onChange={(e) => updateFilters({ invoiceDateFrom: e.target.value })} />
+        </div>
+        <div className="date-range-field">
+          <label>Invoice To</label>
+          <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
+        </div>
         <div className="toolbar-spacer" />
         {canEdit && (
           <>
@@ -379,6 +554,10 @@ export function TrackerPage() {
               layoutEditable={layoutEditable}
               onReorderColumn={setColumnOrder}
               onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
+              columnFilters={{ currency: filters.currencies }}
+              onColumnFilterChange={(key, values) => {
+                if (key === 'currency') updateFilters({ currencies: values as Currency[] });
+              }}
             />
           </div>
           <div className="pagination">

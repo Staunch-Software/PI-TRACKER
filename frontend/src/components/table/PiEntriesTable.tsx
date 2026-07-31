@@ -20,6 +20,7 @@ import type { PiEntryFormState } from '../../lib/piEntryForm';
 import { formatAmount, formatDate, formatDateTime } from '../../lib/format';
 import { LookupSelect } from '../modals/LookupSelect';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { ColumnFilterMenu, type ColumnFilterOption } from './ColumnFilterMenu';
 import { AttachmentCell } from './AttachmentCell';
 import { ExpandableCell } from './ExpandableCell';
 import { StatusBadge } from './StatusBadge';
@@ -71,12 +72,14 @@ export const DEFAULT_COL_WIDTHS = {
 
 export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 
-// Default order of the reorderable columns (everything except the sticky Actions/DPR No.
-// columns, which always stay pinned at the left).
+// Default order of the reorderable columns (everything except the sticky Actions/DPR No./
+// Follow-up Status columns, which always stay pinned at the left — followupStatus is rendered
+// as a fixed 3rd sticky column below, so it's deliberately absent here even though it still has
+// a DEFAULT_COL_WIDTHS entry (its width stays user-resizable).
 export const DEFAULT_COLUMN_ORDER = [
   'attachment', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
   'amountInr', 'fcAmount', 'currency', 'paymentDate', 'paymentReference', 'daysSincePayment',
-  'followupStatus', 'lastKnownRemark', 'reminder1', 'reminder2', 'finalInvoiceReceived',
+  'lastKnownRemark', 'reminder1', 'reminder2', 'finalInvoiceReceived',
   'invoiceDate', 'attachedBy', 'dateAttached', 'notes',
 ] as const satisfies readonly ReorderableColumnKey[];
 
@@ -107,6 +110,10 @@ interface ColumnDef {
   sortColumn?: SortColumn;
   headerClassName?: string;
   cellClassName?: string;
+  // Only set on columns with a small, fixed set of values worth filtering directly from the
+  // header (e.g. Currency) — renders a hover-revealed funnel icon that opens a checkbox dropdown,
+  // separate from the toolbar's own filters.
+  filter?: { options: ColumnFilterOption[] };
   renderCell: (entry: PiEntry, canEdit: boolean) => ReactNode;
   renderEditCell: (ctx: EditCellCtx) => ReactNode;
 }
@@ -186,6 +193,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Currency',
     headerClassName: 'col-center',
     cellClassName: 'col-center',
+    filter: { options: Object.values(Currency).map((c) => ({ value: c, label: c })) },
     renderCell: (entry) => entry.currency,
     renderEditCell: ({ form, onChange }) => (
       <SearchableSelect options={Object.values(Currency).map((c) => ({ value: c, label: c }))} value={form.currency} onChange={(v) => onChange('currency', v as Currency)} />
@@ -217,10 +225,13 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     renderEditCell: () => '—',
   },
   followupStatus: {
+    // Rendered as a fixed 3rd sticky column (see the hardcoded <th>/<td> in the JSX below),
+    // not through the generic columnOrder loop — sortColumn/renderCell/renderEditCell are still
+    // read directly from this entry, but label/headerClassName/cellClassName aren't (the sticky
+    // header and cells are hand-written to control their fixed position and width alongside
+    // Actions/DPR No.).
     label: 'Follow-up Status',
     sortColumn: 'followupStatus',
-    headerClassName: 'col-status',
-    cellClassName: 'col-status',
     renderCell: (entry) => <StatusBadge status={entry.followupStatus} />,
     renderEditCell: ({ form, onChange }) => (
       <SearchableSelect options={Object.values(FollowUpStatus).map((s) => ({ value: s, label: FOLLOW_UP_STATUS_LABELS[s] }))} value={form.followupStatus} onChange={(v) => onChange('followupStatus', v as FollowUpStatus)} />
@@ -322,6 +333,8 @@ interface Props {
   layoutEditable: boolean;
   onReorderColumn: (newOrder: ReorderableColumnKey[]) => void;
   onResizeColumn: (key: ReorderableColumnKey, width: number) => void;
+  columnFilters: Record<string, string[]>;
+  onColumnFilterChange: (key: string, values: string[]) => void;
 }
 
 export function PiEntriesTable({
@@ -352,6 +365,8 @@ export function PiEntriesTable({
   layoutEditable,
   onReorderColumn,
   onResizeColumn,
+  columnFilters,
+  onColumnFilterChange,
 }: Props) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
@@ -432,6 +447,7 @@ export function PiEntriesTable({
   }
 
   const widths: Record<string, number> = { ...STICKY_COL_WIDTHS };
+  widths.status = columnWidths.followupStatus ?? DEFAULT_COL_WIDTHS.followupStatus;
   for (const key of columnOrder) {
     widths[key] = columnWidths[key] ?? DEFAULT_COL_WIDTHS[key];
   }
@@ -440,6 +456,7 @@ export function PiEntriesTable({
     <colgroup>
       {canEdit && <col style={{ width: widths.actions }} />}
       <col style={{ width: widths.dpr }} />
+      <col style={{ width: widths.status }} />
       {columnOrder.map((col) => (
         <col key={col} style={{ width: widths[col] }} />
       ))}
@@ -471,6 +488,15 @@ export function PiEntriesTable({
         {def.sortColumn && !layoutEditable && (
           <span className="sort-arrow">{sortBy === def.sortColumn ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}</span>
         )}
+        {def.filter && !layoutEditable && (
+          <span onClick={(e) => e.stopPropagation()}>
+            <ColumnFilterMenu
+              options={def.filter.options}
+              selected={columnFilters[key] ?? []}
+              onChange={(values) => onColumnFilterChange(key, values)}
+            />
+          </span>
+        )}
         {layoutEditable && (
           <span className="col-resize-handle" onMouseDown={(e) => handleResizeStart(key, e)} title="Drag to resize" />
         )}
@@ -492,6 +518,20 @@ export function PiEntriesTable({
               >
                 DPR No. <span className="sort-arrow">{sortBy === 'dprNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
               </th>
+              <th
+                className={`sticky-col col-status${canEdit ? '' : ' col-status-noactions'} sortable-col`}
+                onClick={() => onSort('followupStatus')}
+              >
+                Follow-up Status{' '}
+                <span className="sort-arrow">{sortBy === 'followupStatus' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                {layoutEditable && (
+                  <span
+                    className="col-resize-handle"
+                    onMouseDown={(e) => handleResizeStart('followupStatus', e)}
+                    title="Drag to resize"
+                  />
+                )}
+              </th>
               {columnOrder.map((key) => renderHeaderCell(key))}
             </tr>
           </thead>
@@ -503,7 +543,7 @@ export function PiEntriesTable({
         <tbody>
           {entries.length === 0 && !isAddingNew && (
             <tr>
-              <td colSpan={columnOrder.length + (canEdit ? 2 : 1)} className="empty-state">
+              <td colSpan={columnOrder.length + 1 + (canEdit ? 2 : 1)} className="empty-state">
                 No PI entries match the current filters.
               </td>
             </tr>
@@ -553,6 +593,10 @@ export function PiEntriesTable({
                   <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{entry.dprNo}</td>
                 )}
 
+                <td className={`sticky-col col-status${canEdit ? '' : ' col-status-noactions'}`}>
+                  {editCtx ? COLUMNS.followupStatus.renderEditCell(editCtx) : COLUMNS.followupStatus.renderCell(entry, canEdit)}
+                </td>
+
                 {columnOrder.map((key) => {
                   const def = COLUMNS[key];
                   return (
@@ -579,6 +623,16 @@ export function PiEntriesTable({
               </td>
               <td className="sticky-col col-dpr">
                 <input value={newRowForm.dprNo} onChange={(e) => onNewRowChange('dprNo', e.target.value)} style={{ width: 110 }} />
+              </td>
+              <td className="sticky-col col-status">
+                {COLUMNS.followupStatus.renderEditCell({
+                  form: newRowForm,
+                  onChange: onNewRowChange,
+                  vessels,
+                  vendors,
+                  entry: null,
+                  canEdit,
+                })}
               </td>
               {columnOrder.map((key) => {
                 const def = COLUMNS[key];

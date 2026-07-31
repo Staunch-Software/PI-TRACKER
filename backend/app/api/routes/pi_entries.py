@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
@@ -56,8 +57,17 @@ def list_pi_entries(
     _: User = Depends(get_current_user),
     search: str | None = Query(default=None),
     status_filter: list[str] | None = Query(default=None, alias="status"),
-    vessel_id: uuid.UUID | None = Query(default=None),
-    vendor_id: uuid.UUID | None = Query(default=None),
+    vessel_id: list[uuid.UUID] | None = Query(default=None),
+    vendor_id: list[uuid.UUID] | None = Query(default=None),
+    currency: list[str] | None = Query(default=None),
+    overdue: bool | None = Query(default=None),
+    no_invoice_attached: bool | None = Query(default=None),
+    dpr_date_from: date | None = Query(default=None),
+    dpr_date_to: date | None = Query(default=None),
+    payment_date_from: date | None = Query(default=None),
+    payment_date_to: date | None = Query(default=None),
+    invoice_date_from: date | None = Query(default=None),
+    invoice_date_to: date | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -78,11 +88,49 @@ def list_pi_entries(
         for i, s in enumerate(status_filter):
             params[f"status_{i}"] = s
     if vessel_id:
-        where_clauses.append("pe.vessel_id = :vessel_id")
-        params["vessel_id"] = str(vessel_id)
+        placeholders = ", ".join(f":vessel_id_{i}" for i in range(len(vessel_id)))
+        where_clauses.append(f"pe.vessel_id IN ({placeholders})")
+        for i, v in enumerate(vessel_id):
+            params[f"vessel_id_{i}"] = str(v)
     if vendor_id:
-        where_clauses.append("pe.vendor_id = :vendor_id")
-        params["vendor_id"] = str(vendor_id)
+        placeholders = ", ".join(f":vendor_id_{i}" for i in range(len(vendor_id)))
+        where_clauses.append(f"pe.vendor_id IN ({placeholders})")
+        for i, v in enumerate(vendor_id):
+            params[f"vendor_id_{i}"] = str(v)
+    if currency:
+        placeholders = ", ".join(f":currency_{i}" for i in range(len(currency)))
+        where_clauses.append(f"pe.currency IN ({placeholders})")
+        for i, c in enumerate(currency):
+            params[f"currency_{i}"] = c
+    if overdue:
+        where_clauses.append(
+            "(CURRENT_DATE - pe.payment_date) > 30 AND pe.followup_status NOT IN ('RECEIVED', 'NOT_APPLICABLE')"
+        )
+    if no_invoice_attached:
+        where_clauses.append("NOT EXISTS (SELECT 1 FROM invoice_attachments ia WHERE ia.pi_entry_id = pe.id)")
+    if dpr_date_from:
+        where_clauses.append("pe.dpr_date >= :dpr_date_from")
+        params["dpr_date_from"] = dpr_date_from
+    if dpr_date_to:
+        # A space before "::date" matters here — SQLAlchemy's text() bind-parameter parser
+        # doesn't recognize ":name" as a parameter when immediately followed by "::" with no
+        # space (it passes ":name::date" through to psycopg2 literally, which is a syntax
+        # error). Confirmed while testing this change; audit_log.py's date_to filter has the
+        # same latent bug from the same no-space pattern.
+        where_clauses.append("pe.dpr_date < (:dpr_date_to ::date + INTERVAL '1 day')")
+        params["dpr_date_to"] = dpr_date_to
+    if payment_date_from:
+        where_clauses.append("pe.payment_date >= :payment_date_from")
+        params["payment_date_from"] = payment_date_from
+    if payment_date_to:
+        where_clauses.append("pe.payment_date < (:payment_date_to ::date + INTERVAL '1 day')")
+        params["payment_date_to"] = payment_date_to
+    if invoice_date_from:
+        where_clauses.append("pe.invoice_date >= :invoice_date_from")
+        params["invoice_date_from"] = invoice_date_from
+    if invoice_date_to:
+        where_clauses.append("pe.invoice_date < (:invoice_date_to ::date + INTERVAL '1 day')")
+        params["invoice_date_to"] = invoice_date_to
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
