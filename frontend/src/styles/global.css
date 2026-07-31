@@ -1206,6 +1206,9 @@ tr.add-row-trigger:hover td {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-border);
 }
+.more-filters-clear-row {
+  justify-content: flex-end;
+}
 /* Grid, not flex — each of the 3 rows (DPR/Payment/Invoice) has different label text lengths
    ("DPR From" vs "Payment From"), so flex-basis let each row size its own fields independently,
    leaving the columns (and the clear button) misaligned row to row. A shared grid forces every

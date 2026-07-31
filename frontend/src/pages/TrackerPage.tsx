@@ -471,12 +471,14 @@ export function TrackerPage() {
           onChange={(next) => updateFilters({ status: next as FollowUpStatus[] })}
           allLabel="All statuses"
         />
-        {hasAnyActiveFilter && (
-          <button type="button" className="btn btn-secondary" onClick={clearAllFilters}>
-            Clear all filters
-          </button>
-        )}
         <MoreFiltersPopover activeCount={moreFiltersActiveCount}>
+          {hasAnyActiveFilter && (
+            <div className="more-filters-section more-filters-clear-row">
+              <button type="button" className="btn btn-secondary" onClick={clearAllFilters}>
+                Clear all filters
+              </button>
+            </div>
+          )}
           <div className="more-filters-section">
             <MultiSelectDropdown
               options={vesselOptions}
