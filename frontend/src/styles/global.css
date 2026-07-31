@@ -1206,9 +1206,6 @@ tr.add-row-trigger:hover td {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-border);
 }
-.more-filters-dates .date-range-field {
-  flex: 1 1 150px;
-}
 .more-filters-dates {
   flex-direction: column;
   align-items: stretch;
@@ -1218,8 +1215,11 @@ tr.add-row-trigger:hover td {
   align-items: center;
   gap: 10px;
 }
+/* Fixed (not flex-grown) width — a date field's content is always the same compact shape, so
+   letting it stretch to fill the popover's row just spreads the typed value and calendar icon
+   further apart, leaving dead space before the clear "×" button. */
 .date-range-group .date-range-field {
-  flex: 1 1 150px;
+  flex: 0 0 170px;
 }
 .date-range-clear {
   flex: 0 0 auto;
@@ -1288,6 +1288,12 @@ tr.add-row-trigger:hover td {
   font-size: 13px;
   color: var(--color-text);
   outline: none;
+  /* Without this, the input keeps its small native width even when .date-range-field itself
+     grows (e.g. flex:1 inside the wider More-filters popover), leaving a dead gap between the
+     value and the field's own right edge — visually detaching any sibling control (like the
+     per-range clear "×" button) that sits right after it. */
+  flex: 1;
+  min-width: 0;
 }
 
 .page-size-select {
