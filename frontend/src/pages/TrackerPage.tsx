@@ -26,6 +26,7 @@ import {
   type SortColumn,
 } from '../components/table/PiEntriesTable';
 import { MultiSelectDropdown } from '../components/common/MultiSelectDropdown';
+import { MoreFiltersPopover } from '../components/common/MoreFiltersPopover';
 import { SearchIcon } from '../components/common/SearchIcon';
 import { ImportWizardModal } from '../components/modals/ImportWizardModal';
 
@@ -420,6 +421,22 @@ export function TrackerPage() {
   const vesselOptions = (vesselsQuery.data ?? []).map((v) => ({ value: v.id, label: v.name }));
   const vendorOptions = (vendorsQuery.data ?? []).map((v) => ({ value: v.id, label: v.name }));
 
+  // Drives the "More filters (N)" badge — everything housed in that popover (vessel/vendor,
+  // both chips, all 6 dates), not Search/Status which stay always visible in the toolbar.
+  const moreFiltersActiveCount =
+    filters.vesselIds.length +
+    filters.vendorIds.length +
+    (filters.overdue ? 1 : 0) +
+    (filters.noInvoiceAttached ? 1 : 0) +
+    [
+      filters.dprDateFrom,
+      filters.dprDateTo,
+      filters.paymentDateFrom,
+      filters.paymentDateTo,
+      filters.invoiceDateFrom,
+      filters.invoiceDateTo,
+    ].filter(Boolean).length;
+
   return (
     <div>
       <div className="toolbar-row" ref={toolbarRef}>
@@ -438,56 +455,64 @@ export function TrackerPage() {
           onChange={(next) => updateFilters({ status: next as FollowUpStatus[] })}
           allLabel="All statuses"
         />
-        <MultiSelectDropdown
-          options={vesselOptions}
-          selected={filters.vesselIds}
-          onChange={(next) => updateFilters({ vesselIds: next })}
-          allLabel="All vessels"
-        />
-        <MultiSelectDropdown
-          options={vendorOptions}
-          selected={filters.vendorIds}
-          onChange={(next) => updateFilters({ vendorIds: next })}
-          allLabel="All vendors"
-        />
-        <button
-          type="button"
-          className={`filter-chip${filters.overdue ? ' active' : ''}`}
-          onClick={() => toggleChip('overdue')}
-        >
-          Overdue &gt; 30 days
-        </button>
-        <button
-          type="button"
-          className={`filter-chip${filters.noInvoiceAttached ? ' active' : ''}`}
-          onClick={() => toggleChip('noInvoiceAttached')}
-        >
-          No invoice attached
-        </button>
-        <div className="date-range-field">
-          <label>DPR From</label>
-          <input type="date" value={filters.dprDateFrom} onChange={(e) => updateFilters({ dprDateFrom: e.target.value })} />
-        </div>
-        <div className="date-range-field">
-          <label>DPR To</label>
-          <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
-        </div>
-        <div className="date-range-field">
-          <label>Payment From</label>
-          <input type="date" value={filters.paymentDateFrom} onChange={(e) => updateFilters({ paymentDateFrom: e.target.value })} />
-        </div>
-        <div className="date-range-field">
-          <label>Payment To</label>
-          <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
-        </div>
-        <div className="date-range-field">
-          <label>Invoice From</label>
-          <input type="date" value={filters.invoiceDateFrom} onChange={(e) => updateFilters({ invoiceDateFrom: e.target.value })} />
-        </div>
-        <div className="date-range-field">
-          <label>Invoice To</label>
-          <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
-        </div>
+        <MoreFiltersPopover activeCount={moreFiltersActiveCount}>
+          <div className="more-filters-section">
+            <MultiSelectDropdown
+              options={vesselOptions}
+              selected={filters.vesselIds}
+              onChange={(next) => updateFilters({ vesselIds: next })}
+              allLabel="All vessels"
+            />
+            <MultiSelectDropdown
+              options={vendorOptions}
+              selected={filters.vendorIds}
+              onChange={(next) => updateFilters({ vendorIds: next })}
+              allLabel="All vendors"
+            />
+          </div>
+          <div className="more-filters-section">
+            <button
+              type="button"
+              className={`filter-chip${filters.overdue ? ' active' : ''}`}
+              onClick={() => toggleChip('overdue')}
+            >
+              Overdue &gt; 30 days
+            </button>
+            <button
+              type="button"
+              className={`filter-chip${filters.noInvoiceAttached ? ' active' : ''}`}
+              onClick={() => toggleChip('noInvoiceAttached')}
+            >
+              No invoice attached
+            </button>
+          </div>
+          <div className="more-filters-section more-filters-dates">
+            <div className="date-range-field">
+              <label>DPR From</label>
+              <input type="date" value={filters.dprDateFrom} onChange={(e) => updateFilters({ dprDateFrom: e.target.value })} />
+            </div>
+            <div className="date-range-field">
+              <label>DPR To</label>
+              <input type="date" value={filters.dprDateTo} onChange={(e) => updateFilters({ dprDateTo: e.target.value })} />
+            </div>
+            <div className="date-range-field">
+              <label>Payment From</label>
+              <input type="date" value={filters.paymentDateFrom} onChange={(e) => updateFilters({ paymentDateFrom: e.target.value })} />
+            </div>
+            <div className="date-range-field">
+              <label>Payment To</label>
+              <input type="date" value={filters.paymentDateTo} onChange={(e) => updateFilters({ paymentDateTo: e.target.value })} />
+            </div>
+            <div className="date-range-field">
+              <label>Invoice From</label>
+              <input type="date" value={filters.invoiceDateFrom} onChange={(e) => updateFilters({ invoiceDateFrom: e.target.value })} />
+            </div>
+            <div className="date-range-field">
+              <label>Invoice To</label>
+              <input type="date" value={filters.invoiceDateTo} onChange={(e) => updateFilters({ invoiceDateTo: e.target.value })} />
+            </div>
+          </div>
+        </MoreFiltersPopover>
         <div className="toolbar-spacer" />
         {canEdit && (
           <>

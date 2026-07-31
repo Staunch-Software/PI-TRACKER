@@ -1170,6 +1170,46 @@ tr.add-row-trigger:hover td {
   flex: 1;
 }
 
+/* "More filters" popover — houses vessel/vendor, both quick-filter chips, and all 6 date-range
+   fields, so the toolbar itself only ever shows Search + Status + this one button and never wraps
+   onto a second line. Simple relative/absolute positioning (unlike ColumnFilterMenu's portal) is
+   fine here since the toolbar has no overflow-hidden ancestor to clip against. */
+.more-filters {
+  position: relative;
+}
+.more-filters-active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.more-filters-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 25;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  padding: 14px;
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.more-filters-section {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.more-filters-section:not(:last-child) {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.more-filters-dates .date-range-field {
+  flex: 1 1 150px;
+}
+
 /* Quick-filter chips (e.g. "Overdue > 30 days") — small toggle pills, active state mirrors
    StatusBadge's CSS-var-driven styling for visual consistency with the rest of the tracker. */
 .filter-chip {
