@@ -41,6 +41,7 @@ const STICKY_COL_WIDTHS = {
 // nothing left to measure, so nothing can diverge between the two tables.
 export const DEFAULT_COL_WIDTHS = {
   attachment: 90,
+  poNumber: 130,
   invoiceNo: 130,
   dprDate: 110,
   vessel: 170,
@@ -77,7 +78,7 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 // as a fixed 3rd sticky column below, so it's deliberately absent here even though it still has
 // a DEFAULT_COL_WIDTHS entry (its width stays user-resizable).
 export const DEFAULT_COLUMN_ORDER = [
-  'attachment', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
+  'attachment', 'poNumber', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
   'amountInr', 'fcAmount', 'currency', 'paymentDate', 'paymentReference', 'daysSincePayment',
   'lastKnownRemark', 'reminder1', 'reminder2', 'finalInvoiceReceived',
   'invoiceDate', 'attachedBy', 'dateAttached', 'notes',
@@ -133,6 +134,13 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
       ) : (
         '—'
       ),
+  },
+  poNumber: {
+    label: 'PO Number',
+    renderCell: (entry) => entry.poNumber ?? '—',
+    renderEditCell: ({ form, onChange }) => (
+      <input value={form.poNumber} onChange={(e) => onChange('poNumber', e.target.value)} style={{ width: 120 }} />
+    ),
   },
   invoiceNo: {
     label: 'Invoice No.',

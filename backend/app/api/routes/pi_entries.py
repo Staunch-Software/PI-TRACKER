@@ -24,7 +24,7 @@ _SELECT_COLUMNS = """
     pe.currency, pe.payment_date, pe.payment_reference,
     (CURRENT_DATE - pe.payment_date) AS days_since_payment,
     pe.followup_status, pe.last_known_remark, pe.reminder_1_sent_date, pe.reminder_2_sent_date,
-    pe.final_invoice_received, pe.invoice_no, pe.invoice_date, pe.invoice_file_name,
+    pe.final_invoice_received, pe.po_number, pe.invoice_no, pe.invoice_date, pe.invoice_file_name,
     pe.attached_by, au.full_name AS attached_by_name, pe.date_attached, pe.notes,
     pe.created_by, pe.created_at, pe.updated_by, pe.updated_at,
     (SELECT count(*) FROM invoice_attachments ia WHERE ia.pi_entry_id = pe.id) AS attachment_count

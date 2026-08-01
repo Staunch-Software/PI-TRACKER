@@ -16,6 +16,7 @@ export interface PiEntryFormState {
   reminder1SentDate: string;
   reminder2SentDate: string;
   finalInvoiceReceived: boolean;
+  poNumber: string;
   invoiceNo: string;
   invoiceDate: string;
   notes: string;
@@ -42,6 +43,7 @@ export function toPiEntryFormState(entry: PiEntry | null): PiEntryFormState {
     reminder1SentDate: entry?.reminder1SentDate ?? '',
     reminder2SentDate: entry?.reminder2SentDate ?? '',
     finalInvoiceReceived: entry?.finalInvoiceReceived ?? false,
+    poNumber: entry?.poNumber ?? '',
     invoiceNo: entry?.invoiceNo ?? '',
     invoiceDate: entry?.invoiceDate ?? '',
     notes: entry?.notes ?? '',
@@ -65,6 +67,7 @@ export function toPiEntryPayload(form: PiEntryFormState) {
     reminder1SentDate: form.reminder1SentDate || null,
     reminder2SentDate: form.reminder2SentDate || null,
     finalInvoiceReceived: form.finalInvoiceReceived,
+    poNumber: form.poNumber || null,
     invoiceNo: form.invoiceNo || null,
     invoiceDate: form.invoiceDate || null,
     notes: form.notes || null,

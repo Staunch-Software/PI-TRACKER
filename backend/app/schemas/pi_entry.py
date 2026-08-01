@@ -27,6 +27,7 @@ class PiEntryOut(CamelModel):
     reminder_1_sent_date: date | None
     reminder_2_sent_date: date | None
     final_invoice_received: bool
+    po_number: str | None
     invoice_no: str | None
     invoice_date: date | None
     invoice_file_name: str | None
@@ -57,6 +58,7 @@ class PiEntryCreateRequest(CamelModel):
     reminder_1_sent_date: date | None = None
     reminder_2_sent_date: date | None = None
     final_invoice_received: bool = False
+    po_number: str | None = None
     invoice_no: str | None = None
     invoice_date: date | None = None
     notes: str | None = None
@@ -78,6 +80,7 @@ class PiEntryUpdateRequest(CamelModel):
     reminder_1_sent_date: date | None = None
     reminder_2_sent_date: date | None = None
     final_invoice_received: bool | None = None
+    po_number: str | None = None
     invoice_no: str | None = None
     invoice_date: date | None = None
     notes: str | None = None

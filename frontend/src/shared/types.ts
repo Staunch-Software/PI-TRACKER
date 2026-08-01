@@ -46,6 +46,7 @@ export interface PiEntry {
   reminder1SentDate: string | null;
   reminder2SentDate: string | null;
   finalInvoiceReceived: boolean;
+  poNumber: string | null;
   invoiceNo: string | null;
   invoiceDate: string | null;
   invoiceFileName: string | null;

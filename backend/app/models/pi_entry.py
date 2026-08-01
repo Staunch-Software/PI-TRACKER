@@ -48,6 +48,7 @@ class PiEntry(Base):
     reminder_1_sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     reminder_2_sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     final_invoice_received: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    po_number: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     invoice_file_name: Mapped[str | None] = mapped_column(Text, nullable=True)
