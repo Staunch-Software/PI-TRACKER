@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api';
 import { uploadAttachment } from '../../lib/attachmentUpload';
-import type { InvoiceAttachment } from '../../shared';
 import { AttachmentGalleryModal } from '../modals/AttachmentGalleryModal';
 
 interface Props {
@@ -38,12 +36,7 @@ export function AttachmentCell({ piEntryId, dprNo, attachmentCount, canEdit }: P
     }
   }
 
-  async function handleViewClick() {
-    if (attachmentCount === 1) {
-      const attachments = await api.get<InvoiceAttachment[]>(`/pi-entries/${piEntryId}/attachments`);
-      if (attachments[0]) window.open(attachments[0].downloadUrl, '_blank', 'noopener');
-      return;
-    }
+  function handleViewClick() {
     setIsGalleryOpen(true);
   }
 
