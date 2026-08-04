@@ -79,28 +79,9 @@ const DEFAULT_FILTERS: TrackerFilters = {
   invoiceDateTo: '',
 };
 
-// Only returns keys actually present in the URL — callers merge this over defaults/saved
-// preferences, so an absent param means "not specified here", not "explicitly cleared".
-function readFiltersFromParams(sp: URLSearchParams): Partial<TrackerFilters> {
-  const result: Partial<TrackerFilters> = {};
-  if (sp.has('search')) result.search = sp.get('search') ?? '';
-  if (sp.has('status')) result.status = sp.getAll('status') as FollowUpStatus[];
-  if (sp.has('vessel_id')) result.vesselIds = sp.getAll('vessel_id');
-  if (sp.has('vendor_id')) result.vendorIds = sp.getAll('vendor_id');
-  if (sp.has('currency')) result.currencies = sp.getAll('currency') as Currency[];
-  if (sp.has('overdue')) result.overdue = sp.get('overdue') === 'true';
-  if (sp.has('no_invoice_attached')) result.noInvoiceAttached = sp.get('no_invoice_attached') === 'true';
-  if (sp.has('dpr_date_from')) result.dprDateFrom = sp.get('dpr_date_from') ?? '';
-  if (sp.has('dpr_date_to')) result.dprDateTo = sp.get('dpr_date_to') ?? '';
-  if (sp.has('payment_date_from')) result.paymentDateFrom = sp.get('payment_date_from') ?? '';
-  if (sp.has('payment_date_to')) result.paymentDateTo = sp.get('payment_date_to') ?? '';
-  if (sp.has('invoice_date_from')) result.invoiceDateFrom = sp.get('invoice_date_from') ?? '';
-  if (sp.has('invoice_date_to')) result.invoiceDateTo = sp.get('invoice_date_to') ?? '';
-  return result;
-}
-
-// Builds the query params shared by both the actual API fetch and the URL-sync effect below —
-// the backend's query param names were designed to match these 1:1, so one function serves both.
+// Builds the query params sent to the backend API. These are intentionally kept out of the
+// visible browser address bar (see the tracker page component) so the API's internal param
+// shape isn't exposed to users — the URL just stays on the plain /tracker page.
 function buildQueryParams(
   filters: TrackerFilters,
   sortBy: SortColumn | null,
@@ -153,10 +134,7 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
 export function TrackerPage() {
   const { canEdit } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState<TrackerFilters>(() => ({
-    ...DEFAULT_FILTERS,
-    ...readFiltersFromParams(searchParams),
-  }));
+  const [filters, setFilters] = useState<TrackerFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
@@ -217,9 +195,7 @@ export function TrackerPage() {
 
   // Seed the column layout, page size, and filters from the user's saved preference once it
   // loads. Column layout is sanitized against the current known columns so a stale/edited-
-  // elsewhere layout degrades gracefully. Filters use restore precedence URL > saved > defaults —
-  // any field already present in the URL on first load wins over the saved snapshot, since a
-  // shared/bookmarked link should reproduce exactly what it shows regardless of what's saved.
+  // elsewhere layout degrades gracefully.
   useEffect(() => {
     if (tableLayoutQuery.data === undefined) return;
     const order = sanitizeColumnOrder(tableLayoutQuery.data?.columnOrder);
@@ -232,8 +208,7 @@ export function TrackerPage() {
       setPageSize(tableLayoutQuery.data.pageSize);
     }
     if (!initializedRef.current) {
-      const fromUrl = readFiltersFromParams(searchParams);
-      setFilters({ ...DEFAULT_FILTERS, ...(tableLayoutQuery.data?.filters ?? {}), ...fromUrl });
+      setFilters({ ...DEFAULT_FILTERS, ...(tableLayoutQuery.data?.filters ?? {}) });
       initializedRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,15 +240,6 @@ export function TrackerPage() {
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
-
-  // Mirrors current filters/sort/page state into the URL (replace, not push, so back/forward
-  // isn't spammed) — makes a filtered/sorted view shareable and survivable across a refresh.
-  // Also skipped until the initial restore has settled, for the same reason as above.
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    setSearchParams(buildQueryParams(filters, sortBy, sortDir, page, pageSize), { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, sortBy, sortDir, page, pageSize]);
 
   function startLayoutEdit() {
     cancelEdit();
@@ -358,9 +324,16 @@ export function TrackerPage() {
 
   const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / pageSize)) : 1;
 
+  // Cycles asc -> desc -> neutral (back to default row order) -> asc on repeated clicks of the
+  // same column header, instead of just toggling between asc/desc forever.
   function handleSort(column: SortColumn) {
     if (sortBy === column) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      if (sortDir === 'asc') {
+        setSortDir('desc');
+      } else {
+        setSortBy(null);
+        setSortDir('desc');
+      }
     } else {
       setSortBy(column);
       setSortDir('asc');

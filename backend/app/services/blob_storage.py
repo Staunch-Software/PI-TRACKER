@@ -47,6 +47,12 @@ def generate_download_sas_url(blob_key: str) -> str:
     return _sas_url(blob_key, BlobSasPermissions(read=True), DOWNLOAD_SAS_MINUTES)
 
 
+def delete_blob(blob_key: str) -> None:
+    client = _get_service_client()
+    blob_client = client.get_blob_client(container=settings.azure_storage_container, blob=blob_key)
+    blob_client.delete_blob()
+
+
 def ensure_container_exists() -> None:
     client = _get_service_client()
     container_client = client.get_container_client(settings.azure_storage_container)

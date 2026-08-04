@@ -1,5 +1,6 @@
 import uuid
 
+from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from app.schemas.attachment import (
     AttachmentOut,
 )
 from app.services.audit import write_audit_log
-from app.services.blob_storage import build_blob_key, generate_download_sas_url, generate_upload_sas_url
+from app.services.blob_storage import build_blob_key, delete_blob, generate_download_sas_url, generate_upload_sas_url
 
 router = APIRouter(prefix="/pi-entries", tags=["attachments"])
 
@@ -103,3 +104,51 @@ def complete_attachment_upload(
 
     row = db.execute(text(_SELECT_BY_ID), {"id": str(attachment.id)}).mappings().first()
     return {**dict(row), "download_url": generate_download_sas_url(row["blob_key"])}
+
+
+@router.delete("/{pi_entry_id}/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_attachment(
+    pi_entry_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
+) -> None:
+    entry = db.get(PiEntry, pi_entry_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI entry not found")
+
+    attachment = db.get(InvoiceAttachment, attachment_id)
+    if not attachment or attachment.pi_entry_id != pi_entry_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    file_name = attachment.file_name
+    try:
+        delete_blob(attachment.blob_key)
+    except ResourceNotFoundError:
+        pass
+
+    db.delete(attachment)
+    db.flush()
+
+    # If the deleted attachment was the one mirrored onto pi_entries for at-a-glance display,
+    # re-point the mirror at whatever's now the most recent remaining attachment (or clear it).
+    if entry.invoice_file_name == file_name:
+        latest = (
+            db.query(InvoiceAttachment)
+            .filter(InvoiceAttachment.pi_entry_id == pi_entry_id)
+            .order_by(InvoiceAttachment.uploaded_at.desc())
+            .first()
+        )
+        entry.invoice_file_name = latest.file_name if latest else None
+        entry.attached_by = latest.uploaded_by if latest else None
+        entry.date_attached = latest.uploaded_at if latest else None
+
+    write_audit_log(
+        db,
+        entity_type=AuditEntityType.PI_ENTRY,
+        entity_id=entry.id,
+        action=AuditAction.DELETE,
+        changed_by=current_user.id,
+        summary=f"{current_user.full_name} removed attachment {file_name} from PI {entry.dpr_no}",
+    )
+    db.commit()

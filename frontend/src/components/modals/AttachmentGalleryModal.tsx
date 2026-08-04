@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { InvoiceAttachment } from '../../shared';
 import { formatDate } from '../../lib/format';
+import { useRole } from '../../auth/useRole';
+import { TrashIcon } from '../common/TrashIcon';
 
 interface Props {
   piEntryId: string;
@@ -30,12 +32,28 @@ function getPreviewKind(contentType: string, fileName: string): PreviewKind {
 }
 
 export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
+  const { canEdit } = useRole();
   const [selected, setSelected] = useState<InvoiceAttachment | null>(null);
+  const queryClient = useQueryClient();
 
   const attachmentsQuery = useQuery({
     queryKey: ['attachments', piEntryId],
     queryFn: () => api.get<InvoiceAttachment[]>(`/pi-entries/${piEntryId}/attachments`),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (attachmentId: string) => api.delete(`/pi-entries/${piEntryId}/attachments/${attachmentId}`),
+    onSuccess: (_data, attachmentId) => {
+      queryClient.invalidateQueries({ queryKey: ['attachments', piEntryId] });
+      queryClient.invalidateQueries({ queryKey: ['pi-entries'] });
+      setSelected((prev) => (prev?.id === attachmentId ? null : prev));
+    },
+  });
+
+  function handleDelete(attachment: InvoiceAttachment) {
+    if (!window.confirm(`Delete "${attachment.fileName}"? This can't be undone.`)) return;
+    deleteMutation.mutate(attachment.id);
+  }
 
   const selectedKind = selected ? getPreviewKind(selected.contentType, selected.fileName) : null;
 
@@ -69,6 +87,21 @@ export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
                     <span className="gallery-file-name">{attachment.fileName}</span>
                     <span className="gallery-file-hint">Click to preview file</span>
                   </div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="icon-btn icon-btn-danger gallery-file-delete"
+                      title="Delete attachment"
+                      aria-label={`Delete ${attachment.fileName}`}
+                      disabled={deleteMutation.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(attachment);
+                      }}
+                    >
+                      <TrashIcon />
+                    </button>
+                  )}
                 </div>
               );
             })}
