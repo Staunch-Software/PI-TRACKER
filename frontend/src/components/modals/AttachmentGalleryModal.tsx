@@ -5,6 +5,7 @@ import type { InvoiceAttachment } from '../../shared';
 import { formatDate } from '../../lib/format';
 import { useRole } from '../../auth/useRole';
 import { TrashIcon } from '../common/TrashIcon';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
   piEntryId: string;
@@ -34,6 +35,7 @@ function getPreviewKind(contentType: string, fileName: string): PreviewKind {
 export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
   const { canEdit } = useRole();
   const [selected, setSelected] = useState<InvoiceAttachment | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<InvoiceAttachment | null>(null);
   const queryClient = useQueryClient();
 
   const attachmentsQuery = useQuery({
@@ -47,12 +49,13 @@ export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
       queryClient.invalidateQueries({ queryKey: ['attachments', piEntryId] });
       queryClient.invalidateQueries({ queryKey: ['pi-entries'] });
       setSelected((prev) => (prev?.id === attachmentId ? null : prev));
+      setPendingDelete(null);
     },
   });
 
-  function handleDelete(attachment: InvoiceAttachment) {
-    if (!window.confirm(`Delete "${attachment.fileName}"? This can't be undone.`)) return;
-    deleteMutation.mutate(attachment.id);
+  function handleConfirmDelete() {
+    if (!pendingDelete) return;
+    deleteMutation.mutate(pendingDelete.id);
   }
 
   const selectedKind = selected ? getPreviewKind(selected.contentType, selected.fileName) : null;
@@ -96,7 +99,7 @@ export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
                       disabled={deleteMutation.isPending}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDelete(attachment);
+                        setPendingDelete(attachment);
                       }}
                     >
                       <TrashIcon />
@@ -145,6 +148,15 @@ export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
           )}
         </div>
       </div>
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete attachment"
+          message={`Delete "${pendingDelete.fileName}"? This can't be undone.`}
+          isConfirming={deleteMutation.isPending}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }
