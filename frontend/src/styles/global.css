@@ -1683,10 +1683,14 @@ th:hover .column-filter-icon,
   padding: 24px 12px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
   text-align: center;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .gallery-file-icon {
@@ -1695,11 +1699,15 @@ th:hover .column-filter-icon,
 }
 
 .gallery-file-name {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 600;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  max-width: 100%;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  box-sizing: border-box;
 }
 
 .gallery-file-hint {
