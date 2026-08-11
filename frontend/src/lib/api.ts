@@ -51,4 +51,21 @@ export const api = {
       }
       return res.json() as Promise<T>;
     }),
+  // For file-download endpoints (e.g. Excel export) that respond with a binary body instead of
+  // JSON — bypasses request()'s res.json() parsing.
+  getBlob: async (path: string): Promise<{ blob: Blob; filename: string | null }> => {
+    const res = await fetch(`/api${path}`, { credentials: 'include' });
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        message = (await res.json()).detail ?? message;
+      } catch {
+        // no JSON body
+      }
+      throw new ApiError(res.status, message);
+    }
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+    return { blob: await res.blob(), filename: filenameMatch ? filenameMatch[1] : null };
+  },
 };

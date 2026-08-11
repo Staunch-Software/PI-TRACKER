@@ -1562,24 +1562,29 @@ table.data-table th.col-status {
   overflow-y: auto;
 }
 
-/* Column header filter icon (e.g. Currency) — hidden until the header is hovered, so it doesn't
-   add visual noise to every column, only the ones with `def.filter` set. */
+/* Columns with a header filter (Currency/Vessel/Vendor) reserve space on the right for the icon,
+   which is pinned there via .column-filter-icon's absolute positioning below — not inline after
+   the label, so it stays flush with the column's right edge regardless of label length/wrapping. */
+table.data-table thead th.col-has-filter {
+  position: relative;
+  padding-right: 26px;
+}
+
+/* Column header filter icon — always visible (not hover-only) and pinned to the column's right
+   edge so every filterable column lines up the same way. */
 .column-filter-icon {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 4px;
   padding: 2px;
   border: none;
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  opacity: 0;
-  vertical-align: middle;
-}
-th:hover .column-filter-icon,
-.column-filter-icon.active {
-  opacity: 1;
 }
 .column-filter-icon.active {
   color: var(--color-accent);
@@ -1593,6 +1598,43 @@ th:hover .column-filter-icon,
   border-radius: 8px;
   box-shadow: var(--shadow-md);
   overflow: hidden;
+}
+
+.column-filter-search {
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 10px;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.multi-select-empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* Single-select column filter (e.g. Vendor) — plain clickable rows, no checkbox; picking one
+   applies it and closes the panel immediately instead of requiring a separate confirm step. */
+.single-select-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.single-select-option:hover {
+  background: #f8fafc;
+}
+.single-select-option.selected {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.single-select-all {
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
 }
 
 .searchable-select-option {

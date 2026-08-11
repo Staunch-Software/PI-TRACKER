@@ -1,12 +1,15 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
-from app.core.enums import AuditAction, AuditEntityType, UserRole
+from app.core.enums import AuditAction, AuditEntityType, FOLLOW_UP_STATUS_LABELS, UserRole
 from app.db.session import get_db
 from app.models.pi_entry import PiEntry
 from app.models.user import User
@@ -51,28 +54,23 @@ _SORTABLE_COLUMNS = {
 }
 
 
-@router.get("", response_model=PaginatedResult[PiEntryOut])
-def list_pi_entries(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
-    search: str | None = Query(default=None),
-    status_filter: list[str] | None = Query(default=None, alias="status"),
-    vessel_id: list[uuid.UUID] | None = Query(default=None),
-    vendor_id: list[uuid.UUID] | None = Query(default=None),
-    currency: list[str] | None = Query(default=None),
-    overdue: bool | None = Query(default=None),
-    no_invoice_attached: bool | None = Query(default=None),
-    dpr_date_from: date | None = Query(default=None),
-    dpr_date_to: date | None = Query(default=None),
-    payment_date_from: date | None = Query(default=None),
-    payment_date_to: date | None = Query(default=None),
-    invoice_date_from: date | None = Query(default=None),
-    invoice_date_to: date | None = Query(default=None),
-    sort_by: str | None = Query(default=None),
-    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=1000),
-) -> dict:
+# Builds the WHERE clause + bound params shared by list_pi_entries and export_pi_entries, so the
+# two endpoints can never drift apart on what "the current filters" mean.
+def _build_where_clause(
+    search: str | None,
+    status_filter: list[str] | None,
+    vessel_id: list[uuid.UUID] | None,
+    vendor_id: list[uuid.UUID] | None,
+    currency: list[str] | None,
+    overdue: bool | None,
+    no_invoice_attached: bool | None,
+    dpr_date_from: date | None,
+    dpr_date_to: date | None,
+    payment_date_from: date | None,
+    payment_date_to: date | None,
+    invoice_date_from: date | None,
+    invoice_date_to: date | None,
+) -> tuple[str, dict]:
     where_clauses = []
     params: dict = {}
 
@@ -133,6 +131,35 @@ def list_pi_entries(
         params["invoice_date_to"] = invoice_date_to
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    return where_sql, params
+
+
+@router.get("", response_model=PaginatedResult[PiEntryOut])
+def list_pi_entries(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+    search: str | None = Query(default=None),
+    status_filter: list[str] | None = Query(default=None, alias="status"),
+    vessel_id: list[uuid.UUID] | None = Query(default=None),
+    vendor_id: list[uuid.UUID] | None = Query(default=None),
+    currency: list[str] | None = Query(default=None),
+    overdue: bool | None = Query(default=None),
+    no_invoice_attached: bool | None = Query(default=None),
+    dpr_date_from: date | None = Query(default=None),
+    dpr_date_to: date | None = Query(default=None),
+    payment_date_from: date | None = Query(default=None),
+    payment_date_to: date | None = Query(default=None),
+    invoice_date_from: date | None = Query(default=None),
+    invoice_date_to: date | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=1000),
+) -> dict:
+    where_sql, params = _build_where_clause(
+        search, status_filter, vessel_id, vendor_id, currency, overdue, no_invoice_attached,
+        dpr_date_from, dpr_date_to, payment_date_from, payment_date_to, invoice_date_from, invoice_date_to,
+    )
 
     total = db.execute(text(f"SELECT count(*) {_FROM_JOIN} {where_sql}"), params).scalar_one()
 
@@ -155,6 +182,107 @@ def list_pi_entries(
         "page": page,
         "page_size": page_size,
     }
+
+
+# Header order/labels mirror _HEADER_MAP in app/services/importer.py so a file exported here
+# (optionally re-filtered/edited) can be re-imported without any column remapping. Columns not
+# recognized by the importer (S.No., Days Since Payment, Invoice File Name, Attached By, Date
+# Attached, PO Number) are included for readability but are simply ignored on re-import.
+_EXPORT_HEADERS = [
+    ("S.No.", "seq_no"),
+    ("DPR No.", "dpr_no"),
+    ("Follow up Status", "followup_status"),
+    ("DPR Date", "dpr_date"),
+    ("Vessel", "vessel_name"),
+    ("Vendor", "vendor_name"),
+    ("Service Details", "service_details"),
+    ("FC Amount", "fc_amount"),
+    ("Amount INR", "amount_inr"),
+    ("Currency", "currency"),
+    ("Payment Date", "payment_date"),
+    ("Payment Reference", "payment_reference"),
+    ("Days Since Payment", "days_since_payment"),
+    ("Last Known Remark", "last_known_remark"),
+    ("Reminder 1 Sent Date", "reminder_1_sent_date"),
+    ("Reminder 2 Sent Date", "reminder_2_sent_date"),
+    ("Final Invoice Received", "final_invoice_received"),
+    ("Invoice No", "invoice_no"),
+    ("Invoice Date", "invoice_date"),
+    ("Attached By", "attached_by_name"),
+    ("Date Attached", "date_attached"),
+    ("Notes", "notes"),
+    ("PO Number", "po_number"),
+]
+
+
+@router.get("/export")
+def export_pi_entries(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+    search: str | None = Query(default=None),
+    status_filter: list[str] | None = Query(default=None, alias="status"),
+    vessel_id: list[uuid.UUID] | None = Query(default=None),
+    vendor_id: list[uuid.UUID] | None = Query(default=None),
+    currency: list[str] | None = Query(default=None),
+    overdue: bool | None = Query(default=None),
+    no_invoice_attached: bool | None = Query(default=None),
+    dpr_date_from: date | None = Query(default=None),
+    dpr_date_to: date | None = Query(default=None),
+    payment_date_from: date | None = Query(default=None),
+    payment_date_to: date | None = Query(default=None),
+    invoice_date_from: date | None = Query(default=None),
+    invoice_date_to: date | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+) -> StreamingResponse:
+    """Exports every row matching the current tracker filters (no pagination) as an .xlsx
+    workbook — the same filter params the list endpoint takes, so "export" always means
+    "export exactly what's on screen right now"."""
+    where_sql, params = _build_where_clause(
+        search, status_filter, vessel_id, vendor_id, currency, overdue, no_invoice_attached,
+        dpr_date_from, dpr_date_to, payment_date_from, payment_date_to, invoice_date_from, invoice_date_to,
+    )
+
+    if sort_by and sort_by in _SORTABLE_COLUMNS:
+        order_sql = f"ORDER BY {_SORTABLE_COLUMNS[sort_by]} {sort_dir.upper()} NULLS LAST, pe.seq_no ASC"
+    else:
+        order_sql = "ORDER BY pe.seq_no ASC"
+
+    rows = db.execute(
+        text(f"SELECT {_SELECT_COLUMNS} {_FROM_JOIN} {where_sql} {order_sql}"), params
+    ).mappings().all()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "PI Follow-up Tracker"
+    sheet.append([label for label, _ in _EXPORT_HEADERS])
+
+    for row in rows:
+        values = []
+        for _label, field in _EXPORT_HEADERS:
+            value = row[field]
+            if field == "followup_status":
+                value = FOLLOW_UP_STATUS_LABELS.get(value, value)
+            elif field == "final_invoice_received":
+                value = "Yes" if value else "No"
+            elif isinstance(value, datetime):
+                value = value.replace(tzinfo=None)
+            values.append(value)
+        sheet.append(values)
+
+    for col_idx in range(1, len(_EXPORT_HEADERS) + 1):
+        sheet.column_dimensions[sheet.cell(row=1, column=col_idx).column_letter].width = 20
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    filename = f"PI_Followup_Tracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{pi_entry_id}/position")

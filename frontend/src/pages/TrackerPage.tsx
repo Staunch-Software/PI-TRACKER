@@ -141,6 +141,8 @@ export function TrackerPage() {
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [layoutEditable, setLayoutEditable] = useState(false);
   const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
@@ -339,6 +341,31 @@ export function TrackerPage() {
       setSortDir('asc');
     }
     setPage(1);
+  }
+
+  // Exports exactly the rows the current filters would return — same query params as the list
+  // fetch, minus pagination, since the export endpoint returns every matching row in one file.
+  async function handleExport() {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      const params = buildQueryParams(filters, sortBy, sortDir, page, pageSize);
+      params.delete('page');
+      params.delete('page_size');
+      const { blob, filename } = await api.getBlob(`/pi-entries/export?${params.toString()}`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename ?? 'PI_Followup_Tracker.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : 'Failed to export.');
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   function refreshAfterSave() {
@@ -543,11 +570,14 @@ export function TrackerPage() {
           </div>
         </MoreFiltersPopover>
         <div className="toolbar-spacer" />
+        <button className="btn btn-secondary" onClick={handleExport} disabled={isExporting}>
+          {isExporting ? 'Exporting…' : '⇩ Export to Excel'}
+        </button>
         {canEdit && (
           <>
-            {/* <button className="btn btn-secondary" onClick={() => setIsImporting(true)}>
+            <button className="btn btn-secondary" onClick={() => setIsImporting(true)}>
               ⇪ Import from Excel
-            </button> */}
+            </button>
             <button className="btn btn-primary" onClick={startAdd} disabled={isAddingNew || layoutEditable}>
               + Add New PI
             </button>
@@ -568,6 +598,11 @@ export function TrackerPage() {
           </>
         )}
       </div>
+      {exportError && (
+        <p className="form-error" style={{ margin: '0 0 12px' }}>
+          {exportError}
+        </p>
+      )}
 
       {entriesQuery.isLoading ? (
         <div className="card">
@@ -608,9 +643,11 @@ export function TrackerPage() {
               layoutEditable={layoutEditable}
               onReorderColumn={setColumnOrder}
               onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
-              columnFilters={{ currency: filters.currencies }}
+              columnFilters={{ currency: filters.currencies, vessel: filters.vesselIds, vendor: filters.vendorIds }}
               onColumnFilterChange={(key, values) => {
                 if (key === 'currency') updateFilters({ currencies: values as Currency[] });
+                if (key === 'vessel') updateFilters({ vesselIds: values });
+                if (key === 'vendor') updateFilters({ vendorIds: values });
               }}
             />
           </div>

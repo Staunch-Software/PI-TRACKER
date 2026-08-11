@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -376,6 +377,18 @@ export function PiEntriesTable({
   columnFilters,
   onColumnFilterChange,
 }: Props) {
+  // Vessel/vendor filter options come from live data (not a fixed enum like Currency), so they
+  // can't be baked into the static COLUMNS map — they're derived here from the vessels/vendors
+  // props and consulted by key inside renderHeaderCell below.
+  const vesselFilterOptions = useMemo(
+    () => vessels.map((v) => ({ value: v.id, label: v.name })),
+    [vessels]
+  );
+  const vendorFilterOptions = useMemo(
+    () => vendors.map((v) => ({ value: v.id, label: v.name })),
+    [vendors]
+  );
+
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   const draggedKeyRef = useRef<ReorderableColumnKey | null>(null);
@@ -473,11 +486,14 @@ export function PiEntriesTable({
 
   function renderHeaderCell(key: ReorderableColumnKey) {
     const def = COLUMNS[key];
+    const filterOptions =
+      key === 'vessel' ? vesselFilterOptions : key === 'vendor' ? vendorFilterOptions : def.filter?.options;
     const classNames = [
       def.headerClassName,
       def.sortColumn ? 'sortable-col' : undefined,
       layoutEditable ? 'col-layout-editable' : undefined,
       dragOverKey === key ? 'col-drag-over' : undefined,
+      filterOptions && !layoutEditable ? 'col-has-filter' : undefined,
     ]
       .filter(Boolean)
       .join(' ');
@@ -496,12 +512,13 @@ export function PiEntriesTable({
         {def.sortColumn && !layoutEditable && (
           <span className="sort-arrow">{sortBy === def.sortColumn ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}</span>
         )}
-        {def.filter && !layoutEditable && (
+        {filterOptions && !layoutEditable && (
           <span onClick={(e) => e.stopPropagation()}>
             <ColumnFilterMenu
-              options={def.filter.options}
+              options={filterOptions}
               selected={columnFilters[key] ?? []}
               onChange={(values) => onColumnFilterChange(key, values)}
+              mode={key === 'vendor' ? 'single' : 'multi'}
             />
           </span>
         )}
