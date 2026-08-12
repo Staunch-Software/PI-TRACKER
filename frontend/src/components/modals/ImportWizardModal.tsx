@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import { FOLLOW_UP_STATUS_LABELS, type ImportCommitResponse, type ImportDecision, type ImportParseResponse } from '../../shared';
+import { FolderUploadIcon } from '../common/FolderUploadIcon';
+import { DocumentCheckIcon } from '../common/DocumentCheckIcon';
+import { DownloadTemplateIcon } from '../common/DownloadTemplateIcon';
+import { SpinnerIcon } from '../common/SpinnerIcon';
 
 interface Props {
   onClose: () => void;
@@ -12,8 +16,10 @@ type Step = 'upload' | 'preview' | 'result';
 export function ImportWizardModal({ onClose }: Props) {
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parseResult, setParseResult] = useState<ImportParseResponse | null>(null);
   const [decisions, setDecisions] = useState<Record<number, ImportDecision>>({});
@@ -24,6 +30,25 @@ export function ImportWizardModal({ onClose }: Props) {
     if (!parseResult) return 0;
     return parseResult.rows.filter((r) => !r.errors.length && decisions[r.rowNumber] !== 'skip').length;
   }, [parseResult, decisions]);
+
+  async function handleDownloadTemplate() {
+    setIsDownloading(true);
+    try {
+      const { blob, filename } = await api.getBlob('/import/template');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename ?? 'PI_Import_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Could not download the template. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   async function handleParse() {
     if (!file) return;
@@ -81,17 +106,102 @@ export function ImportWizardModal({ onClose }: Props) {
         <div className="modal-body">
           {step === 'upload' && (
             <div>
-              <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>
-                Upload the PI Follow-up Tracker .xlsx file. Rows are matched to the tracker's columns by header
-                name; existing DPR Nos. are detected as duplicates so you can choose to update or skip them.
-              </p>
-              <div className="field">
-                <label>Excel file (.xlsx)</label>
+              {/* Download template banner */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '14px 18px',
+                marginBottom: 20,
+                background: 'linear-gradient(135deg, var(--color-primary, #1E3A5F) 0%, #2d5b9e 100%)',
+                borderRadius: 10,
+                boxShadow: '0 2px 12px rgba(30,58,95,0.18)',
+              }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: '#fff', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <DownloadTemplateIcon size={18} /> Download the Import Template
+                  </p>
+                  <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                    Fill in the template and upload it below. It includes dropdown lists for Status &amp; Currency.
+                  </p>
+                </div>
+                <button
+                  className="btn"
+                  disabled={isDownloading}
+                  onClick={handleDownloadTemplate}
+                  style={{
+                    background: '#fff',
+                    color: 'var(--color-primary, #1E3A5F)',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    padding: '8px 18px',
+                    borderRadius: 7,
+                    border: 'none',
+                    cursor: isDownloading ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                    transition: 'opacity 0.15s',
+                    opacity: isDownloading ? 0.7 : 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    {isDownloading ? <><SpinnerIcon size={16} /> Downloading…</> : <><DownloadTemplateIcon size={16} /> Download Template</>}
+                  </div>
+                </button>
+              </div>
+
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const droppedFile = e.dataTransfer.files[0];
+                  if (droppedFile) setFile(droppedFile);
+                }}
+                style={{
+                  border: `2px dashed ${isDragging ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                  borderRadius: 12,
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  background: isDragging ? 'var(--color-bg-hover)' : 'var(--color-bg-subtle)',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  marginTop: 20,
+                }}
+              >
                 <input
                   type="file"
                   accept=".xlsx,.xlsm"
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0,
+                    cursor: 'pointer',
+                    width: '100%',
+                  }}
                 />
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: file ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                  {file ? <DocumentCheckIcon size={40} /> : <FolderUploadIcon size={40} />}
+                </div>
+                <h3 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--color-text)' }}>
+                  {file ? file.name : 'Click or drag your Excel file here'}
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  {file ? (
+                    <span style={{ color: 'var(--color-success)' }}>Ready to parse</span>
+                  ) : (
+                    'Supports .xlsx and .xlsm files'
+                  )}
+                </p>
               </div>
               {error && <p className="form-error">{error}</p>}
             </div>
