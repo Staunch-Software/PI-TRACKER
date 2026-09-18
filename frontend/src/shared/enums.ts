@@ -42,6 +42,16 @@ export const FOLLOW_UP_STATUS_LABEL_TO_ENUM: Record<string, FollowUpStatus> = Ob
   Object.entries(FOLLOW_UP_STATUS_LABELS).map(([enumValue, label]) => [label.toLowerCase(), enumValue as FollowUpStatus])
 );
 
+export enum PaymentStatus {
+  PAID = 'PAID',
+  NOT_PAID = 'NOT_PAID',
+}
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  [PaymentStatus.PAID]: 'Paid',
+  [PaymentStatus.NOT_PAID]: 'Not Paid',
+};
+
 export enum AuditAction {
   CREATE = 'CREATE',
   UPDATE = 'UPDATE',
@@ -57,4 +67,5 @@ export enum AuditEntityType {
   VESSEL = 'vessel',
   VENDOR = 'vendor',
   IMPORT_BATCH = 'import_batch',
+  APPROVED_INVOICE_ENTRY = 'approved_invoice_entry',
 }

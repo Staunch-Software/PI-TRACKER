@@ -3,6 +3,7 @@ dist/
 build/
 .env
 .env.local
+backend/app/services/approved_invoice_scraper/auth.json
 *.log
 .DS_Store
 .venv/

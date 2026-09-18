@@ -9,8 +9,8 @@
     },
     {
       "name": "pi-tracker-backend",
-      "runtimeExecutable": "backend/.venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8080", "--app-dir", "backend"],
+      "runtimeExecutable": "D:\\PI-TRACKER\\backend\\run_dev.bat",
+      "runtimeArgs": [],
       "port": 8080
     }
   ]

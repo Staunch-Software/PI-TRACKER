@@ -38,6 +38,11 @@ FOLLOW_UP_STATUS_LABELS: dict[FollowUpStatus, str] = {
 }
 
 
+class PaymentStatus(str, enum.Enum):
+    PAID = "PAID"
+    NOT_PAID = "NOT_PAID"
+
+
 class AuditAction(str, enum.Enum):
     CREATE = "CREATE"
     UPDATE = "UPDATE"
@@ -53,3 +58,4 @@ class AuditEntityType(str, enum.Enum):
     VESSEL = "vessel"
     VENDOR = "vendor"
     IMPORT_BATCH = "import_batch"
+    APPROVED_INVOICE_ENTRY = "approved_invoice_entry"
