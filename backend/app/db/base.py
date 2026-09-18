@@ -12,8 +12,10 @@ from app.models import (  # noqa: E402,F401
     audit_log,
     invoice_attachment,
     pi_entry,
+    pir_entry,
     table_layout_preference,
     user,
     vendor,
+    vendor_department_mapping,
     vessel,
 )

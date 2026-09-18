@@ -13,6 +13,8 @@ class UserOut(CamelModel):
     full_name: str
     role: UserRole
     is_active: bool
+    can_access_pi: bool
+    can_access_pir: bool
     created_at: datetime
 
 

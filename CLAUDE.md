@@ -83,9 +83,8 @@ order 1..N — it's the default sort and also what `/pi-entries/{id}/position` c
   drag-reorderable + resizable columns, and per-user persisted layout (order/widths/page size) via
   `table-layout/pi_entries` (backend: `table_layout_preference.py` model +
   `api/routes/table_layout.py`).
-- `components/modals/` — `ImportWizardModal` (Excel import, currently commented out of the
-  toolbar in `TrackerPage.tsx` — re-enable by uncommenting the button, not by rebuilding it),
-  `AttachmentGalleryModal`, `VesselModal`, `UserModal`, `ChangePasswordModal`.
+- `components/modals/` — `ImportWizardModal` (Excel import, wired to the "Import" toolbar button
+  in `TrackerPage.tsx`), `AttachmentGalleryModal`, `VesselModal`, `UserModal`, `ChangePasswordModal`.
 - `auth/` — `AuthContext` (current user + session), `useRole()` (derives `canEdit` etc. from
   role — Viewer is read-only, Editor/Admin can mutate), `ProtectedRoute`.
 - `lib/api.ts` — thin fetch wrapper (`api.get/post/patch/put/delete/postForm`), always
@@ -97,14 +96,17 @@ order 1..N — it's the default sort and also what `/pi-entries/{id}/position` c
 
 ### Tracker page filtering/sorting
 
-`TrackerPage.tsx` builds query params (`search`, `status[]`, `sort_by`, `sort_dir`, `page`,
-`page_size`) and the query key includes all of them, so React Query refetches on any change.
-`vessel_id` / `vendor_id` filters already exist on the backend (`pi_entries.py` `list_pi_entries`)
-but are **not yet wired up in the frontend UI** — only `search` and `status` have toolbar controls
-today. `placeholderData: keepPreviousData` is used deliberately so filter/sort/page changes don't
-flash the table to a loading state. The entries query also `refetchInterval`s every 5 minutes
-purely because `days_since_payment` is computed off `CURRENT_DATE` server-side and a long-open tab
-needs to pick up the day rolling over.
+`TrackerPage.tsx` builds query params (`search`, `status[]`, `vessel_id[]`, `vendor_id[]`,
+`currency[]`, `sort_by`, `sort_dir`, `page`, `page_size`) and the query key includes all of them,
+so React Query refetches on any change. Vessel/vendor/currency filters are both toolbar dropdowns
+(`filters.vesselIds`/`vendorIds`) and per-column filter popovers on the table header (see
+`columnFilters` wiring around `PiEntriesTable.tsx:646`) — both write to the same filter state.
+`placeholderData: keepPreviousData` is used deliberately so filter/sort/page changes don't flash
+the table to a loading state. The entries query also `refetchInterval`s every 5 minutes purely
+because `days_since_payment` is computed off `CURRENT_DATE` server-side and a long-open tab needs
+to pick up the day rolling over. "Export to Excel" (`handleExport`) re-sends the current filter
+params to a backend export endpoint so the download matches exactly what's on screen, not the
+whole table.
 
 ### Deployment
 

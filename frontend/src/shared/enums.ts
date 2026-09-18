@@ -52,6 +52,17 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   [PaymentStatus.NOT_PAID]: 'Not Paid',
 };
 
+export enum Department {
+  TECHNICAL = 'TECHNICAL',
+  MANNING = 'MANNING',
+}
+
+// Exact display strings for the Department dropdown / table column.
+export const DEPARTMENT_LABELS: Record<Department, string> = {
+  [Department.TECHNICAL]: 'Technical',
+  [Department.MANNING]: 'Manning',
+};
+
 export enum AuditAction {
   CREATE = 'CREATE',
   UPDATE = 'UPDATE',
@@ -68,4 +79,7 @@ export enum AuditEntityType {
   VENDOR = 'vendor',
   IMPORT_BATCH = 'import_batch',
   APPROVED_INVOICE_ENTRY = 'approved_invoice_entry',
+  VENDOR_MAPPING = 'vendor_mapping',
+  VENDOR_MAPPING_IMPORT_BATCH = 'vendor_mapping_import_batch',
+  PIR_ENTRY = 'pir_entry',
 }

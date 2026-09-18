@@ -1,33 +1,32 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { Vessel } from '../../shared';
+import { DEPARTMENT_LABELS, Department, type VendorMapping } from '../../shared';
 
 interface Props {
-  vessel: Vessel | null; // null = create mode
+  mapping: VendorMapping | null; // null = create mode
   onClose: () => void;
 }
 
-export function VesselModal({ vessel, onClose }: Props) {
-  const isEdit = vessel !== null;
-  const [name, setName] = useState(vessel?.name ?? '');
-  const [imoNumber, setImoNumber] = useState(vessel?.imoNumber ?? '');
-  const [isActive, setIsActive] = useState(vessel?.isActive ?? true);
+export function VendorMappingModal({ mapping, onClose }: Props) {
+  const isEdit = mapping !== null;
+  const [vendorName, setVendorName] = useState(mapping?.vendorName ?? '');
+  const [department, setDepartment] = useState<Department>(mapping?.department ?? Department.TECHNICAL);
+  const [active, setActive] = useState(mapping?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const saveMutation = useMutation({
     mutationFn: () =>
       isEdit
-        ? api.patch<Vessel>(`/vessels/${vessel.id}`, { name, imoNumber, isActive })
-        : api.post<Vessel>('/vessels', { name, imoNumber }),
+        ? api.patch<VendorMapping>(`/vendor-mapping/${mapping.id}`, { vendorName, department, active })
+        : api.post<VendorMapping>('/vendor-mapping', { vendorName, department }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-vessels'] });
-      queryClient.invalidateQueries({ queryKey: ['vessels'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-vendor-mapping'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
       onClose();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to save vessel.'),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to save vendor mapping.'),
   });
 
   function handleSubmit(e: FormEvent) {
@@ -40,7 +39,7 @@ export function VesselModal({ vessel, onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{isEdit ? `Edit Vessel — ${vessel.name}` : 'Add New Vessel'}</h2>
+          <h2>{isEdit ? `Edit Vendor Mapping — ${mapping.vendorName}` : 'Add New Vendor Mapping'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -48,23 +47,29 @@ export function VesselModal({ vessel, onClose }: Props) {
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="field">
-              <label>Vessel Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+              <label>Vendor Name</label>
+              <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} required autoFocus />
             </div>
             <div className="field" style={{ marginTop: 14 }}>
-              <label>IMO Number</label>
-              <input value={imoNumber} onChange={(e) => setImoNumber(e.target.value)} placeholder="e.g. 9481219" required />
+              <label>Department</label>
+              <select value={department} onChange={(e) => setDepartment(e.target.value as Department)}>
+                {Object.values(Department).map((d) => (
+                  <option key={d} value={d}>
+                    {DEPARTMENT_LABELS[d]}
+                  </option>
+                ))}
+              </select>
             </div>
             {isEdit && (
               <div className="field" style={{ marginTop: 14 }}>
                 <label>
                   <input
                     type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
+                    checked={active}
+                    onChange={(e) => setActive(e.target.checked)}
                     style={{ marginRight: 6 }}
                   />
-                  Applicable for PI (shows up in the PI vessel dropdown)
+                  Active
                 </label>
               </div>
             )}
@@ -75,7 +80,7 @@ export function VesselModal({ vessel, onClose }: Props) {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Vessel'}
+              {saveMutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Vendor'}
             </button>
           </div>
         </form>

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_module_access
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.audit_log import AuditLogEntryOut
@@ -29,7 +29,7 @@ _SELECT = """
 @router.get("", response_model=PaginatedResult[AuditLogEntryOut])
 def list_audit_log(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_module_access("pi")),
     search: str | None = Query(default=None),
     action: list[str] | None = Query(default=None),
     vessel_id: list[uuid.UUID] | None = Query(default=None),
@@ -107,7 +107,7 @@ def list_audit_log(
 
 @router.post("/{audit_log_id}/read")
 def mark_as_read(
-    audit_log_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    audit_log_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_module_access('pi'))
 ) -> dict[str, bool]:
     db.execute(
         text(

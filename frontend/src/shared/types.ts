@@ -1,4 +1,4 @@
-import { AuditAction, AuditEntityType, Currency, FollowUpStatus, UserRole } from './enums';
+import { AuditAction, AuditEntityType, Currency, Department, FollowUpStatus, UserRole } from './enums';
 
 export interface User {
   id: string;
@@ -6,6 +6,10 @@ export interface User {
   fullName: string;
   role: UserRole;
   isActive: boolean;
+  // Per-user module access, independent of role — ADMIN always has full access regardless of
+  // these (see useRole.ts / backend/app/api/deps.py require_module_access).
+  canAccessPi: boolean;
+  canAccessPir: boolean;
   createdAt: string;
 }
 
@@ -166,4 +170,140 @@ export interface ImportCommitResponse {
   skipped: number;
   failed: number;
   errors: string[];
+}
+
+// ── Vendor Mapping (admin) ────────────────────────────────────────────────────────
+
+export interface VendorMapping {
+  id: string;
+  vendorName: string;
+  department: Department;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Vendor mapping health check — mirrors backend/app/schemas/vendor_department_mapping.py.
+export interface VendorMappingHealthCandidate {
+  vendorName: string;
+  invoiceCount: number;
+}
+
+export interface VendorMappingHealthIssue {
+  mappingId: string;
+  vendorName: string;
+  department: Department;
+  candidates: VendorMappingHealthCandidate[];
+}
+
+export interface VendorMappingHealthCheck {
+  totalActiveMappings: number;
+  unmatchedCount: number;
+  issues: VendorMappingHealthIssue[];
+}
+
+// Vendor mapping import wizard: mirrors backend/app/schemas/vendor_department_mapping.py.
+export interface ColumnMappingCandidate {
+  rawHeader: string;
+  columnIndex: number;
+  guessedField: 'vendor_name' | 'department' | null;
+}
+
+export interface VendorImportRowPreview {
+  rowNumber: number;
+  vendorName: string | null;
+  department: Department | null;
+  errors: string[];
+  isUpdate: boolean;
+}
+
+export interface VendorImportParseResponse {
+  needsMapping: boolean;
+  headers: ColumnMappingCandidate[];
+  rows: VendorImportRowPreview[];
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+}
+
+export interface VendorImportRejectedRow {
+  rowNumber: number;
+  reason: string;
+}
+
+export interface VendorImportCommitResponse {
+  inserted: number;
+  updated: number;
+  rejected: VendorImportRejectedRow[];
+}
+
+// ── PIR (Problematic Invoice Resolution) ────────────────────────────────────────
+
+export type PirDepartment = 'TECHNICAL' | 'MANNING' | 'UNCLASSIFIED';
+
+// Mirrors backend/app/schemas/pir_entry.py PirEntryOut.
+export interface PirEntry {
+  id: string;
+  smartpalInvoiceId: number;
+  documentId: number | null;
+  invoiceNo: string | null;
+  regInvoiceNo: string | null;
+  vendorInvoiceNo: string | null;
+  vendorName: string | null;
+  vesselName: string | null;
+  companyName: string | null;
+  vendorBankName: string | null;
+  vendorAccountCode: string | null;
+  vendorSwiftCode: string | null;
+  regDate: string | null;
+  frwdFrom: string | null;
+  amount: number | string | null;
+  status: string | null;
+  poNos: string | null;
+  currencyCode: string | null;
+  totalDatapoints: number | null;
+  availableDataPoints: number | null;
+  modifiedFromPal: boolean | null;
+  rejectRemark: string | null;
+  department: PirDepartment;
+  // Canonical vessels-table name this row matches, or "No vessel assigned" / "Not in Fleet" —
+  // see backend/app/services/pir_vessel_matcher.py. Group by this, not vesselName, so naming
+  // variants ("AMNS Polar" vs "POLAR") land in the same group. A manual assignment (see
+  // assignedVesselId) always wins over the automatic match.
+  vesselGroup: string;
+  assignedVesselId: string | null;
+  // (CURRENT_DATE - regDate), computed server-side — null when regDate itself is null.
+  ageDays: number | null;
+  firstScrapedAt: string;
+  lastScrapedAt: string;
+}
+
+export interface PirDepartmentCounts {
+  all: number;
+  technical: number;
+  manning: number;
+  unclassified: number;
+}
+
+// Mirrors backend/app/schemas/pir_entry.py PirKpisOut.
+export interface PirOldestInvoice {
+  id: string;
+  invoiceNo: string | null;
+  vendorName: string | null;
+  vesselGroup: string;
+  ageDays: number;
+}
+
+export interface PirCurrencyMixEntry {
+  currencyCode: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PirKpis {
+  totalOpen: number;
+  byDepartment: PirDepartmentCounts;
+  needsTriageCount: number;
+  oldestInvoice: PirOldestInvoice | null;
+  currencyMix: PirCurrencyMixEntry[];
 }

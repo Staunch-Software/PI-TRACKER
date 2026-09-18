@@ -3,7 +3,7 @@ import { useRole } from '../../auth/useRole';
 import { AdminCreateModalProvider, useAdminCreateModal } from './AdminCreateModalContext';
 
 function AdminSidebar() {
-  const { isUsersCreateOpen, isVesselsCreateOpen } = useAdminCreateModal();
+  const { isUsersCreateOpen, isVesselsCreateOpen, isVendorMappingCreateOpen } = useAdminCreateModal();
 
   return (
     <aside className="admin-sidebar">
@@ -32,6 +32,19 @@ function AdminSidebar() {
         </NavLink>
         <Link to="/admin/vessels?new=1" className={`admin-nav-link create${isVesselsCreateOpen ? ' active' : ''}`}>
           + Create Vessel
+        </Link>
+      </div>
+
+      <div className="admin-nav-section">
+        <div className="admin-nav-heading">Vendor Mapping</div>
+        <NavLink to="/admin/vendor-mapping" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
+          All Vendors
+        </NavLink>
+        <Link
+          to="/admin/vendor-mapping?new=1"
+          className={`admin-nav-link create${isVendorMappingCreateOpen ? ' active' : ''}`}
+        >
+          + Create Vendor Mapping
         </Link>
       </div>
     </aside>

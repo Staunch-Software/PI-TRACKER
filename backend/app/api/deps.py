@@ -34,3 +34,21 @@ def require_roles(*allowed_roles: UserRole) -> Callable[[User], User]:
         return current_user
 
     return dependency
+
+
+def require_module_access(module: str) -> Callable[[User], User]:
+    """Gates a module's routes on the per-user can_access_pi/can_access_pir flags (independent
+    of role) — ADMIN always passes regardless of the flags, same stance the frontend takes (see
+    useRole.ts / TopNav.tsx), so an admin can never lock themselves out by unchecking their own
+    boxes. module must be 'pi' or 'pir'."""
+    flag_attr = {"pi": "can_access_pi", "pir": "can_access_pir"}[module]
+
+    def dependency(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role != UserRole.ADMIN and not getattr(current_user, flag_attr):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"You don't have access to the {module.upper()} module",
+            )
+        return current_user
+
+    return dependency

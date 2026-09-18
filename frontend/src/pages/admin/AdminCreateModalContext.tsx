@@ -5,6 +5,8 @@ interface AdminCreateModalValue {
   setIsUsersCreateOpen: (value: boolean) => void;
   isVesselsCreateOpen: boolean;
   setIsVesselsCreateOpen: (value: boolean) => void;
+  isVendorMappingCreateOpen: boolean;
+  setIsVendorMappingCreateOpen: (value: boolean) => void;
 }
 
 const AdminCreateModalContext = createContext<AdminCreateModalValue | null>(null);
@@ -12,10 +14,18 @@ const AdminCreateModalContext = createContext<AdminCreateModalValue | null>(null
 export function AdminCreateModalProvider({ children }: { children: ReactNode }) {
   const [isUsersCreateOpen, setIsUsersCreateOpen] = useState(false);
   const [isVesselsCreateOpen, setIsVesselsCreateOpen] = useState(false);
+  const [isVendorMappingCreateOpen, setIsVendorMappingCreateOpen] = useState(false);
 
   return (
     <AdminCreateModalContext.Provider
-      value={{ isUsersCreateOpen, setIsUsersCreateOpen, isVesselsCreateOpen, setIsVesselsCreateOpen }}
+      value={{
+        isUsersCreateOpen,
+        setIsUsersCreateOpen,
+        isVesselsCreateOpen,
+        setIsVesselsCreateOpen,
+        isVendorMappingCreateOpen,
+        setIsVendorMappingCreateOpen,
+      }}
     >
       {children}
     </AdminCreateModalContext.Provider>

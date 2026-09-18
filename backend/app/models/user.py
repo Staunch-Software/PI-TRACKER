@@ -21,6 +21,11 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(user_role_enum, nullable=False, default=UserRole.VIEWER)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Per-user module access — independent of role, both default TRUE so this narrows access
+    # rather than silently granting it. ADMIN always has full access regardless of these flags
+    # (enforced in api/deps.py's require_module_access, not here) — see 0009_user_module_access.
+    can_access_pi: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    can_access_pir: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     password_reset_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     password_reset_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Vessel } from '../../shared';
 import { VesselModal } from '../../components/modals/VesselModal';
-import { TrashIcon } from '../../components/common/TrashIcon';
 import { useAdminCreateModal } from './AdminCreateModalContext';
 
 export function AdminVesselsPage() {
@@ -19,7 +18,11 @@ export function AdminVesselsPage() {
     queryFn: () => api.get<Vessel[]>('/vessels?include_inactive=true'),
   });
 
-  const deactivateMutation = useMutation({
+  // Renamed from "deactivate" to match what this flag actually means (confirmed with the user):
+  // it ONLY controls whether the vessel shows up in the PI vessel dropdown, not whether the
+  // vessel entity itself is deactivated/decommissioned. No confirm dialog — toggling this isn't
+  // destructive, so it shouldn't read as if it were.
+  const toggleApplicableMutation = useMutation({
     mutationFn: (vessel: Vessel) => api.patch<Vessel>(`/vessels/${vessel.id}`, { isActive: !vessel.isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-vessels'] });
@@ -45,13 +48,6 @@ export function AdminVesselsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  function handleDelete(vessel: Vessel) {
-    const verb = vessel.isActive ? 'Deactivate' : 'Reactivate';
-    if (window.confirm(`${verb} ${vessel.name}?`)) {
-      deactivateMutation.mutate(vessel);
-    }
-  }
-
   return (
     <div>
       <div className="page-header">
@@ -70,7 +66,7 @@ export function AdminVesselsPage() {
             <tr>
               <th>Vessel Name</th>
               <th>IMO Number</th>
-              <th>Status</th>
+              <th style={{ textAlign: 'center' }}>Show in PI Dropdown</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
@@ -79,30 +75,19 @@ export function AdminVesselsPage() {
               <tr key={v.id}>
                 <td>{v.name}</td>
                 <td>{v.imoNumber ?? '—'}</td>
-                <td>
-                  <span
-                    className="status-badge"
-                    style={
-                      v.isActive
-                        ? { background: 'var(--color-success-bg)', color: 'var(--color-success)' }
-                        : { background: 'var(--color-neutral-bg)', color: 'var(--color-neutral)' }
-                    }
-                  >
-                    {v.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={v.isActive}
+                    disabled={toggleApplicableMutation.isPending}
+                    title="Whether this vessel is applicable for PI — shows up in the PI vessel dropdown when checked"
+                    onChange={() => toggleApplicableMutation.mutate(v)}
+                  />
                 </td>
                 <td style={{ textAlign: 'center' }}>
                   <div className="row-actions">
                     <button className="icon-btn" title="Edit" onClick={() => setModalVessel(v)}>
                       ✎
-                    </button>
-                    <button
-                      className={`icon-btn${v.isActive ? ' icon-btn-danger' : ''}`}
-                      title={v.isActive ? 'Deactivate' : 'Reactivate'}
-                      onClick={() => handleDelete(v)}
-                      disabled={deactivateMutation.isPending}
-                    >
-                      {v.isActive ? <TrashIcon /> : '↺'}
                     </button>
                   </div>
                 </td>

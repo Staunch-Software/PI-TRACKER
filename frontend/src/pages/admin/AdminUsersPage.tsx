@@ -70,6 +70,7 @@ export function AdminUsersPage() {
               <th>Full Name</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Access</th>
               <th>Status</th>
               <th>Created</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
@@ -83,6 +84,11 @@ export function AdminUsersPage() {
                 <td>{u.fullName}</td>
                 <td>{u.email}</td>
                 <td>{u.role}</td>
+                <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  {u.role === 'ADMIN'
+                    ? 'PI, PIR'
+                    : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR'].filter(Boolean).join(', ') || '—'}
+                </td>
                 <td>
                   <span
                     className="status-badge"

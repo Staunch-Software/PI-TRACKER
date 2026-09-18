@@ -43,6 +43,18 @@ class PaymentStatus(str, enum.Enum):
     NOT_PAID = "NOT_PAID"
 
 
+class Department(str, enum.Enum):
+    TECHNICAL = "TECHNICAL"
+    MANNING = "MANNING"
+
+
+# Exact display strings for the Department dropdown / table column.
+DEPARTMENT_LABELS: dict[Department, str] = {
+    Department.TECHNICAL: "Technical",
+    Department.MANNING: "Manning",
+}
+
+
 class AuditAction(str, enum.Enum):
     CREATE = "CREATE"
     UPDATE = "UPDATE"
@@ -59,3 +71,6 @@ class AuditEntityType(str, enum.Enum):
     VENDOR = "vendor"
     IMPORT_BATCH = "import_batch"
     APPROVED_INVOICE_ENTRY = "approved_invoice_entry"
+    VENDOR_MAPPING = "vendor_mapping"
+    VENDOR_MAPPING_IMPORT_BATCH = "vendor_mapping_import_batch"
+    PIR_ENTRY = "pir_entry"

@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import require_module_access, require_roles
 from app.core.enums import AuditAction, AuditEntityType, FOLLOW_UP_STATUS_LABELS, UserRole
 from app.db.session import get_db
 from app.models.pi_entry import PiEntry
@@ -137,7 +137,7 @@ def _build_where_clause(
 @router.get("", response_model=PaginatedResult[PiEntryOut])
 def list_pi_entries(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_module_access("pi")),
     search: str | None = Query(default=None),
     status_filter: list[str] | None = Query(default=None, alias="status"),
     vessel_id: list[uuid.UUID] | None = Query(default=None),
@@ -218,7 +218,7 @@ _EXPORT_HEADERS = [
 @router.get("/export")
 def export_pi_entries(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_module_access("pi")),
     search: str | None = Query(default=None),
     status_filter: list[str] | None = Query(default=None, alias="status"),
     vessel_id: list[uuid.UUID] | None = Query(default=None),
@@ -287,7 +287,7 @@ def export_pi_entries(
 
 @router.get("/{pi_entry_id}/position")
 def get_pi_entry_position(
-    pi_entry_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    pi_entry_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_module_access("pi"))
 ) -> dict:
     """0-based rank of this entry under the default (unfiltered, seq_no ascending) ordering —
     lets the frontend jump straight to the page containing it instead of filtering the list."""
@@ -299,7 +299,7 @@ def get_pi_entry_position(
 
 
 @router.get("/{pi_entry_id}", response_model=PiEntryOut)
-def get_pi_entry(pi_entry_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> dict:
+def get_pi_entry(pi_entry_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_module_access("pi"))) -> dict:
     row = db.execute(
         text(f"SELECT {_SELECT_COLUMNS} {_FROM_JOIN} WHERE pe.id = :id"), {"id": str(pi_entry_id)}
     ).mappings().first()
@@ -313,6 +313,7 @@ def create_pi_entry(
     payload: PiEntryCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
+    _: User = Depends(require_module_access("pi")),
 ) -> dict:
     vessel = db.get(Vessel, payload.vessel_id)
     vendor = db.get(Vendor, payload.vendor_id)
@@ -345,6 +346,7 @@ def update_pi_entry(
     payload: PiEntryUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
+    _: User = Depends(require_module_access("pi")),
 ) -> dict:
     entry = db.get(PiEntry, pi_entry_id)
     if not entry:

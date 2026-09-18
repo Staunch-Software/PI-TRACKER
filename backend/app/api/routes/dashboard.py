@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_module_access
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.dashboard import DashboardKpisOut, OverdueEntryOut
@@ -41,14 +41,14 @@ _OVERDUE_QUERY = """
 
 
 @router.get("/kpis", response_model=DashboardKpisOut)
-def get_dashboard_kpis(db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> dict:
+def get_dashboard_kpis(db: Session = Depends(get_db), _: User = Depends(require_module_access("pi"))) -> dict:
     row = db.execute(text(_KPI_QUERY)).mappings().first()
     return dict(row)
 
 
 @router.get("/overdue", response_model=list[OverdueEntryOut])
 def get_overdue_entries(
-    db: Session = Depends(get_db), _: User = Depends(get_current_user), limit: int = Query(default=10, ge=1, le=50)
+    db: Session = Depends(get_db), _: User = Depends(require_module_access("pi")), limit: int = Query(default=10, ge=1, le=50)
 ) -> list[dict]:
     rows = db.execute(text(_OVERDUE_QUERY), {"limit": limit}).mappings().all()
     return [dict(row) for row in rows]

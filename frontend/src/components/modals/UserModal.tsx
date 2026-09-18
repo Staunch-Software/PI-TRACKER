@@ -14,6 +14,8 @@ export function UserModal({ user, onClose }: Props) {
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [role, setRole] = useState<UserRole>(user?.role ?? UserRole.VIEWER);
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
+  const [canAccessPi, setCanAccessPi] = useState(user?.canAccessPi ?? true);
+  const [canAccessPir, setCanAccessPir] = useState(user?.canAccessPir ?? true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -25,9 +27,11 @@ export function UserModal({ user, onClose }: Props) {
             fullName,
             role,
             isActive,
+            canAccessPi,
+            canAccessPir,
             ...(password ? { password } : {}),
           })
-        : api.post<User>('/users', { email, fullName, role, password }),
+        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
@@ -91,6 +95,34 @@ export function UserModal({ user, onClose }: Props) {
                   </label>
                 </div>
               )}
+              <div className="field">
+                <label>Module Access</label>
+                <div style={{ display: 'flex', gap: 18, marginTop: 4 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessPi}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessPi(e.target.checked)}
+                    />
+                    PI
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessPir}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessPir(e.target.checked)}
+                    />
+                    PIR
+                  </label>
+                </div>
+                {role === UserRole.ADMIN && (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Admins always have full access, regardless of these boxes.
+                  </p>
+                )}
+              </div>
               <div className="field">
                 <label>{isEdit ? 'New Password (leave blank to keep current)' : 'Password'}</label>
                 <input
