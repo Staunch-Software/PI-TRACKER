@@ -54,6 +54,8 @@ def download_import_template() -> StreamingResponse:
         "Invoice No",
         "Invoice Date",
         "Notes",
+        "PI Number",
+        "PI Sent Date",
     ]
 
     header_fill = PatternFill("solid", fgColor="1E3A5F")
@@ -86,6 +88,8 @@ def download_import_template() -> StreamingResponse:
         "",                  # Invoice No (optional)
         "",                  # Invoice Date (optional)
         "",                  # Notes (optional)
+        "",                  # PI Number (optional)
+        "",                  # PI Sent Date (optional)
     ]
     for col_idx, value in enumerate(example_row, start=1):
         cell = ws.cell(row=2, column=col_idx, value=value)
@@ -153,7 +157,7 @@ def download_import_template() -> StreamingResponse:
     dv_bool.sqref = "O3:O10000"
 
     # ── Column widths ─────────────────────────────────────────────────────────
-    col_widths = [16, 14, 22, 22, 28, 14, 12, 10, 14, 22, 32, 28, 22, 22, 22, 16, 14, 20]
+    col_widths = [16, 14, 22, 22, 28, 14, 12, 10, 14, 22, 32, 28, 22, 22, 22, 16, 14, 20, 16, 16]
     for i, w in enumerate(col_widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -196,6 +200,8 @@ def download_import_template() -> StreamingResponse:
         ("Invoice No.      — Invoice number once received.", False, "555555", 10),
         ("Invoice Date     — Date on the invoice.", False, "555555", 10),
         ("Notes            — Any additional notes.", False, "555555", 10),
+        ("PI Number        — Proforma Invoice number.", False, "555555", 10),
+        ("PI Sent Date     — Date the PI was sent.", False, "555555", 10),
     ]
     for row_idx, (text, bold, color, size) in enumerate(instructions, start=1):
         cell = info_ws.cell(row=row_idx, column=1, value=text)
@@ -285,6 +291,8 @@ def commit_import(
         "reminder_1_sent_date",
         "reminder_2_sent_date",
         "final_invoice_received",
+        "pi_number",
+        "pi_sent_date",
         "invoice_no",
         "invoice_date",
         "notes",

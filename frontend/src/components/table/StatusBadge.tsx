@@ -9,6 +9,7 @@ const STATUS_COLORS: Record<FollowUpStatus, { bg: string; color: string }> = {
   [FollowUpStatus.PENDING_OTHER]: { bg: 'var(--color-warning-bg)', color: 'var(--color-warning)' },
   [FollowUpStatus.RECEIVED]: { bg: 'var(--color-success-bg)', color: 'var(--color-success)' },
   [FollowUpStatus.NOT_APPLICABLE]: { bg: 'var(--color-neutral-bg)', color: 'var(--color-neutral)' },
+  [FollowUpStatus.ADD_NEW_PI]: { bg: 'var(--color-info-bg)', color: 'var(--color-info)' },
 };
 
 export function StatusBadge({ status }: { status: FollowUpStatus }) {

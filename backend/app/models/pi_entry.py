@@ -19,6 +19,7 @@ followup_status_enum = ENUM(
     "PENDING_OTHER",
     "RECEIVED",
     "NOT_APPLICABLE",
+    "ADD_NEW_PI",
     name="followup_status",
     create_type=False,
 )
@@ -49,6 +50,8 @@ class PiEntry(Base):
     reminder_2_sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     final_invoice_received: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     po_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pi_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pi_sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     invoice_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     invoice_file_name: Mapped[str | None] = mapped_column(Text, nullable=True)

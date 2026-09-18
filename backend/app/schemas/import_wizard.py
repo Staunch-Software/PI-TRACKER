@@ -24,6 +24,8 @@ class ImportRowData(CamelModel):
     reminder_1_sent_date: date | None = None
     reminder_2_sent_date: date | None = None
     final_invoice_received: bool = False
+    pi_number: str | None = None
+    pi_sent_date: date | None = None
     invoice_no: str | None = None
     invoice_date: date | None = None
     notes: str | None = None

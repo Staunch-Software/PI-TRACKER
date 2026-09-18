@@ -22,6 +22,11 @@ export enum FollowUpStatus {
   PENDING_OTHER = 'PENDING_OTHER',
   RECEIVED = 'RECEIVED',
   NOT_APPLICABLE = 'NOT_APPLICABLE',
+  // Not part of the original spreadsheet's dropdown — a user-requested addition so "Add New PI"
+  // can be picked directly from the per-row Follow-up Status dropdown while adding/editing an
+  // entry. Deliberately excluded from the Tracker toolbar's status filter (see STATUS_OPTIONS in
+  // TrackerPage.tsx), since it isn't meaningful to filter by.
+  ADD_NEW_PI = 'ADD_NEW_PI',
 }
 
 // Exact display strings as they appear in the source PI_Followup_Tracker.xlsx
@@ -36,6 +41,7 @@ export const FOLLOW_UP_STATUS_LABELS: Record<FollowUpStatus, string> = {
   [FollowUpStatus.PENDING_OTHER]: 'Pending - Other',
   [FollowUpStatus.RECEIVED]: 'Received',
   [FollowUpStatus.NOT_APPLICABLE]: 'Not Applicable',
+  [FollowUpStatus.ADD_NEW_PI]: 'New PI',
 };
 
 export const FOLLOW_UP_STATUS_LABEL_TO_ENUM: Record<string, FollowUpStatus> = Object.fromEntries(
