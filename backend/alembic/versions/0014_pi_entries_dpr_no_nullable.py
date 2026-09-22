@@ -3,15 +3,15 @@ is known/assigned. The existing UNIQUE constraint is left as-is: Postgres alread
 multiple NULL values under a UNIQUE constraint, so no constraint change is needed there, only
 dropping NOT NULL.
 
-Revision ID: 0015
-Revises: 0014
+Revision ID: 0014
+Revises: 0013
 Create Date: 2026-09-22
 
 """
 from alembic import op
 
-revision = "0015"
-down_revision = "0014"
+revision = "0014"
+down_revision = "0013"
 branch_labels = None
 depends_on = None
 
