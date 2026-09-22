@@ -280,6 +280,9 @@ export interface PirEntry {
   ageDays: number | null;
   firstScrapedAt: string;
   lastScrapedAt: string;
+  // Set once this invoice disappears from a live SmartPAL sweep (resolved/pushed to normal
+  // invoice processing) — null while still open.
+  resolvedAt: string | null;
 }
 
 export interface PirDepartmentCounts {

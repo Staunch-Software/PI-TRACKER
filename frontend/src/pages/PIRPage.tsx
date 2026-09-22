@@ -8,6 +8,7 @@ import { PirVesselSidebar, NO_VESSEL_GROUP, UNMATCHED_VESSEL_GROUP, type Sidebar
 import { PirInvoiceTable } from '../components/pir/PirInvoiceTable';
 
 type Tab = PirDepartment | 'ALL';
+type ResolvedFilter = 'OPEN' | 'RESOLVED' | 'ALL';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'ALL', label: 'All' },
@@ -16,25 +17,35 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'UNCLASSIFIED', label: 'Unclassified' },
 ];
 
+const RESOLVED_FILTERS: { key: ResolvedFilter; label: string }[] = [
+  { key: 'OPEN', label: 'Open (Needs Triage)' },
+  { key: 'RESOLVED', label: 'Resolved' },
+  { key: 'ALL', label: 'All History' },
+];
+
 // Well above today's ~1900-row total — the split-view needs the full matching set in one
 // response to build accurate sidebar bucket counts, same reasoning as the old accordion layout.
 const FETCH_ALL_PAGE_SIZE = 10000;
 
 export function PIRPage() {
   const [tab, setTab] = useState<Tab>('ALL');
+  const [resolvedFilter, setResolvedFilter] = useState<ResolvedFilter>('OPEN');
   const [search, setSearch] = useState('');
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
 
   const countsQuery = useQuery({
+    // Always OPEN-scoped server-side (see get_pir_department_counts) — independent of
+    // resolvedFilter, since these tab counts are specifically "what currently needs attention".
     queryKey: ['pir-department-counts'],
     queryFn: () => api.get<PirDepartmentCounts>('/pir-entries/department-counts'),
   });
 
   const entriesQuery = useQuery({
-    queryKey: ['pir-entries', tab, search],
+    queryKey: ['pir-entries', tab, resolvedFilter, search],
     queryFn: () => {
       const params = new URLSearchParams();
       if (tab !== 'ALL') params.set('department', tab);
+      params.set('resolved', resolvedFilter);
       if (search) params.set('search', search);
       params.set('page', '1');
       params.set('page_size', String(FETCH_ALL_PAGE_SIZE));
@@ -107,6 +118,19 @@ export function PIRPage() {
                   ? countsQuery.data.all
                   : countsQuery.data[t.key.toLowerCase() as 'technical' | 'manning' | 'unclassified']
               })`}
+          </button>
+        ))}
+      </div>
+
+      <div className="toolbar" style={{ marginBottom: 10 }}>
+        {RESOLVED_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className={`filter-chip${resolvedFilter === f.key ? ' active' : ''}`}
+            onClick={() => setResolvedFilter(f.key)}
+          >
+            {f.label}
           </button>
         ))}
       </div>

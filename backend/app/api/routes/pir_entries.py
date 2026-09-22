@@ -58,7 +58,9 @@ _SORTABLE_COLUMNS = {
 }
 
 
-def _build_where_clause(search: str | None, department: str | None) -> tuple[str, dict]:
+def _build_where_clause(
+    search: str | None, department: str | None, resolved: str = "OPEN"
+) -> tuple[str, dict]:
     where_clauses = []
     params: dict = {}
 
@@ -71,6 +73,12 @@ def _build_where_clause(search: str | None, department: str | None) -> tuple[str
     if department and department != "ALL":
         where_clauses.append("department = :department")
         params["department"] = department
+    # OPEN (default) = still problematic in SmartPAL; RESOLVED = disappeared from a live sweep
+    # (see PirEntry.resolved_at docstring); ALL = no filter, for a full history view.
+    if resolved == "OPEN":
+        where_clauses.append("resolved_at IS NULL")
+    elif resolved == "RESOLVED":
+        where_clauses.append("resolved_at IS NOT NULL")
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     return where_sql, params
@@ -90,6 +98,7 @@ def list_pir_entries(
     _: User = Depends(require_module_access("pir")),
     search: str | None = Query(default=None),
     department: str | None = Query(default=None, description="TECHNICAL | MANNING | UNCLASSIFIED | ALL"),
+    resolved: str = Query(default="OPEN", description="OPEN | RESOLVED | ALL"),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -98,7 +107,7 @@ def list_pir_entries(
     # set in one response to sort groups by item count; there's no per-row UI pagination anymore.
     page_size: int = Query(default=50, ge=1, le=10000),
 ) -> dict:
-    where_sql, params = _build_where_clause(search, department)
+    where_sql, params = _build_where_clause(search, department, resolved)
 
     total = db.execute(text(f"{_CLASSIFIED_CTE} SELECT count(*) FROM classified {where_sql}"), params).scalar_one()
 
@@ -138,8 +147,12 @@ def list_pir_entries(
 @router.get("/department-counts", response_model=PirDepartmentCounts)
 def get_pir_department_counts(db: Session = Depends(get_db), _: User = Depends(require_module_access("pir"))) -> dict:
     """Drives the All/Technical/Manning/Unclassified tab counts — independent of the current
-    list filter/pagination so the counts stay stable while paging through a filtered view."""
-    rows = db.execute(text(f"{_CLASSIFIED_CTE} SELECT department, count(*) FROM classified GROUP BY department")).all()
+    list filter/pagination so the counts stay stable while paging through a filtered view.
+    Always scoped to OPEN (resolved_at IS NULL) — these represent what currently needs
+    attention, same stance as get_pir_kpis below."""
+    rows = db.execute(
+        text(f"{_CLASSIFIED_CTE} SELECT department, count(*) FROM classified WHERE resolved_at IS NULL GROUP BY department")
+    ).all()
     counts = {"technical": 0, "manning": 0, "unclassified": 0}
     for department, count in rows:
         counts[department.lower()] = count
@@ -156,10 +169,12 @@ def get_pir_kpis(db: Session = Depends(get_db), _: User = Depends(require_module
     ONE query against pir_entries (via _CLASSIFIED_CTE), then a single Python pass over that
     result set — not N+1: the vessel-group resolution this needs (to find the "needs triage"
     count and the oldest invoice's bucket) works the same way list_pir_entries's does, over
-    however many rows exist today (~1900), which is cheap in one pass."""
+    however many rows exist today (~1900), which is cheap in one pass. Always scoped to OPEN
+    (resolved_at IS NULL) — same "what currently needs attention" stance as
+    get_pir_department_counts above."""
     rows = db.execute(
         text(f"{_CLASSIFIED_CTE} SELECT id, invoice_no, vendor_name, vessel_name, assigned_vessel_id, "
-             f"department, currency_code, age_days FROM classified")
+             f"department, currency_code, age_days FROM classified WHERE resolved_at IS NULL")
     ).mappings().all()
 
     db_vessel_names, vessel_id_to_name = _vessel_lookup(db)

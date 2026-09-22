@@ -149,26 +149,31 @@ def run() -> None:
     inserted = updated = errors = 0
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=settings.mariapps_headless)
-            context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
-            page = context.new_page()
-
-            try:
+        # Each attempt gets its OWN `with sync_playwright()` block — Playwright's sync API
+        # doesn't support starting a second driver (via run_automated_login()'s own
+        # sync_playwright() call) while an outer one is still open, even after closing its
+        # browser; confirmed live it raises "using Playwright Sync API inside the asyncio loop"
+        # rather than actually retrying. So the retry-on-expired-session path must fully exit
+        # this block (ending the `with`) before calling run_automated_login(), then open a fresh
+        # one for the second attempt.
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=settings.mariapps_headless)
+                context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
                 rows = _fetch_rows(page)
-            except RuntimeError as e:
-                if "expired" in str(e).lower() or "not authenticated" in str(e).lower():
-                    log.warning(f"[AUTH]     {e} Re-authenticating and retrying once.")
-                    browser.close()
-                    run_automated_login()
-                    browser = p.chromium.launch(headless=settings.mariapps_headless)
-                    context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
-                    page = context.new_page()
-                    rows = _fetch_rows(page)
-                else:
-                    raise
-
-            browser.close()
+                browser.close()
+        except RuntimeError as e:
+            if "expired" not in str(e).lower() and "not authenticated" not in str(e).lower():
+                raise
+            log.warning(f"[AUTH]     {e} Re-authenticating and retrying once.")
+            run_automated_login()
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=settings.mariapps_headless)
+                context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                rows = _fetch_rows(page)
+                browser.close()
 
         log.info(f"[API]      {len(rows)} PIR row(s) returned.")
 
@@ -210,6 +215,10 @@ def run() -> None:
                     for field, value in values.items():
                         setattr(existing, field, value)
                     existing.last_scraped_at = now
+                    # Still showing up in a live sweep — if it was previously marked resolved
+                    # (see PirEntry.resolved_at docstring), SmartPAL has re-flagged it as
+                    # problematic again, so it's reopened.
+                    existing.resolved_at = None
                     updated += 1
                 else:
                     db.add(PirEntry(smartpal_invoice_id=smartpal_id, last_scraped_at=now, **values))
@@ -220,11 +229,27 @@ def run() -> None:
                 errors += 1
                 log.error(f"[SAVE]     Failed to upsert PIR invoice id={smartpal_id}: {e}")
 
+        # Anything still marked open in our table but absent from this full sweep has been
+        # resolved in SmartPAL since the last scrape (paid, corrected, or otherwise pushed
+        # through to normal invoice processing) — see PirEntry.resolved_at docstring. FROM_DATE
+        # covers the app's own "beginning of time", so this comparison is against the complete
+        # open set, not a partial window.
+        scraped_ids = {r.get("id") for r in rows if r.get("id") is not None}
+        resolved_now = datetime.now(timezone.utc)
+        resolved = (
+            db.query(PirEntry)
+            .filter(PirEntry.resolved_at.is_(None), ~PirEntry.smartpal_invoice_id.in_(scraped_ids))
+            .update({"resolved_at": resolved_now}, synchronize_session=False)
+            if scraped_ids
+            else 0
+        )
+        db.commit()
+
     finally:
         db.close()
 
     log.info("=" * 60)
-    log.info(f"  PIR scrape complete — inserted={inserted} updated={updated} errors={errors}")
+    log.info(f"  PIR scrape complete — inserted={inserted} updated={updated} resolved={resolved} errors={errors}")
     log.info("=" * 60)
 
 

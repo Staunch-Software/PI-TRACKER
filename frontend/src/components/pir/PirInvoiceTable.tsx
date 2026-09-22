@@ -155,13 +155,14 @@ export function PirInvoiceTable({ vesselGroup, items, vessels }: Props) {
               <th style={{ textAlign: 'right' }}>Amount</th>
               <th>Currency</th>
               <th>Department</th>
+              <th>Resolved</th>
               {isTriageBucket && <th>Assign Vessel</th>}
             </tr>
           </thead>
           <tbody>
             {visibleItems.length === 0 && (
               <tr>
-                <td colSpan={isTriageBucket ? 13 : 11} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                <td colSpan={isTriageBucket ? 14 : 12} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                   No invoices in this bucket.
                 </td>
               </tr>
@@ -210,6 +211,7 @@ export function PirInvoiceTable({ vesselGroup, items, vessels }: Props) {
                     {DEPARTMENT_LABEL[e.department]}
                   </span>
                 </td>
+                <td>{e.resolvedAt ? formatDate(e.resolvedAt) : '—'}</td>
                 {isTriageBucket && (
                   <td>
                     <SearchableSelect

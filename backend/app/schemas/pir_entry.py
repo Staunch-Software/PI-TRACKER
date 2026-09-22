@@ -48,6 +48,9 @@ class PirEntryOut(CamelModel):
     age_days: int | None
     first_scraped_at: datetime
     last_scraped_at: datetime
+    # Set once this invoice disappears from a live SmartPAL sweep (resolved/pushed to normal
+    # invoice processing) — see app/models/pir_entry.py docstring. Null while still open.
+    resolved_at: datetime | None
 
 
 class PirDepartmentCounts(CamelModel):

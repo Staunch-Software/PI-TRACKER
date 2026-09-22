@@ -131,3 +131,14 @@ class PirEntry(Base):
     last_scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    # Set the first time a scrape run's result set no longer includes this row's
+    # smartpal_invoice_id — SmartPAL only returns still-open problematic invoices, so a row
+    # missing from a fresh full-date-range sweep means it was resolved (paid, corrected, or
+    # otherwise pushed through to normal invoice processing) since the last scrape. NULL while
+    # still open. Never hard-deleted (same "keep the audit trail" stance as everywhere else in
+    # this app — SOA documents soft-delete, PI entries have no delete endpoint at all): a
+    # resolved row stays queryable for history, just excluded from the default "needs triage"
+    # view (see api/routes/pir_entries.py). If SmartPAL ever re-flags the SAME invoice id as
+    # problematic again, the scraper clears this back to NULL — see scraper.py's run().
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
