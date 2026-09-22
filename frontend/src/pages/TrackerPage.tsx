@@ -30,7 +30,12 @@ import { MoreFiltersPopover } from '../components/common/MoreFiltersPopover';
 import { SearchIcon } from '../components/common/SearchIcon';
 import { ImportWizardModal } from '../components/modals/ImportWizardModal';
 
-const STATUS_OPTIONS = Object.values(FollowUpStatus).map((s) => ({ value: s, label: FOLLOW_UP_STATUS_LABELS[s] }));
+// ADD_NEW_PI is excluded here — it's a real, savable Follow-up Status (selectable in the per-row
+// dropdown while adding/editing an entry), but it isn't meaningful to filter the table by, so the
+// toolbar's status filter deliberately leaves it out.
+const STATUS_OPTIONS = Object.values(FollowUpStatus)
+  .filter((s) => s !== FollowUpStatus.ADD_NEW_PI)
+  .map((s) => ({ value: s, label: FOLLOW_UP_STATUS_LABELS[s] }));
 
 const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
 const MIN_PAGE_SIZE = 5;

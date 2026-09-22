@@ -43,6 +43,8 @@ const STICKY_COL_WIDTHS = {
 export const DEFAULT_COL_WIDTHS = {
   attachment: 90,
   poNumber: 130,
+  piNumber: 130,
+  piSentDate: 130,
   invoiceNo: 130,
   dprDate: 110,
   vessel: 170,
@@ -79,7 +81,7 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 // as a fixed 3rd sticky column below, so it's deliberately absent here even though it still has
 // a DEFAULT_COL_WIDTHS entry (its width stays user-resizable).
 export const DEFAULT_COLUMN_ORDER = [
-  'attachment', 'poNumber', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
+  'attachment', 'poNumber', 'piNumber', 'piSentDate', 'invoiceNo', 'dprDate', 'vessel', 'vendor', 'serviceDetails',
   'amountInr', 'fcAmount', 'currency', 'paymentDate', 'paymentReference', 'daysSincePayment',
   'lastKnownRemark', 'reminder1', 'reminder2', 'finalInvoiceReceived',
   'invoiceDate', 'attachedBy', 'dateAttached', 'notes',
@@ -143,8 +145,22 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
       <input value={form.poNumber} onChange={(e) => onChange('poNumber', e.target.value)} style={{ width: 120 }} />
     ),
   },
+  piNumber: {
+    label: 'PI Number',
+    renderCell: (entry) => entry.piNumber ?? '—',
+    renderEditCell: ({ form, onChange }) => (
+      <input value={form.piNumber} onChange={(e) => onChange('piNumber', e.target.value)} style={{ width: 120 }} />
+    ),
+  },
+  piSentDate: {
+    label: 'PI Sent Date',
+    renderCell: (entry) => formatDate(entry.piSentDate),
+    renderEditCell: ({ form, onChange }) => (
+      <input type="date" value={form.piSentDate} onChange={(e) => onChange('piSentDate', e.target.value)} />
+    ),
+  },
   invoiceNo: {
-    label: 'Invoice No.',
+    label: 'Final Invoice No.',
     renderCell: (entry) => entry.invoiceNo ?? '—',
     renderEditCell: ({ form, onChange }) => (
       <input value={form.invoiceNo} onChange={(e) => onChange('invoiceNo', e.target.value)} style={{ width: 120 }} />

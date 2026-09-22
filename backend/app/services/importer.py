@@ -40,6 +40,8 @@ _HEADER_MAP = {
     "reminder 2 sent": "reminder_2_sent_date",
     "final invoice received": "final_invoice_received",
     "final invoice received y n": "final_invoice_received",
+    "pi number": "pi_number",
+    "pi sent date": "pi_sent_date",
     "invoice no": "invoice_no",
     "invoice date": "invoice_date",
     "notes": "notes",
@@ -175,6 +177,9 @@ def parse_workbook(db: Session, file_bytes: bytes) -> list[ImportRowPreview]:
         invoice_date, err = _parse_date(raw.get("invoice_date"))
         if err:
             errors.append(f"Invoice Date: {err}")
+        pi_sent_date, err = _parse_date(raw.get("pi_sent_date"))
+        if err:
+            errors.append(f"PI Sent Date: {err}")
 
         amount_inr, err = _parse_amount(raw.get("amount_inr"))
         if err:
@@ -215,6 +220,8 @@ def parse_workbook(db: Session, file_bytes: bytes) -> list[ImportRowPreview]:
                 reminder_1_sent_date=reminder_1,
                 reminder_2_sent_date=reminder_2,
                 final_invoice_received=_parse_bool(raw.get("final_invoice_received")),
+                pi_number=(str(raw["pi_number"]).strip() if raw.get("pi_number") else None),
+                pi_sent_date=pi_sent_date,
                 invoice_no=(str(raw["invoice_no"]).strip() if raw.get("invoice_no") else None),
                 invoice_date=invoice_date,
                 notes=(str(raw["notes"]).strip() if raw.get("notes") else None),

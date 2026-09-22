@@ -51,6 +51,8 @@ export interface PiEntry {
   reminder2SentDate: string | null;
   finalInvoiceReceived: boolean;
   poNumber: string | null;
+  piNumber: string | null;
+  piSentDate: string | null;
   invoiceNo: string | null;
   invoiceDate: string | null;
   invoiceFileName: string | null;
@@ -141,6 +143,8 @@ export interface ImportRowData {
   reminder1SentDate: string | null;
   reminder2SentDate: string | null;
   finalInvoiceReceived: boolean;
+  piNumber: string | null;
+  piSentDate: string | null;
   invoiceNo: string | null;
   invoiceDate: string | null;
   notes: string | null;
