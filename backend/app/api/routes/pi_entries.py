@@ -320,10 +320,14 @@ def create_pi_entry(
     if not vessel or not vendor:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown vessel or vendor")
 
-    if db.query(PiEntry).filter(PiEntry.dpr_no == payload.dpr_no).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"DPR No. '{payload.dpr_no}' already exists")
+    # Blank/whitespace-only counts as "no DPR No. yet", not a value to enforce uniqueness on —
+    # normalize before the dup-check so it never compares against other not-yet-assigned rows
+    # (PiEntry.dpr_no == None would match ANY existing null row, incorrectly reporting a conflict).
+    dpr_no = (payload.dpr_no or "").strip() or None
+    if dpr_no is not None and db.query(PiEntry).filter(PiEntry.dpr_no == dpr_no).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"DPR No. '{dpr_no}' already exists")
 
-    entry = PiEntry(**payload.model_dump(), created_by=current_user.id)
+    entry = PiEntry(**{**payload.model_dump(), "dpr_no": dpr_no}, created_by=current_user.id)
     db.add(entry)
     db.flush()
 
@@ -333,7 +337,7 @@ def create_pi_entry(
         entity_id=entry.id,
         action=AuditAction.CREATE,
         changed_by=current_user.id,
-        summary=f"{current_user.full_name} added PI {entry.dpr_no} for {vessel.name} / {vendor.name}",
+        summary=f"{current_user.full_name} added PI {entry.dpr_no or '(no DPR No. yet)'} for {vessel.name} / {vendor.name}",
     )
     db.commit()
 
@@ -356,7 +360,11 @@ def update_pi_entry(
     if not updates:
         return get_pi_entry(pi_entry_id, db=db, _=current_user)
 
-    if "dpr_no" in updates and updates["dpr_no"] != entry.dpr_no:
+    if "dpr_no" in updates:
+        # Same blank-means-"not yet assigned" normalization as create_pi_entry — see its comment.
+        updates["dpr_no"] = (updates["dpr_no"] or "").strip() or None
+
+    if "dpr_no" in updates and updates["dpr_no"] is not None and updates["dpr_no"] != entry.dpr_no:
         if db.query(PiEntry).filter(PiEntry.dpr_no == updates["dpr_no"], PiEntry.id != pi_entry_id).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"DPR No. '{updates['dpr_no']}' already exists")
 
@@ -373,7 +381,7 @@ def update_pi_entry(
             entity_id=entry.id,
             action=AuditAction.UPDATE,
             changed_by=current_user.id,
-            summary=f"{current_user.full_name} updated PI {entry.dpr_no} ({', '.join(changes.keys())})",
+            summary=f"{current_user.full_name} updated PI {entry.dpr_no or '(no DPR No. yet)'} ({', '.join(changes.keys())})",
             changes=changes,
         )
     db.commit()

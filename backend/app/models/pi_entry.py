@@ -31,7 +31,12 @@ class PiEntry(Base):
     # SERIAL in the raw-SQL migration (pi_entries_seq_no_seq); server_default tells the ORM
     # to omit it from INSERT and fetch the DB-generated value back instead of sending NULL.
     seq_no: Mapped[int] = mapped_column(nullable=False, server_default=FetchedValue())
-    dpr_no: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    # Nullable — a PI can be created before its DPR No. is known/assigned (see the "Add New PI"
+    # flow), but must still be unique whenever it IS set. Postgres's UNIQUE constraint already
+    # permits multiple NULLs natively, so no separate handling is needed at the DB level; the
+    # application layer (api/routes/pi_entries.py) just has to skip the duplicate-check when the
+    # value is None rather than treating "no DPR No. yet" as a collision with every other blank row.
+    dpr_no: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
     dpr_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     vessel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("vessels.id"), nullable=False)
     vendor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=False)

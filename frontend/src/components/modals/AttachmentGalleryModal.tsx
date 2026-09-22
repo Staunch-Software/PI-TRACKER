@@ -9,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
   piEntryId: string;
-  dprNo: string;
+  dprNo: string | null;
   onClose: () => void;
 }
 
@@ -117,7 +117,7 @@ export function AttachmentGalleryModal({ piEntryId, dprNo, onClose }: Props) {
           {!selected ? (
             <div className="gallery-preview-placeholder">
               <div>Select a file card to preview</div>
-              <div className="gallery-preview-hint">PI {dprNo}</div>
+              <div className="gallery-preview-hint">PI {dprNo ?? '(no DPR No. yet)'}</div>
             </div>
           ) : (
             <div className="gallery-preview-frame-wrap">

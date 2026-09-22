@@ -30,7 +30,7 @@ export interface Vendor {
 export interface PiEntry {
   id: string;
   seqNo: number; // S.No.
-  dprNo: string; // DPR No.
+  dprNo: string | null; // DPR No. — null until assigned (see "Add New PI")
   dprDate: string | null;
   vesselId: string;
   vesselName: string; // joined for display
@@ -107,7 +107,7 @@ export interface DashboardKpis {
 
 export interface OverdueEntry {
   id: string;
-  dprNo: string;
+  dprNo: string | null;
   vesselName: string;
   vendorName: string;
   amountInr: number | string | null;

@@ -5,7 +5,7 @@ import { AttachmentGalleryModal } from '../modals/AttachmentGalleryModal';
 
 interface Props {
   piEntryId: string;
-  dprNo: string;
+  dprNo: string | null;
   attachmentCount: number;
   canEdit: boolean;
 }

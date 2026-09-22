@@ -41,7 +41,7 @@ export function NeedsAttentionTable() {
             <tbody>
               {overdueQuery.data.map((entry) => (
                 <tr key={entry.id} onClick={() => navigate(`/tracker?entryId=${entry.id}`)} style={{ cursor: 'pointer' }}>
-                  <td>{entry.dprNo}</td>
+                  <td>{entry.dprNo ?? '—'}</td>
                   <td>{entry.vesselName}</td>
                   <td>{entry.vendorName}</td>
                   <td>

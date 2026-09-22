@@ -615,7 +615,7 @@ export function PiEntriesTable({
                     <input value={editCtx.form.dprNo} onChange={(e) => onEditFormChange('dprNo', e.target.value)} style={{ width: 110 }} />
                   </td>
                 ) : (
-                  <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{entry.dprNo}</td>
+                  <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{entry.dprNo ?? '—'}</td>
                 )}
 
                 <td className={`sticky-col col-status${canEdit ? '' : ' col-status-noactions'}`}>

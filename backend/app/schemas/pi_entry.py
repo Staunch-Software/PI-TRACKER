@@ -9,7 +9,7 @@ from app.schemas.base import CamelModel
 class PiEntryOut(CamelModel):
     id: uuid.UUID
     seq_no: int
-    dpr_no: str
+    dpr_no: str | None
     dpr_date: date | None
     vessel_id: uuid.UUID
     vessel_name: str
@@ -43,7 +43,7 @@ class PiEntryOut(CamelModel):
 
 
 class PiEntryCreateRequest(CamelModel):
-    dpr_no: str
+    dpr_no: str | None = None
     dpr_date: date | None = None
     vessel_id: uuid.UUID
     vendor_id: uuid.UUID

@@ -52,7 +52,9 @@ export function toPiEntryFormState(entry: PiEntry | null): PiEntryFormState {
 
 export function toPiEntryPayload(form: PiEntryFormState) {
   return {
-    dprNo: form.dprNo.trim(),
+    // null (not '') when left blank — a PI can be added before its DPR No. is known; the
+    // backend only enforces uniqueness once a DPR No. is actually set (see pi_entries.py).
+    dprNo: form.dprNo.trim() || null,
     dprDate: form.dprDate || null,
     vesselId: form.vesselId,
     vendorId: form.vendorId,
