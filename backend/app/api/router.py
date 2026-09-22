@@ -9,6 +9,7 @@ from app.api.routes import (
     import_export,
     pi_entries,
     pir_entries,
+    soa_entries,
     table_layout,
     users,
     vendor_mapping,
@@ -24,6 +25,7 @@ api_router.include_router(vendor_mapping.router)
 api_router.include_router(pi_entries.router)
 api_router.include_router(approved_invoices.router)
 api_router.include_router(pir_entries.router)
+api_router.include_router(soa_entries.router)
 api_router.include_router(attachments.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(import_export.router)

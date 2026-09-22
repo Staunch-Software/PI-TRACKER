@@ -15,6 +15,7 @@ class UserOut(CamelModel):
     is_active: bool
     can_access_pi: bool
     can_access_pir: bool
+    can_access_soa: bool
     created_at: datetime
 
 

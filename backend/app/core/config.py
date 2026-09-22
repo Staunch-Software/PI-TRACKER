@@ -28,6 +28,41 @@ class Settings(BaseSettings):
     pir_url: str = "https://smartpal.ozellar.com/AccountsPALApp/Accounts/ProblematicInvoiceOverview"
     mariapps_headless: bool = True
 
+    # ── Microsoft Graph API (SOA reconciliation module) ─────────────────────────
+    # App-only (client-credentials) auth against an Azure AD app registration with Mail.Read
+    # application permission, tenant-admin-consented — NOT a signed-in user, so it can read any
+    # mailbox in the tenant by address, same unattended-service-account role as the SmartPAL
+    # SSO account above. NEVER hardcode these — set them in .env.
+    ms_graph_tenant_id: str = ""
+    ms_graph_client_id: str = ""
+    ms_graph_client_secret: str = ""
+
+    # purchase@ozellar.com is a distribution list, not a real mailbox — Graph's
+    # /users/{mailbox}/messages 404s on it (ErrorInvalidUser). Its recipients overlap with the
+    # 4 mailboxes below (confirmed live: purchase@ is CC'd alongside these on real SOA threads),
+    # so it's deliberately excluded rather than polled.
+    soa_mailboxes: list[str] = [
+        "soa@ozellar.com",
+        "sunilkumar.s@ozellar.com",
+        "Karunya.pius@ozellar.com",
+        "viswanathan.n@ozellar.com",
+    ]
+    invoice_mailbox: str = "invoice@ozellar.com"
+
+    # Our own company's domain(s) — when a polled SOA mailbox's immediate sender is one of these,
+    # they're an internal Accounts/Purchase staff member forwarding/replying on an existing
+    # vendor thread, NOT the vendor themselves (confirmed live: hemavathy.v@ozellar.com replying
+    # on a Navarino thread got mis-attributed as its own bogus vendor before this existed). See
+    # soa_scraper/document_text.py extract_original_external_sender.
+    internal_email_domains: set[str] = {"ozellar.com"}
+
+    # ── Ollama (local LLM extraction — see soa_extraction/) ─────────────────────
+    # Self-hosted, not the Anthropic API — SOA/invoice content never leaves the network. Model
+    # chosen for the dev PoC (CPU-only laptop, no dedicated GPU); swap for a larger model once
+    # this runs on real infrastructure.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b-instruct"
+
 
 settings = Settings()
 

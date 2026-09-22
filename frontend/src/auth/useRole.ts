@@ -14,5 +14,6 @@ export function useRole() {
     // by unchecking their own boxes, and hiding a nav link always matches what the API allows.
     canAccessPi: isAdmin || (user?.canAccessPi ?? false),
     canAccessPir: isAdmin || (user?.canAccessPir ?? false),
+    canAccessSoa: isAdmin || (user?.canAccessSoa ?? false),
   };
 }

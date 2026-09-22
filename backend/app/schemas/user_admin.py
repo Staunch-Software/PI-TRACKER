@@ -14,6 +14,7 @@ class UserCreateRequest(CamelModel):
     # as the migration default (see 0009_user_module_access.py).
     can_access_pi: bool = True
     can_access_pir: bool = True
+    can_access_soa: bool = True
 
 
 class UserUpdateRequest(CamelModel):
@@ -22,4 +23,5 @@ class UserUpdateRequest(CamelModel):
     is_active: bool | None = None
     can_access_pi: bool | None = None
     can_access_pir: bool | None = None
+    can_access_soa: bool | None = None
     password: str | None = None

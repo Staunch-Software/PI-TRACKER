@@ -41,7 +41,7 @@ def require_module_access(module: str) -> Callable[[User], User]:
     of role) — ADMIN always passes regardless of the flags, same stance the frontend takes (see
     useRole.ts / TopNav.tsx), so an admin can never lock themselves out by unchecking their own
     boxes. module must be 'pi' or 'pir'."""
-    flag_attr = {"pi": "can_access_pi", "pir": "can_access_pir"}[module]
+    flag_attr = {"pi": "can_access_pi", "pir": "can_access_pir", "soa": "can_access_soa"}[module]
 
     def dependency(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role != UserRole.ADMIN and not getattr(current_user, flag_attr):

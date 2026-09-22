@@ -86,8 +86,9 @@ export function AdminUsersPage() {
                 <td>{u.role}</td>
                 <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                   {u.role === 'ADMIN'
-                    ? 'PI, PIR'
-                    : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR'].filter(Boolean).join(', ') || '—'}
+                    ? 'PI, PIR, SOA'
+                    : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA'].filter(Boolean).join(', ') ||
+                      '—'}
                 </td>
                 <td>
                   <span

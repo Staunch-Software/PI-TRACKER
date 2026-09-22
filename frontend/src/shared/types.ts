@@ -1,4 +1,4 @@
-import { AuditAction, AuditEntityType, Currency, Department, FollowUpStatus, UserRole } from './enums';
+import { AuditAction, AuditEntityType, Currency, Department, FollowUpStatus, SoaMatchSource, UserRole } from './enums';
 
 export interface User {
   id: string;
@@ -10,6 +10,7 @@ export interface User {
   // these (see useRole.ts / backend/app/api/deps.py require_module_access).
   canAccessPi: boolean;
   canAccessPir: boolean;
+  canAccessSoa: boolean;
   createdAt: string;
 }
 
@@ -313,4 +314,58 @@ export interface PirKpis {
   needsTriageCount: number;
   oldestInvoice: PirOldestInvoice | null;
   currencyMix: PirCurrencyMixEntry[];
+}
+
+// ── SOA (Statement of Account reconciliation) ───────────────────────────────────
+
+// Mirrors backend/app/schemas/soa_entry.py SoaLineItemOut.
+export interface SoaLineItem {
+  id: string;
+  soaDocumentId: string;
+
+  invoiceNumber: string;
+  invoiceDate: string | null;
+  amount: number | string | null;
+  remainingAmount: number | string | null;
+  currency: string | null;
+
+  vesselNameRaw: string | null;
+  vesselId: string | null;
+  vesselName: string | null;
+
+  matchSource: SoaMatchSource;
+  matchStatusLabel: string | null;
+  matchedEntryId: string | null;
+  matchedAt: string | null;
+
+  vendorNameRaw: string | null;
+  senderEmail: string;
+  senderDomain: string;
+  // The vendor-identity key resolved through domain aliases (e.g. Navarino's navarino.gr/
+  // navarino.com.cy) — group by this, not senderDomain, so aliased vendors land in one group.
+  canonicalDomain: string;
+  hasAttachment: boolean;
+  soaSubject: string | null;
+  soaReceivedAt: string;
+
+  createdAt: string;
+}
+
+export interface SoaMatchSourceCounts {
+  smartpal: number;
+  pir: number;
+  invoiceMail: number;
+  none: number;
+}
+
+export interface SoaKpis {
+  totalLineItems: number;
+  totalVendors: number;
+  byMatchSource: SoaMatchSourceCounts;
+  needsTriageCount: number;
+  totalOutstandingByCurrency: Record<string, number | string>;
+}
+
+export interface SoaRematchResult {
+  matchedCount: number;
 }

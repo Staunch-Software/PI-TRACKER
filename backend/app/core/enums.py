@@ -80,3 +80,20 @@ class AuditEntityType(str, enum.Enum):
     VENDOR_MAPPING = "vendor_mapping"
     VENDOR_MAPPING_IMPORT_BATCH = "vendor_mapping_import_batch"
     PIR_ENTRY = "pir_entry"
+
+
+# Where a SOA line item's invoice currently lives, in priority order — see
+# soa_line_item.py docstring for why this is checked in this order.
+class SoaMatchSource(str, enum.Enum):
+    SMARTPAL = "SMARTPAL"
+    PIR = "PIR"
+    INVOICE_MAIL = "INVOICE_MAIL"
+    NONE = "NONE"
+
+
+SOA_MATCH_SOURCE_LABELS: dict[SoaMatchSource, str] = {
+    SoaMatchSource.SMARTPAL: "SmartPAL",
+    SoaMatchSource.PIR: "PIR",
+    SoaMatchSource.INVOICE_MAIL: "Invoice Mail Only",
+    SoaMatchSource.NONE: "No Match",
+}

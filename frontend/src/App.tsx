@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TrackerPage } from './pages/TrackerPage';
 import { FeedPage } from './pages/FeedPage';
 import { PIRPage } from './pages/PIRPage';
+import { SOAPage } from './pages/SOAPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminVesselsPage } from './pages/admin/AdminVesselsPage';
@@ -29,6 +30,9 @@ export function App() {
               </Route>
               <Route element={<ModuleGate module="pir" />}>
                 <Route path="/pir" element={<PIRPage />} />
+              </Route>
+              <Route element={<ModuleGate module="soa" />}>
+                <Route path="/soa" element={<SOAPage />} />
               </Route>
             </Route>
             <Route path="/admin" element={<AdminLayout />}>

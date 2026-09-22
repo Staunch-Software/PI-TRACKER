@@ -3,7 +3,7 @@ import { useRole } from '../../auth/useRole';
 import { UserMenu } from './UserMenu';
 
 export function TopNav() {
-  const { canAccessPi, canAccessPir } = useRole();
+  const { canAccessPi, canAccessPir, canAccessSoa } = useRole();
 
   return (
     <header className="top-nav">
@@ -25,6 +25,11 @@ export function TopNav() {
         {canAccessPir && (
           <NavLink to="/pir" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             PIR
+          </NavLink>
+        )}
+        {canAccessSoa && (
+          <NavLink to="/soa" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+            SOA
           </NavLink>
         )}
       </nav>

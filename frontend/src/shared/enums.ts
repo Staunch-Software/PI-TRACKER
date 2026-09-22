@@ -89,3 +89,18 @@ export enum AuditEntityType {
   VENDOR_MAPPING_IMPORT_BATCH = 'vendor_mapping_import_batch',
   PIR_ENTRY = 'pir_entry',
 }
+
+// Where a SOA line item's invoice currently lives, in priority order.
+export enum SoaMatchSource {
+  SMARTPAL = 'SMARTPAL',
+  PIR = 'PIR',
+  INVOICE_MAIL = 'INVOICE_MAIL',
+  NONE = 'NONE',
+}
+
+export const SOA_MATCH_SOURCE_LABELS: Record<SoaMatchSource, string> = {
+  [SoaMatchSource.SMARTPAL]: 'SmartPAL',
+  [SoaMatchSource.PIR]: 'PIR',
+  [SoaMatchSource.INVOICE_MAIL]: 'Invoice Mail Only',
+  [SoaMatchSource.NONE]: 'No Match',
+};
