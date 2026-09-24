@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { Vessel } from '../../shared';
+import { UserRole, type Vessel, type User } from '../../shared';
 
 interface Props {
   vessel: Vessel | null; // null = create mode
@@ -13,13 +13,25 @@ export function VesselModal({ vessel, onClose }: Props) {
   const [name, setName] = useState(vessel?.name ?? '');
   const [imoNumber, setImoNumber] = useState(vessel?.imoNumber ?? '');
   const [isActive, setIsActive] = useState(vessel?.isActive ?? true);
+  const [assignedTaId, setAssignedTaId] = useState(vessel?.assignedTaId ?? '');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  // Only fetched in edit mode — the TA dropdown only matters once a vessel exists, and this is
+  // an Admin-only page anyway so GET /users (Admin-only) is always allowed here.
+  const usersQuery = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get<User[]>('/users'),
+    enabled: isEdit,
+  });
+  const eligibleTas = (usersQuery.data ?? []).filter(
+    (u) => u.isActive && (u.role === UserRole.ADMIN || u.role === UserRole.EDITOR),
+  );
 
   const saveMutation = useMutation({
     mutationFn: () =>
       isEdit
-        ? api.patch<Vessel>(`/vessels/${vessel.id}`, { name, imoNumber, isActive })
+        ? api.patch<Vessel>(`/vessels/${vessel.id}`, { name, imoNumber, isActive, assignedTaId: assignedTaId || null })
         : api.post<Vessel>('/vessels', { name, imoNumber }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-vessels'] });
@@ -56,17 +68,33 @@ export function VesselModal({ vessel, onClose }: Props) {
               <input value={imoNumber} onChange={(e) => setImoNumber(e.target.value)} placeholder="e.g. 9481219" required />
             </div>
             {isEdit && (
-              <div className="field" style={{ marginTop: 14 }}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    style={{ marginRight: 6 }}
-                  />
-                  Applicable for PI (shows up in the PI vessel dropdown)
-                </label>
-              </div>
+              <>
+                <div className="field" style={{ marginTop: 14 }}>
+                  <label>Assigned TA</label>
+                  <select value={assignedTaId} onChange={(e) => setAssignedTaId(e.target.value)}>
+                    <option value="">— None (fallback mailbox) —</option>
+                    {eligibleTas.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Vendor-notice/owner-reminder emails for this vessel's PIs are sent from this person's mailbox.
+                  </p>
+                </div>
+                <div className="field" style={{ marginTop: 14 }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      style={{ marginRight: 6 }}
+                    />
+                    Applicable for PI (shows up in the PI vessel dropdown)
+                  </label>
+                </div>
+              </>
             )}
             {error && <p className="form-error" style={{ marginTop: 14 }}>{error}</p>}
           </div>

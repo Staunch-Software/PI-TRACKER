@@ -15,9 +15,12 @@ from app.models.pi_entry import PiEntry
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vessel import Vessel
+from app.models.owner_recipient import OwnerRecipient
 from app.schemas.common import PaginatedResult
 from app.schemas.pi_entry import PiEntryCreateRequest, PiEntryOut, PiEntryUpdateRequest
 from app.services.audit import diff_fields, write_audit_log
+from app.services.pi_reminder_mailer import send_mail
+from app.services.pi_reminder_templates import owner_reminder_email, vendor_notice_email
 
 router = APIRouter(prefix="/pi-entries", tags=["pi-entries"])
 
@@ -387,6 +390,113 @@ def update_pi_entry(
             summary=f"{current_user.full_name} updated PI {entry.dpr_no or '(no DPR No. yet)'} ({', '.join(changes.keys())})",
             changes=changes,
         )
+    db.commit()
+
+    return get_pi_entry(pi_entry_id, db=db, _=current_user)
+
+
+def _load_entry_vessel_vendor(db: Session, pi_entry_id: uuid.UUID) -> tuple[PiEntry, Vessel, Vendor]:
+    entry = db.get(PiEntry, pi_entry_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI entry not found")
+    vessel = db.get(Vessel, entry.vessel_id)
+    vendor = db.get(Vendor, entry.vendor_id)
+    return entry, vessel, vendor
+
+
+@router.post("/{pi_entry_id}/send-vendor-notice", response_model=PiEntryOut)
+def send_vendor_notice(
+    pi_entry_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
+    _: User = Depends(require_module_access("pi")),
+) -> dict:
+    """The "green button" — emails the VENDOR the essential PI details. Stamps
+    reminder_1_sent_date (existing field, previously only settable by hand) to today on send."""
+    entry, vessel, vendor = _load_entry_vessel_vendor(db, pi_entry_id)
+    if not vendor.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Vendor '{vendor.name}' has no email address on file — add one in Admin → Vendors first.",
+        )
+
+    subject, body = vendor_notice_email(
+        dpr_no=entry.dpr_no,
+        dpr_date=entry.dpr_date,
+        vessel_name=vessel.name,
+        vendor_name=vendor.name,
+        po_number=entry.po_number,
+        service_details=entry.service_details,
+        amount_inr=entry.amount_inr,
+        fc_amount=entry.fc_amount,
+        currency=entry.currency,
+    )
+    try:
+        send_mail([vendor.email], subject, body, from_mailbox=vessel.assigned_ta.email if vessel.assigned_ta else None)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
+
+    entry.reminder_1_sent_date = date.today()
+    write_audit_log(
+        db,
+        entity_type=AuditEntityType.PI_ENTRY,
+        entity_id=entry.id,
+        action=AuditAction.SENT_VENDOR_NOTICE,
+        changed_by=current_user.id,
+        summary=f"{current_user.full_name} sent a vendor notice for PI {entry.dpr_no or '(no DPR No. yet)'} to {vendor.email}",
+    )
+    db.commit()
+
+    return get_pi_entry(pi_entry_id, db=db, _=current_user)
+
+
+@router.post("/{pi_entry_id}/send-owner-reminder", response_model=PiEntryOut)
+def send_owner_reminder(
+    pi_entry_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EDITOR)),
+    _: User = Depends(require_module_access("pi")),
+) -> dict:
+    """The "red button" — emails the OWNER (one flat list, shared across all vessels — see
+    OwnerRecipient model docstring) the full PI details, asking for a status update. Stamps
+    reminder_2_sent_date to today on send."""
+    entry, vessel, vendor = _load_entry_vessel_vendor(db, pi_entry_id)
+
+    recipients = [r.email for r in db.query(OwnerRecipient).filter(OwnerRecipient.is_active.is_(True)).all()]
+    if not recipients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No owner recipients configured — add one in Admin → Owner Recipients first.",
+        )
+
+    subject, body = owner_reminder_email(
+        dpr_no=entry.dpr_no,
+        dpr_date=entry.dpr_date,
+        vessel_name=vessel.name,
+        vendor_name=vendor.name,
+        po_number=entry.po_number,
+        service_details=entry.service_details,
+        amount_inr=entry.amount_inr,
+        fc_amount=entry.fc_amount,
+        currency=entry.currency,
+        payment_date=entry.payment_date,
+        followup_status=entry.followup_status,
+        last_known_remark=entry.last_known_remark,
+    )
+    try:
+        send_mail(recipients, subject, body, from_mailbox=vessel.assigned_ta.email if vessel.assigned_ta else None)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
+
+    entry.reminder_2_sent_date = date.today()
+    write_audit_log(
+        db,
+        entity_type=AuditEntityType.PI_ENTRY,
+        entity_id=entry.id,
+        action=AuditAction.SENT_OWNER_REMINDER,
+        changed_by=current_user.id,
+        summary=f"{current_user.full_name} sent an owner reminder for PI {entry.dpr_no or '(no DPR No. yet)'} to {', '.join(recipients)}",
+    )
     db.commit()
 
     return get_pi_entry(pi_entry_id, db=db, _=current_user)

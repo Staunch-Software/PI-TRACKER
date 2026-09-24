@@ -66,6 +66,7 @@ export function AdminVesselsPage() {
             <tr>
               <th>Vessel Name</th>
               <th>IMO Number</th>
+              <th>Assigned TA</th>
               <th style={{ textAlign: 'center' }}>Show in PI Dropdown</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
@@ -75,6 +76,7 @@ export function AdminVesselsPage() {
               <tr key={v.id}>
                 <td>{v.name}</td>
                 <td>{v.imoNumber ?? '—'}</td>
+                <td>{v.assignedTaName ?? '—'}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"

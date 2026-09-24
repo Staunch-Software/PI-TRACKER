@@ -12,6 +12,7 @@ from app.models import (  # noqa: E402,F401
     audit_log,
     invoice_attachment,
     invoice_mail_entry,
+    owner_recipient,
     pi_entry,
     pir_entry,
     smartpal_invoice_entry,

@@ -68,6 +68,8 @@ class AuditAction(str, enum.Enum):
     IMPORT = "IMPORT"
     ATTACH = "ATTACH"
     MARK_RECEIVED = "MARK_RECEIVED"
+    SENT_VENDOR_NOTICE = "SENT_VENDOR_NOTICE"
+    SENT_OWNER_REMINDER = "SENT_OWNER_REMINDER"
 
 
 class AuditEntityType(str, enum.Enum):
@@ -80,6 +82,7 @@ class AuditEntityType(str, enum.Enum):
     VENDOR_MAPPING = "vendor_mapping"
     VENDOR_MAPPING_IMPORT_BATCH = "vendor_mapping_import_batch"
     PIR_ENTRY = "pir_entry"
+    OWNER_RECIPIENT = "owner_recipient"
 
 
 # Where a SOA line item's invoice currently lives, in priority order — see

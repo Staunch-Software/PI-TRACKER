@@ -7,6 +7,7 @@ from app.api.routes import (
     auth,
     dashboard,
     import_export,
+    owner_recipients,
     pi_entries,
     pir_entries,
     soa_entries,
@@ -22,6 +23,7 @@ api_router.include_router(auth.router)
 api_router.include_router(vessels.router)
 api_router.include_router(vendors.router)
 api_router.include_router(vendor_mapping.router)
+api_router.include_router(owner_recipients.router)
 api_router.include_router(pi_entries.router)
 api_router.include_router(approved_invoices.router)
 api_router.include_router(pir_entries.router)

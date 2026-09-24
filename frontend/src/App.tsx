@@ -13,6 +13,8 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminVesselsPage } from './pages/admin/AdminVesselsPage';
 import { AdminVendorMappingPage } from './pages/admin/AdminVendorMappingPage';
+import { AdminVendorsPage } from './pages/admin/AdminVendorsPage';
+import { AdminOwnerRecipientsPage } from './pages/admin/AdminOwnerRecipientsPage';
 
 export function App() {
   return (
@@ -40,6 +42,8 @@ export function App() {
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="vessels" element={<AdminVesselsPage />} />
               <Route path="vendor-mapping" element={<AdminVendorMappingPage />} />
+              <Route path="vendors" element={<AdminVendorsPage />} />
+              <Route path="owner-recipients" element={<AdminOwnerRecipientsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

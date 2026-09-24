@@ -17,10 +17,15 @@ import {
   type Vendor,
   type Vessel,
 } from '../../shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, ApiError } from '../../lib/api';
 import type { PiEntryFormState } from '../../lib/piEntryForm';
 import { formatAmount, formatDate, formatDateTime } from '../../lib/format';
 import { LookupSelect } from '../modals/LookupSelect';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { ConfirmDialog } from '../modals/ConfirmDialog';
+import { MailIcon } from '../common/MailIcon';
+import { BellIcon } from '../common/BellIcon';
 import { ColumnFilterMenu, type ColumnFilterOption } from './ColumnFilterMenu';
 import { AttachmentCell } from './AttachmentCell';
 import { ExpandableCell } from './ExpandableCell';
@@ -405,6 +410,30 @@ export function PiEntriesTable({
     [vendors]
   );
 
+  // "Send Vendor Notice" (green) / "Send Owner Reminder" (red) — confirmed via a dialog first
+  // since emailing someone isn't undoable. Self-contained here (mutations + confirm state), same
+  // pattern as AttachmentCell managing its own upload mutation rather than lifting it to
+  // TrackerPage, since neither the parent nor sibling rows need to know about this in-flight state.
+  const [pendingSend, setPendingSend] = useState<{ entry: PiEntry; kind: 'vendor' | 'owner' } | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const sendMutation = useMutation({
+    mutationFn: ({ entry, kind }: { entry: PiEntry; kind: 'vendor' | 'owner' }) =>
+      api.post<PiEntry>(`/pi-entries/${entry.id}/${kind === 'vendor' ? 'send-vendor-notice' : 'send-owner-reminder'}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pi-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-log'] });
+      setPendingSend(null);
+    },
+    onError: (err) => setSendError(err instanceof ApiError ? err.message : 'Failed to send email.'),
+  });
+
+  function openSendConfirm(entry: PiEntry, kind: 'vendor' | 'owner') {
+    setSendError(null);
+    setPendingSend({ entry, kind });
+  }
+
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   const draggedKeyRef = useRef<ReorderableColumnKey | null>(null);
@@ -614,14 +643,34 @@ export function PiEntriesTable({
                         </button>
                       </div>
                     ) : (
-                      <button
-                        className="icon-btn"
-                        title="Edit"
-                        onClick={() => onStartEdit(entry)}
-                        disabled={editingId !== null || isAddingNew || layoutEditable}
-                      >
-                        ✎
-                      </button>
+                      <div className="row-actions">
+                        <button
+                          className="icon-btn"
+                          title="Edit"
+                          onClick={() => onStartEdit(entry)}
+                          disabled={editingId !== null || isAddingNew || layoutEditable}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="icon-btn"
+                          title="Send Vendor Notice"
+                          style={{ color: 'var(--color-success)' }}
+                          onClick={() => openSendConfirm(entry, 'vendor')}
+                          disabled={editingId !== null || isAddingNew || layoutEditable}
+                        >
+                          <MailIcon />
+                        </button>
+                        <button
+                          className="icon-btn"
+                          title="Send Owner Reminder"
+                          style={{ color: 'var(--color-danger)' }}
+                          onClick={() => openSendConfirm(entry, 'owner')}
+                          disabled={editingId !== null || isAddingNew || layoutEditable}
+                        >
+                          <BellIcon />
+                        </button>
+                      </div>
                     )}
                   </td>
                 )}
@@ -693,6 +742,25 @@ export function PiEntriesTable({
         <div className="empty-state" style={{ color: 'var(--color-danger)', textAlign: 'left', padding: '10px 16px' }}>
           {saveError}
         </div>
+      )}
+      {sendError && (
+        <div className="empty-state" style={{ color: 'var(--color-danger)', textAlign: 'left', padding: '10px 16px' }}>
+          {sendError}
+        </div>
+      )}
+      {pendingSend && (
+        <ConfirmDialog
+          title={pendingSend.kind === 'vendor' ? 'Send Vendor Notice' : 'Send Owner Reminder'}
+          message={
+            pendingSend.kind === 'vendor'
+              ? `Send the essential PI details for ${pendingSend.entry.dprNo ?? '(no DPR No. yet)'} to ${pendingSend.entry.vendorName}?`
+              : `Send a status-update reminder for ${pendingSend.entry.dprNo ?? '(no DPR No. yet)'} to the owner recipients?`
+          }
+          confirmLabel={sendMutation.isPending ? 'Sending…' : 'Send'}
+          isConfirming={sendMutation.isPending}
+          onConfirm={() => sendMutation.mutate(pendingSend)}
+          onCancel={() => setPendingSend(null)}
+        />
       )}
     </div>
   );

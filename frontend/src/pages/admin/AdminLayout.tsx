@@ -3,7 +3,13 @@ import { useRole } from '../../auth/useRole';
 import { AdminCreateModalProvider, useAdminCreateModal } from './AdminCreateModalContext';
 
 function AdminSidebar() {
-  const { isUsersCreateOpen, isVesselsCreateOpen, isVendorMappingCreateOpen } = useAdminCreateModal();
+  const {
+    isUsersCreateOpen,
+    isVesselsCreateOpen,
+    isVendorMappingCreateOpen,
+    isVendorsCreateOpen,
+    isOwnerRecipientsCreateOpen,
+  } = useAdminCreateModal();
 
   return (
     <aside className="admin-sidebar">
@@ -45,6 +51,29 @@ function AdminSidebar() {
           className={`admin-nav-link create${isVendorMappingCreateOpen ? ' active' : ''}`}
         >
           + Create Vendor Mapping
+        </Link>
+      </div>
+
+      <div className="admin-nav-section">
+        <div className="admin-nav-heading">Vendors</div>
+        <NavLink to="/admin/vendors" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
+          All Vendors
+        </NavLink>
+        <Link to="/admin/vendors?new=1" className={`admin-nav-link create${isVendorsCreateOpen ? ' active' : ''}`}>
+          + Create Vendor
+        </Link>
+      </div>
+
+      <div className="admin-nav-section">
+        <div className="admin-nav-heading">Owner Recipients</div>
+        <NavLink to="/admin/owner-recipients" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
+          All Recipients
+        </NavLink>
+        <Link
+          to="/admin/owner-recipients?new=1"
+          className={`admin-nav-link create${isOwnerRecipientsCreateOpen ? ' active' : ''}`}
+        >
+          + Add Recipient
         </Link>
       </div>
     </aside>

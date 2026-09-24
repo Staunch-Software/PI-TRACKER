@@ -19,12 +19,28 @@ export interface Vessel {
   name: string;
   imoNumber: string | null;
   isActive: boolean;
+  // The Editor/Admin user responsible for this vessel — used as the "from" mailbox for the
+  // automated vendor-notice/owner-reminder emails; null falls back to a shared mailbox.
+  assignedTaId: string | null;
+  assignedTaName: string | null;
+  assignedTaEmail: string | null;
 }
 
 export interface Vendor {
   id: string;
   name: string;
+  email: string | null;
   isActive: boolean;
+}
+
+// Admin-managed list of emails that receive the "send owner reminder" (red button) — one flat
+// list shared across all vessels, not per-vessel.
+export interface OwnerRecipient {
+  id: string;
+  name: string | null;
+  email: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 // Mirrors all 23 columns of the "Follow-up Tracker" sheet, plus computed/audit fields.
