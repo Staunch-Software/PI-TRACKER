@@ -18,8 +18,8 @@ export function SoaVendorDetailModal({ vendorLabel, items, onClose }: Props) {
             ×
           </button>
         </div>
-        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-          <table className="data-table">
+        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', overflowX: 'auto' }}>
+          <table className="data-table" style={{ tableLayout: 'auto' }}>
             <thead>
               <tr>
                 <th>Invoice No.</th>

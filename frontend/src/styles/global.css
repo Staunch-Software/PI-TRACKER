@@ -162,6 +162,19 @@ a {
   display: flex;
   gap: 4px;
   flex: 1;
+  /* min-width:0 lets this flex item actually shrink below its links' combined natural width
+     (the flex default is min-width:auto, which — like .user-menu-wrapper elsewhere in this
+     file — refuses to shrink past content size and pushes the whole row past the viewport
+     instead). overflow-x:auto is the backstop: on a window too narrow to fit all 5 links even
+     at their smallest reasonable size, the nav scrolls WITHIN ITSELF instead of forcing the
+     page wider, so the page can never end up with page-level horizontal overflow no matter how
+     narrow the window gets. */
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.top-nav nav::-webkit-scrollbar {
+  display: none;
 }
 
 .top-nav .nav-link {
@@ -171,6 +184,8 @@ a {
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .top-nav .nav-link:hover {
@@ -185,6 +200,10 @@ a {
 /* User menu (dropdown) */
 .user-menu-wrapper {
   position: relative;
+  /* Without this, the flex item's automatic min-width is set by its fixed-width child button
+     below, so it can never shrink — that pushed the whole .top-nav past the viewport on
+     narrower screens, hiding content off the right edge instead of the trigger just shrinking. */
+  min-width: 0;
 }
 
 .user-avatar {
@@ -211,7 +230,8 @@ a {
   cursor: pointer;
   padding: 6px 16px;
   border-radius: 8px;
-  width: 260px;
+  width: 100%;
+  max-width: 260px;
   box-sizing: border-box;
 }
 .user-menu-trigger:hover {
@@ -230,11 +250,19 @@ a {
 .user-menu-name {
   font-size: 13px;
   font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-menu-role {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.75);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-menu-caret {
@@ -268,6 +296,49 @@ a {
 .user-menu-dropdown-header .user-menu-name {
   color: var(--color-text);
   font-size: 14px;
+}
+
+/* Top nav gets tight below ~900px (brand + 5 nav links + the user menu no longer all fit at
+   their full desktop size) — shrink the parts that don't need to stay full-size instead of
+   letting the row overflow and push content off the right edge. */
+@media (max-width: 900px) {
+  .top-nav {
+    padding: 0 12px;
+  }
+  .top-nav .brand {
+    margin-right: 16px;
+    font-size: 14px;
+  }
+  .top-nav nav {
+    gap: 0;
+  }
+  .top-nav .nav-link {
+    padding: 8px 8px;
+    font-size: 13px;
+  }
+  .user-menu-trigger {
+    padding: 6px 8px;
+    gap: 6px;
+    max-width: 160px;
+  }
+  /* The role badge ("ADMIN"/"EDITOR") is the least essential part of the trigger — drop it
+     first so the person's name keeps its room instead of both getting squeezed to ellipsis. */
+  .user-menu-role {
+    display: none;
+  }
+}
+
+/* Admin panel's 260px fixed sidebar leaves too little room for its tables/forms below this —
+   narrow the sidebar itself and tighten the content padding rather than letting the two-pane
+   shell overflow horizontally. */
+@media (max-width: 900px) {
+  .admin-sidebar {
+    width: 200px;
+    padding: 16px 10px;
+  }
+  .admin-content {
+    padding: 20px 16px;
+  }
 }
 
 .user-menu-dropdown-header .user-menu-email {
@@ -872,6 +943,10 @@ tr.add-row-trigger:hover td {
   padding: 12px 16px;
   font-size: 13px;
   color: var(--color-text-muted);
+  /* Rows-per-page controls + "Page X of Y" + Previous/Next don't all fit on one line below
+     ~500px — wrap instead of pushing Previous/Next past the edge of the page. */
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .pagination .pager-btns {
@@ -1106,6 +1181,11 @@ tr.add-row-trigger:hover td {
 .kpi-card {
   border-radius: var(--radius);
   padding: 20px 20px;
+  /* Same class of bug as .user-menu-wrapper/.top-nav nav elsewhere in this file: a grid item's
+     default min-width is its content's min-content size, not 0 — a long unbroken value (e.g.
+     SOA's "Outstanding" card: "SGD 41,174.65 · JPY 2,43,438.65 · USD 62,188.54") can hold every
+      1fr track wider than its fair share and push the whole grid past the viewport. */
+  min-width: 0;
 }
 
 .kpi-value {
@@ -1483,7 +1563,9 @@ tr.add-row-trigger:hover td {
 }
 
 .page-size-custom-input {
-  width: 72px;
+  /* 72px clipped the "Custom" placeholder itself (only ~52px of usable text room after
+     padding/border) — wide enough now to show it in full at any zoom level. */
+  width: 88px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -1545,6 +1627,60 @@ table.data-table th.col-vendor {
 table.data-table td.col-status,
 table.data-table th.col-status {
   overflow: visible;
+}
+
+/* Actions(80) + DPR No.(140) + Follow-up Status(260, its default) = 480px of pinned columns
+   that always stay on screen via position:sticky — scrolling the table horizontally only moves
+   the OTHER columns underneath/past them, so if the visible table width is narrower than that
+   pinned total, the tail end of the Follow-up Status badge is cut off by the scroll container's
+   own edge and there is no way to scroll to reveal it (unlike a normal column, which you could
+   just scroll right to see). Below this breakpoint, shrink the pinned columns themselves —
+   overriding the inline per-column width set from PiEntriesTable.tsx — so the full pinned block
+   fits a narrow window/laptop screen without hard-clipping any of it.
+   !important is required here: col elements' width comes from an inline style, which normal
+   cascade specificity can never beat. */
+@media (max-width: 620px) {
+  /* col-actions is left at its normal 80px here — it already holds 3 icon buttons (Edit/Send
+     Vendor Notice/Send Owner Reminder) that need every bit of that room; shrinking it further
+     just clips the icons themselves instead of fixing an overflow problem. */
+  col.col-dpr {
+    width: 100px !important;
+  }
+  col.col-status {
+    width: 150px !important;
+  }
+  table.data-table td.col-dpr,
+  table.data-table th.col-dpr {
+    /* left unset here (stays the default 80px, or 0px via .col-dpr-noactions, whichever
+       already applies) — only the width is shrinking. */
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+  }
+  table.data-table td.col-status,
+  table.data-table th.col-status {
+    left: 180px;
+  }
+  /* Viewer role has no Actions column, so DPR No. starts at 0 and Follow-up Status starts right
+     after the (now-narrower) 100px DPR No. column instead of the actions+dpr 180px offset above. */
+  table.data-table td.col-status-noactions,
+  table.data-table th.col-status-noactions {
+    left: 100px;
+  }
+  .status-badge {
+    font-size: 11px;
+    padding: 3px 7px;
+    /* Even after shrinking the pinned columns above, the longest labels ("Pending - Not Yet
+       Followed Up", "Pending - Discrepancy to Resolve") are still wider than the 150px column
+       affords on a genuinely narrow window (~400px) — the .col-status overflow:visible fallback
+       (see its rule above) only has a few px of slack past the column edge before hitting the
+       scroll container's own boundary, which is not enough for these. Cap the badge itself to
+       the column's actual content width and ellipsis it here so the worst case is a clearly
+       truncated "…" label — never a silent hard cut with no indication anything is missing. */
+    max-width: 126px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* Fills the <td>'s own content box exactly (width:100%, not a hardcoded pixel value matching

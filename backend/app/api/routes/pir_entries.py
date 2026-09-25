@@ -1,5 +1,6 @@
 import uuid
 from collections import Counter
+from datetime import date
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -59,7 +60,11 @@ _SORTABLE_COLUMNS = {
 
 
 def _build_where_clause(
-    search: str | None, department: str | None, resolved: str = "OPEN"
+    search: str | None,
+    department: str | None,
+    resolved: str = "OPEN",
+    resolved_date_from: date | None = None,
+    resolved_date_to: date | None = None,
 ) -> tuple[str, dict]:
     where_clauses = []
     params: dict = {}
@@ -80,6 +85,17 @@ def _build_where_clause(
     elif resolved == "RESOLVED":
         where_clauses.append("resolved_at IS NOT NULL")
 
+    # Only meaningful against resolved rows (an OPEN-scoped query has no resolved_at to compare
+    # against, so combining these would just yield zero rows) — the frontend only shows this
+    # filter on the Resolved tab, but scope by resolved_at::date regardless of what the caller
+    # passed for `resolved` rather than silently ignoring it.
+    if resolved_date_from:
+        where_clauses.append("resolved_at::date >= :resolved_date_from")
+        params["resolved_date_from"] = resolved_date_from
+    if resolved_date_to:
+        where_clauses.append("resolved_at::date <= :resolved_date_to")
+        params["resolved_date_to"] = resolved_date_to
+
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     return where_sql, params
 
@@ -99,6 +115,8 @@ def list_pir_entries(
     search: str | None = Query(default=None),
     department: str | None = Query(default=None, description="TECHNICAL | MANNING | UNCLASSIFIED | ALL"),
     resolved: str = Query(default="OPEN", description="OPEN | RESOLVED | ALL"),
+    resolved_date_from: date | None = Query(default=None),
+    resolved_date_to: date | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -107,7 +125,7 @@ def list_pir_entries(
     # set in one response to sort groups by item count; there's no per-row UI pagination anymore.
     page_size: int = Query(default=50, ge=1, le=10000),
 ) -> dict:
-    where_sql, params = _build_where_clause(search, department, resolved)
+    where_sql, params = _build_where_clause(search, department, resolved, resolved_date_from, resolved_date_to)
 
     total = db.execute(text(f"{_CLASSIFIED_CTE} SELECT count(*) FROM classified {where_sql}"), params).scalar_one()
 

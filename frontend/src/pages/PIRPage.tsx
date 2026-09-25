@@ -27,11 +27,27 @@ const RESOLVED_FILTERS: { key: ResolvedFilter; label: string }[] = [
 // response to build accurate sidebar bucket counts, same reasoning as the old accordion layout.
 const FETCH_ALL_PAGE_SIZE = 10000;
 
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function yesterday(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return isoDate(d);
+}
+
+function today(): string {
+  return isoDate(new Date());
+}
+
 export function PIRPage() {
   const [tab, setTab] = useState<Tab>('ALL');
   const [resolvedFilter, setResolvedFilter] = useState<ResolvedFilter>('OPEN');
   const [search, setSearch] = useState('');
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
+  const [resolvedDateFrom, setResolvedDateFrom] = useState(yesterday());
+  const [resolvedDateTo, setResolvedDateTo] = useState(today());
 
   const countsQuery = useQuery({
     // Always OPEN-scoped server-side (see get_pir_department_counts) — independent of
@@ -41,12 +57,18 @@ export function PIRPage() {
   });
 
   const entriesQuery = useQuery({
-    queryKey: ['pir-entries', tab, resolvedFilter, search],
+    queryKey: ['pir-entries', tab, resolvedFilter, search, resolvedFilter === 'RESOLVED' ? resolvedDateFrom : null, resolvedFilter === 'RESOLVED' ? resolvedDateTo : null],
     queryFn: () => {
       const params = new URLSearchParams();
       if (tab !== 'ALL') params.set('department', tab);
       params.set('resolved', resolvedFilter);
       if (search) params.set('search', search);
+      // Resolved-date range only makes sense against resolved rows — leaving it applied on
+      // Open/All History would just zero out results there (open rows have no resolved_at).
+      if (resolvedFilter === 'RESOLVED') {
+        if (resolvedDateFrom) params.set('resolved_date_from', resolvedDateFrom);
+        if (resolvedDateTo) params.set('resolved_date_to', resolvedDateTo);
+      }
       params.set('page', '1');
       params.set('page_size', String(FETCH_ALL_PAGE_SIZE));
       return api.get<PaginatedResult<PirEntry>>(`/pir-entries?${params.toString()}`);
@@ -145,7 +167,23 @@ export function PIRPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        {resolvedFilter === 'RESOLVED' && (
+          <>
+            <div className="date-range-field">
+              <label>Resolved From</label>
+              <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} />
+            </div>
+            <div className="date-range-field">
+              <label>Resolved To</label>
+              <input type="date" value={resolvedDateTo} onChange={(e) => setResolvedDateTo(e.target.value)} />
+            </div>
+          </>
+        )}
       </div>
+
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+        {entriesQuery.data ? `${entriesQuery.data.total} record${entriesQuery.data.total === 1 ? '' : 's'} found` : 'Loading…'}
+      </p>
 
       {entriesQuery.data && buckets.length === 0 && (
         <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>

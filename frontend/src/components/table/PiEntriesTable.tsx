@@ -520,9 +520,13 @@ export function PiEntriesTable({
 
   const colgroup = (
     <colgroup>
-      {canEdit && <col style={{ width: widths.actions }} />}
-      <col style={{ width: widths.dpr }} />
-      <col style={{ width: widths.status }} />
+      {/* Pinned/sticky columns (Actions/DPR No./Follow-up Status) — classed so a narrow-viewport
+          media query can shrink their otherwise-inline pixel widths (see global.css). Unlike the
+          scrollable columns after them, these can't be revealed by scrolling right if they don't
+          fit, so they're the ones that actually need to shrink on a narrow window. */}
+      {canEdit && <col className="col-actions" style={{ width: widths.actions }} />}
+      <col className="col-dpr" style={{ width: widths.dpr }} />
+      <col className="col-status" style={{ width: widths.status }} />
       {columnOrder.map((col) => (
         <col key={col} style={{ width: widths[col] }} />
       ))}
