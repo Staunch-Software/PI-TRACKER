@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import './PIR.css';
 import '../pages/Dashboard.css';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useRole } from '../auth/useRole';
 import { api } from '../lib/api';
 import type { PaginatedResult, PirDepartment, PirDepartmentCounts, PirEntry, Vessel } from '../shared';
 import { PirKpiStrip } from '../components/pir/PirKpiStrip';
 import { PirVesselSidebar, NO_VESSEL_GROUP, UNMATCHED_VESSEL_GROUP, type SidebarBucket } from '../components/pir/PirVesselSidebar';
-import { PirInvoiceTable } from '../components/pir/PirInvoiceTable';
+import {
+  PirInvoiceTable,
+  DEFAULT_PIR_COLUMN_ORDER,
+  DEFAULT_PIR_COL_WIDTHS,
+  type PirColumnKey,
+} from '../components/pir/PirInvoiceTable';
 
 type Tab = PirDepartment | 'ALL';
 type ResolvedFilter = 'OPEN' | 'RESOLVED' | 'ALL';
@@ -25,6 +31,28 @@ const RESOLVED_FILTERS: { key: ResolvedFilter; label: string }[] = [
 ];
 
 const FETCH_ALL_PAGE_SIZE = 10000;
+
+interface TableLayoutPreference {
+  tableKey: string;
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+}
+
+function sanitizeColumnOrder(saved: string[] | null | undefined): PirColumnKey[] {
+  const known = new Set<string>(DEFAULT_PIR_COLUMN_ORDER);
+  const filtered = (saved ?? []).filter((k): k is PirColumnKey => known.has(k));
+  const missing = DEFAULT_PIR_COLUMN_ORDER.filter((k) => !filtered.includes(k));
+  return [...filtered, ...missing];
+}
+
+function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const key of Object.keys(DEFAULT_PIR_COL_WIDTHS) as PirColumnKey[]) {
+    const w = saved?.[key];
+    result[key] = typeof w === 'number' && w >= 60 && w <= 1000 ? w : DEFAULT_PIR_COL_WIDTHS[key];
+  }
+  return result;
+}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -47,6 +75,13 @@ export function PIRPage() {
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
   const [resolvedDateFrom, setResolvedDateFrom] = useState(yesterday());
   const [resolvedDateTo, setResolvedDateTo] = useState(today());
+
+  const { canEdit } = useRole();
+  const [layoutEditable, setLayoutEditable] = useState(false);
+  const [savedColumnOrder, setSavedColumnOrder] = useState<PirColumnKey[]>([...DEFAULT_PIR_COLUMN_ORDER]);
+  const [savedColumnWidths, setSavedColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_PIR_COL_WIDTHS });
+  const [columnOrder, setColumnOrder] = useState<PirColumnKey[]>([...DEFAULT_PIR_COLUMN_ORDER]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_PIR_COL_WIDTHS });
 
   const countsQuery = useQuery({
     queryKey: ['pir-department-counts'],
@@ -71,6 +106,36 @@ export function PIRPage() {
   });
 
   const vesselsQuery = useQuery({ queryKey: ['vessels'], queryFn: () => api.get<Vessel[]>('/vessels') });
+
+  const tableLayoutQuery = useQuery({
+    queryKey: ['table-layout', 'pir_entries'],
+    queryFn: () => api.get<TableLayoutPreference | null>('/table-layout/pir_entries'),
+  });
+
+  useEffect(() => {
+    if (tableLayoutQuery.data === undefined) return;
+    const order = sanitizeColumnOrder(tableLayoutQuery.data?.columnOrder);
+    const widths = sanitizeColumnWidths(tableLayoutQuery.data?.columnWidths);
+    setSavedColumnOrder(order);
+    setSavedColumnWidths(widths);
+    setColumnOrder(order);
+    setColumnWidths(widths);
+  }, [tableLayoutQuery.data]);
+
+  const saveLayoutMutation = useMutation({
+    mutationFn: () => api.put<TableLayoutPreference>('/table-layout/pir_entries', { columnOrder, columnWidths }),
+    onSuccess: () => {
+      setSavedColumnOrder(columnOrder);
+      setSavedColumnWidths(columnWidths);
+      setLayoutEditable(false);
+    },
+  });
+
+  function cancelLayoutEdit() {
+    setColumnOrder(savedColumnOrder);
+    setColumnWidths(savedColumnWidths);
+    setLayoutEditable(false);
+  }
 
   const itemsByBucket = useMemo(() => {
     const map = new Map<string, PirEntry[]>();
@@ -171,6 +236,28 @@ export function PIRPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {canEdit && (
+            layoutEditable ? (
+              <div className="pir-layout-edit-group">
+                <button
+                  type="button"
+                  className="pir-layout-btn pir-layout-btn-success"
+                  onClick={() => saveLayoutMutation.mutate()}
+                  disabled={saveLayoutMutation.isPending}
+                >
+                  {saveLayoutMutation.isPending ? 'Saving…' : 'Save Layout'}
+                </button>
+                <button type="button" className="pir-layout-btn" onClick={cancelLayoutEdit}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="pir-layout-btn" onClick={() => setLayoutEditable(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Edit Layout
+              </button>
+            )
+          )}
         </div>
 
         {resolvedFilter === 'RESOLVED' && (
@@ -210,6 +297,11 @@ export function PIRPage() {
               vesselGroup={selectedBucket}
               items={itemsByBucket.get(selectedBucket) ?? []}
               vessels={vesselsQuery.data ?? []}
+              columnOrder={columnOrder}
+              columnWidths={columnWidths}
+              layoutEditable={layoutEditable}
+              onReorderColumn={setColumnOrder}
+              onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
             />
           )}
         </div>

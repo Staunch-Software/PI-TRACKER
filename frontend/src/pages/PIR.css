@@ -173,6 +173,58 @@
   font-family: inherit;
 }
 
+.pir-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  background: #FFFFFF;
+  color: #374151;
+  border: 1px solid rgba(17, 20, 36, 0.12);
+  box-shadow: 0 1px 3px rgba(17, 20, 36, 0.06);
+  transition: all 0.2s;
+}
+.pir-layout-btn:hover:not(:disabled) {
+  background: #F9FAFB;
+  border-color: rgba(17, 20, 36, 0.2);
+  box-shadow: 0 3px 8px rgba(17, 20, 36, 0.1);
+}
+.pir-layout-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pir-layout-btn-success {
+  background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+.pir-layout-btn-success:hover:not(:disabled) {
+  background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+}
+.pir-layout-edit-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 10px;
+}
+
+/* Keep the PIR header sticky while Edit Layout is on (global th.col-layout-editable sets position: relative) */
+.pir-table-scroll .data-table th.col-layout-editable {
+  position: sticky;
+}
+
 .pir-date-filter {
   display: flex;
   align-items: center;
@@ -587,5 +639,5 @@
   }
 }
 
- 
- 
+
+
