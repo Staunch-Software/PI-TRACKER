@@ -761,7 +761,8 @@ export function PiEntriesTable({
               ? `Send the essential PI details for ${pendingSend.entry.dprNo ?? '(no DPR No. yet)'} to ${pendingSend.entry.vendorName}?`
               : `Send a status-update reminder for ${pendingSend.entry.dprNo ?? '(no DPR No. yet)'} to the owner recipients?`
           }
-          confirmLabel={sendMutation.isPending ? 'Sending…' : 'Send'}
+          confirmLabel="Send"
+          confirmingLabel="Sending…"
           isConfirming={sendMutation.isPending}
           onConfirm={() => sendMutation.mutate(pendingSend)}
           onCancel={() => setPendingSend(null)}

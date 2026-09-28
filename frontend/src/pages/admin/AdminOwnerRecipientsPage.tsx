@@ -1,20 +1,38 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { OwnerRecipient } from '../../shared';
 import { OwnerRecipientModal } from '../../components/modals/OwnerRecipientModal';
 import { EditIcon } from '../../components/common/EditIcon';
+import { TrashIcon } from '../../components/common/TrashIcon';
 
 export function AdminOwnerRecipientsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalRecipient, setModalRecipient] = useState<OwnerRecipient | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const queryClient = useQueryClient();
 
   const recipientsQuery = useQuery({
     queryKey: ['admin-owner-recipients'],
     queryFn: () => api.get<OwnerRecipient[]>('/owner-recipients?include_inactive=true'),
   });
+
+  const deactivateMutation = useMutation({
+    mutationFn: (recipient: OwnerRecipient) =>
+      api.patch<OwnerRecipient>(`/owner-recipients/${recipient.id}`, { isActive: !recipient.isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-owner-recipients'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-log'] });
+    },
+  });
+
+  function handleToggleActive(recipient: OwnerRecipient) {
+    const verb = recipient.isActive ? 'Deactivate' : 'Reactivate';
+    if (window.confirm(`${verb} ${recipient.name ?? recipient.email}?`)) {
+      deactivateMutation.mutate(recipient);
+    }
+  }
 
   return (
     <>
@@ -62,6 +80,14 @@ export function AdminOwnerRecipientsPage() {
                   <div className="admin-row-actions">
                     <button className="admin-action-btn" title="Edit" onClick={() => setModalRecipient(r)}>
                       <EditIcon />
+                    </button>
+                    <button
+                      className={`admin-action-btn${r.isActive ? ' danger' : ''}`}
+                      title={r.isActive ? 'Deactivate' : 'Reactivate'}
+                      onClick={() => handleToggleActive(r)}
+                      disabled={deactivateMutation.isPending}
+                    >
+                      {r.isActive ? <TrashIcon /> : '↺'}
                     </button>
                   </div>
                 </td>

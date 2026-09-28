@@ -2,12 +2,21 @@ interface Props {
   title: string;
   message: string;
   confirmLabel?: string;
+  confirmingLabel?: string;
   isConfirming?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ title, message, confirmLabel = 'Delete', isConfirming, onConfirm, onCancel }: Props) {
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = 'Delete',
+  confirmingLabel = 'Deleting…',
+  isConfirming,
+  onConfirm,
+  onCancel,
+}: Props) {
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-panel" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
@@ -25,7 +34,7 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Delete', isConfi
             Cancel
           </button>
           <button type="button" className="btn btn-danger" onClick={onConfirm} disabled={isConfirming}>
-            {isConfirming ? 'Deleting…' : confirmLabel}
+            {isConfirming ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </div>
