@@ -14,23 +14,22 @@ export function AdminUsersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalUser, setModalUser] = useState<User | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [confirmUser, setConfirmUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
 
   const usersQuery = useQuery({ queryKey: ['users'], queryFn: () => api.get<User[]>('/users') });
 
   const deactivateMutation = useMutation({
     mutationFn: (user: User) => api.patch<User>(`/users/${user.id}`, { isActive: !user.isActive }),
-    onSuccess: () => {
+        onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
     },
+    onSettled: () => setConfirmUser(null),
   });
 
-  function handleDelete(user: User) {
-    const verb = user.isActive ? 'Deactivate' : 'Reactivate';
-    if (window.confirm(`${verb} ${user.fullName}?`)) {
-      deactivateMutation.mutate(user);
-    }
+    function handleDelete(user: User) {
+    setConfirmUser(user);
   }
 
   return (
@@ -113,11 +112,52 @@ export function AdminUsersPage() {
       </div>
       </div>
 
-      {(isAdding || modalUser) && (
+            {(isAdding || modalUser) && (
         <UserModal
           user={modalUser}
           onClose={() => { setIsAdding(false); setModalUser(null); }}
         />
+      )}
+
+      {confirmUser && (
+        <div
+          className="admin-confirm-overlay"
+          onClick={() => !deactivateMutation.isPending && setConfirmUser(null)}
+        >
+          <div
+            className="admin-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`admin-confirm-icon${confirmUser.isActive ? ' danger' : ''}`}>
+              {confirmUser.isActive ? '!' : '↺'}
+            </div>
+            <h2 className="admin-confirm-title">
+              {confirmUser.isActive ? 'Deactivate User' : 'Reactivate User'}
+            </h2>
+            <p className="admin-confirm-text">
+              Are you sure you want to {confirmUser.isActive ? 'deactivate' : 'reactivate'}{' '}
+              <strong>{confirmUser.fullName}</strong>?
+            </p>
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-btn-secondary"
+                onClick={() => setConfirmUser(null)}
+                disabled={deactivateMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-btn-primary"
+                onClick={() => deactivateMutation.mutate(confirmUser)}
+                disabled={deactivateMutation.isPending}
+              >
+                {deactivateMutation.isPending ? 'Please wait...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

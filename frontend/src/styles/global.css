@@ -1083,7 +1083,8 @@ tr.add-row-trigger:hover td {
 }
 
 .admin-back-link {
-  display: block;
+  display: flex;
+  align-items:center;
   font-size: 13px;
   color: var(--color-text-muted);
   text-decoration: none;

@@ -84,18 +84,21 @@
   font-size: 13px;
   padding: 6px 12px;
   border-radius: 8px;
-  transition: color 0.2s, background 0.2s;
+  transition: none;
   white-space: nowrap;
   position: relative;
 }
 
-.marine-nav-link:hover {
-  color: #111424;
-  background: rgba(17, 20, 36, 0.04);
+@media (hover: hover) {
+  .marine-nav-link:not(.active):hover {
+    color: #111424;
+    background: rgba(17, 20, 36, 0.04);
+  }
 }
 
 /* Active link: gradient pill */
-.marine-nav-link.active {
+.marine-nav-link.active,
+.marine-nav-link.active:hover {
   color: #FFFFFF;
   background: linear-gradient(135deg, #111424 0%, #2A2D4A 100%);
   box-shadow: 0 4px 12px rgba(17, 20, 36, 0.25), 0 1px 0 rgba(255,255,255,0.1) inset;
