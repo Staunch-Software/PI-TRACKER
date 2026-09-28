@@ -38,13 +38,6 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 # permission that lets this app send as any real mailbox in the tenant.
 DEFAULT_FROM_MAILBOX = "sunilkumar.s@ozellar.com"
 
-# TEMPORARY: while verifying the send pipeline end-to-end, redirect every send to a test inbox
-# instead of the real vendor/owner recipients, per the user's explicit test instructions. Flip
-# this to False once Graph permissions + real recipients are confirmed working.
-TEST_MODE = True
-TEST_MODE_TO = ["techdevops@ozellar.com"]
-TEST_MODE_CC = ["Karunya.pius@ozellar.com"]
-
 
 def _get_token() -> str:
     resp = requests.post(
@@ -73,19 +66,11 @@ def send_mail(to_emails: list[str], subject: str, html_body: str, from_mailbox: 
 
     send_from = from_mailbox or DEFAULT_FROM_MAILBOX
 
-    cc_emails: list[str] = []
-    if TEST_MODE:
-        log.info("pi_reminder_mailer TEST_MODE active — redirecting send from %s to %s", to_emails, TEST_MODE_TO)
-        to_emails = TEST_MODE_TO
-        cc_emails = TEST_MODE_CC
-
     message: dict = {
         "subject": subject,
         "body": {"contentType": "HTML", "content": html_body},
         "toRecipients": [{"emailAddress": {"address": e}} for e in to_emails],
     }
-    if cc_emails:
-        message["ccRecipients"] = [{"emailAddress": {"address": e}} for e in cc_emails]
 
     token = _get_token()
     resp = requests.post(
