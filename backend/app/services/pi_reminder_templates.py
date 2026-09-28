@@ -69,9 +69,12 @@ def owner_reminder_email(
     payment_date: date | None,
     followup_status: FollowUpStatus,
     last_known_remark: str | None,
+    pi_number: str | None = None,
 ) -> tuple[str, str]:
     """Returns (subject, html_body). Goes to the OWNER — full details, asks for a status update."""
     subject = f"Follow-up Required – PI {dpr_no or '(pending)'} – {vessel_name} / {vendor_name}"
+    if pi_number:
+        subject += f" - {pi_number}"
     amount = _fmt_amount(fc_amount, currency) if fc_amount is not None else _fmt_amount(amount_inr, "INR")
     body = f"""
     <p>Dear Team,</p>

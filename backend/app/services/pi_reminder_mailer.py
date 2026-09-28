@@ -38,6 +38,11 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 # permission that lets this app send as any real mailbox in the tenant.
 DEFAULT_FROM_MAILBOX = "sunilkumar.s@ozellar.com"
 
+# CC'd on every vendor-notice/owner-reminder send, regardless of sending mailbox or recipients —
+# the Purchase team's shared distribution list, so it's fine as a CC target even though it can't
+# be used as a sending mailbox (see DEFAULT_FROM_MAILBOX above).
+ALWAYS_CC = ["purchase@ozellar.com"]
+
 
 def _get_token() -> str:
     resp = requests.post(
@@ -70,6 +75,7 @@ def send_mail(to_emails: list[str], subject: str, html_body: str, from_mailbox: 
         "subject": subject,
         "body": {"contentType": "HTML", "content": html_body},
         "toRecipients": [{"emailAddress": {"address": e}} for e in to_emails],
+        "ccRecipients": [{"emailAddress": {"address": e}} for e in ALWAYS_CC],
     }
 
     token = _get_token()

@@ -494,6 +494,7 @@ def send_owner_reminder(
         payment_date=entry.payment_date,
         followup_status=entry.followup_status,
         last_known_remark=entry.last_known_remark,
+        pi_number=entry.pi_number,
     )
     try:
         send_mail(recipients, subject, body, from_mailbox=vessel.assigned_ta.email if vessel.assigned_ta else None)
