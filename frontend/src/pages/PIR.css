@@ -173,6 +173,45 @@
   font-family: inherit;
 }
 
+.pir-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #94A3B8;
+  transition: all 0.15s;
+  height: 38px;
+}
+
+.pir-date-filter:focus-within {
+  border-color: var(--color-info);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(var(--color-info-rgb),0.08);
+  color: #0F172A;
+}
+
+.pir-date-filter label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  margin: 0;
+  padding: 0;
+}
+
+.pir-date-filter input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #0F172A;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* =========================================================
    KPI STRIP (Monochrome Premium)
    ========================================================= */

@@ -174,19 +174,23 @@ export function PIRPage() {
         </div>
 
         {resolvedFilter === 'RESOLVED' && (
-          <div className="pir-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div className="date-range-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Resolved From</label>
-              <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
+          <div className="pir-filters" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="pir-date-filter">
+              <label>From</label>
+              <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} />
             </div>
-            <div className="date-range-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Resolved To</label>
-              <input type="date" value={resolvedDateTo} onChange={(e) => setResolvedDateTo(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
+            <div className="pir-date-filter">
+              <label>To</label>
+              <input type="date" value={resolvedDateTo} onChange={(e) => setResolvedDateTo(e.target.value)} />
             </div>
           </div>
         )}
 
       </div>
+
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+        {entriesQuery.data ? `${entriesQuery.data.total} record${entriesQuery.data.total === 1 ? '' : 's'} found` : 'Loading…'}
+      </p>
 
       {entriesQuery.data && buckets.length === 0 && (
         <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>
