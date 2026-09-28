@@ -5,18 +5,9 @@ import { api } from '../lib/api';
 import { AuditAction, type AuditLogEntry, type PaginatedResult, type Vessel } from '../shared';
 import { formatDateTime } from '../lib/format';
 import { MultiSelectDropdown } from '../components/common/MultiSelectDropdown';
-import { SearchIcon } from '../components/common/SearchIcon';
+import './Feed.css';
 
-const PAGE_SIZE = 30;
-
-const ACTION_ICONS: Record<string, string> = {
-  CREATE: '+',
-  UPDATE: '✎',
-  DELETE: '×',
-  IMPORT: '⇪',
-  ATTACH: '📎',
-  MARK_RECEIVED: '✓',
-};
+const PAGE_SIZE = 50;
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: 'Created',
@@ -24,12 +15,31 @@ const ACTION_LABELS: Record<string, string> = {
   DELETE: 'Deleted',
   IMPORT: 'Imported',
   ATTACH: 'Attached',
-  MARK_RECEIVED: 'Marked Received',
+  MARK_RECEIVED: 'Received',
 };
 
-const ACTION_OPTIONS = Object.values(AuditAction).map((a) => ({ value: a, label: ACTION_LABELS[a] }));
+const ACTION_OPTIONS = Object.values(AuditAction).map((a) => ({ value: a, label: ACTION_LABELS[a] ?? a }));
 
 type ReadTab = 'all' | 'unread' | 'read';
+
+function ActionSvg({ action }: { action: string }) {
+  switch (action) {
+    case 'CREATE':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
+    case 'UPDATE':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
+    case 'DELETE':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+    case 'IMPORT':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+    case 'ATTACH':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
+    case 'MARK_RECEIVED':
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+    default:
+      return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="4"/></svg>;
+  }
+}
 
 export function FeedPage() {
   const [readTab, setReadTab] = useState<ReadTab>('all');
@@ -38,7 +48,6 @@ export function FeedPage() {
   const [actions, setActions] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -53,17 +62,14 @@ export function FeedPage() {
   actions.forEach((a) => params.append('action', a));
   if (dateFrom) params.set('date_from', dateFrom);
   if (dateTo) params.set('date_to', dateTo);
-  params.set('page', String(page));
+  params.set('page', '1');
   params.set('page_size', String(PAGE_SIZE));
 
   const feedQuery = useQuery({
-    queryKey: ['audit-log', readTab, search, vesselIds, actions, dateFrom, dateTo, page],
+    queryKey: ['audit-log', readTab, search, vesselIds, actions, dateFrom, dateTo],
     queryFn: () => api.get<PaginatedResult<AuditLogEntry>>(`/audit-log?${params.toString()}`),
   });
 
-  // Independent of the tab/search/vessel/action/date filters above — this is the total unread
-  // count across the whole feed, for the badge next to the "Unread" tab, not just whatever the
-  // current filters happen to match. page_size=1 since only `total` is needed, not the rows.
   const unreadCountQuery = useQuery({
     queryKey: ['audit-log-unread-count'],
     queryFn: () => api.get<PaginatedResult<AuditLogEntry>>('/audit-log?read_state=unread&page=1&page_size=1'),
@@ -80,129 +86,181 @@ export function FeedPage() {
 
   function handleView(item: AuditLogEntry) {
     if (!markReadMutation.isPending && !item.isRead) markReadMutation.mutate(item.id);
-    if (item.entityType === 'pi_entry') {
-      navigate(`/tracker?entryId=${item.entityId}`);
-    }
+    if (item.entityType === 'pi_entry') navigate(`/tracker?entryId=${item.entityId}`);
   }
 
-  const totalPages = feedQuery.data ? Math.max(1, Math.ceil(feedQuery.data.total / PAGE_SIZE)) : 1;
-
-  function resetPage<T>(setter: (v: T) => void) {
-    return (v: T) => {
-      setPage(1);
-      setter(v);
-    };
+  function resetFilters<T>(setter: (v: T) => void) {
+    return (v: T) => setter(v);
   }
+
+  const total = feedQuery.data?.total ?? 0;
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>Activity Feed</h1>
-          <p>Every change made to the tracker — additions, edits, attachments and imports.</p>
+    <div className="fp-root">
+
+      {/* ── HEADER ── */}
+      <div className="fp-header">
+        <div className="fp-header-left">
+          <div className="fp-header-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+          <div>
+            <h1 className="fp-title">Activity Feed</h1>
+            <p className="fp-subtitle">Real-time log of every change across the tracker.</p>
+          </div>
         </div>
-        <div className="btn-group">
-          {(['all', 'unread', 'read'] as ReadTab[]).map((tab) => (
-            <button
-              key={tab}
-              className={`btn ${readTab === tab ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => resetPage(setReadTab)(tab)}
-            >
-              {tab === 'all' ? 'All' : tab === 'unread' ? 'Unread' : 'Read'}
-              {tab === 'unread' && unreadCount > 0 && <span className="unread-count-badge">{unreadCount}</span>}
-            </button>
-          ))}
+
+        <div className="fp-header-right">
+          <div className="fp-count-badge">
+            <span className="fp-count-pulse" />
+            {total} Events Logged
+          </div>
         </div>
       </div>
 
-      <div className="toolbar-row toolbar-row-fill">
-        <div className="search-wrap">
-          <SearchIcon />
-          <input
-            type="search"
-            placeholder="Search feed…"
-            value={search}
-            onChange={(e) => resetPage(setSearch)(e.target.value)}
-          />
+      {/* ── PREMIUM CONTROLS (TABS + FILTERS) ── */}
+      <div className="fp-controls">
+        <div className="fp-tabs-container">
+          <div className="fp-tabs-premium">
+            {(['all', 'unread', 'read'] as ReadTab[]).map((tab) => (
+              <button
+                key={tab}
+                className={`fp-tab-premium${readTab === tab ? ' active' : ''}`}
+                onClick={() => resetFilters(setReadTab)(tab)}
+              >
+                {tab === 'all' ? 'All' : tab === 'unread' ? 'Unread' : 'Read'}
+                {tab === 'unread' && unreadCount > 0 && (
+                  <span className="fp-tab-dot" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-        <MultiSelectDropdown
-          options={vesselOptions}
-          selected={vesselIds}
-          onChange={resetPage(setVesselIds)}
-          allLabel="All vessels"
-        />
-        <MultiSelectDropdown
-          options={ACTION_OPTIONS}
-          selected={actions}
-          onChange={resetPage(setActions)}
-          allLabel="All actions"
-        />
-        <div className="date-range-field">
-          <label>From</label>
-          <input type="date" value={dateFrom} onChange={(e) => resetPage(setDateFrom)(e.target.value)} />
-        </div>
-        <div className="date-range-field">
-          <label>To</label>
-          <input type="date" value={dateTo} onChange={(e) => resetPage(setDateTo)(e.target.value)} />
+
+        <div className="fp-filters">
+          <div className="fp-search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="search"
+              placeholder="Search activity…"
+              value={search}
+              onChange={(e) => resetFilters(setSearch)(e.target.value)}
+            />
+          </div>
+          <MultiSelectDropdown options={vesselOptions} selected={vesselIds} onChange={resetFilters(setVesselIds)} allLabel="All vessels" />
+          <MultiSelectDropdown options={ACTION_OPTIONS} selected={actions} onChange={resetFilters(setActions)} allLabel="All actions" />
+          <div className="fp-date-pair">
+            <div className="fp-date-field">
+              <label>From</label>
+              <input type="date" value={dateFrom} onChange={(e) => resetFilters(setDateFrom)(e.target.value)} />
+            </div>
+            <div className="fp-date-field">
+              <label>To</label>
+              <input type="date" value={dateTo} onChange={(e) => resetFilters(setDateTo)(e.target.value)} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="card">
+      {/* ── TIMELINE FEED ── */}
+      <div className="fp-feed-wrap">
         {feedQuery.isLoading ? (
-          <div className="empty-state">Loading activity…</div>
+          <div className="fp-empty">
+            <div className="fp-empty-spinner" />
+            <p>Loading timeline…</p>
+          </div>
         ) : !feedQuery.data?.items.length ? (
-          <div className="empty-state">No activity matches these filters.</div>
+          <div className="fp-empty">
+            <div className="fp-empty-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+            </div>
+            <p>No activity matches these filters.</p>
+          </div>
         ) : (
-          <div className="feed-list feed-list-scroll">
+          <div className="fp-timeline">
             {feedQuery.data.items.map((item) => (
-              <div className={`feed-item${item.isRead ? '' : ' unread'}`} key={item.id}>
-                <div className="feed-icon">{ACTION_ICONS[item.action] ?? '•'}</div>
-                <div className="feed-body">
-                  <div className="feed-summary">
+              <div className={`fp-timeline-item${item.isRead ? '' : ' fp-timeline-item--unread'}`} key={item.id}>
+                
+                {/* Timeline Axis & Icon */}
+                <div className="fp-timeline-axis">
+                  <div className="fp-timeline-line" />
+                  <div className="fp-timeline-icon">
+                    <ActionSvg action={item.action} />
+                  </div>
+                </div>
+
+                {/* Content Card */}
+                <div className="fp-timeline-content">
+                  <div className="fp-timeline-header">
+                    <div className="fp-timeline-type">
+                      {ACTION_LABELS[item.action] ?? item.action}
+                      {!item.isRead && <span className="fp-badge-new">New</span>}
+                    </div>
+                    <div className="fp-timeline-time">
+                      {formatDateTime(item.createdAt)}
+                    </div>
+                  </div>
+
+                  <p className="fp-timeline-summary">
                     {item.summary ?? `${item.changedByName ?? 'Someone'} ${item.action.toLowerCase()}d ${item.entityType}`}
-                  </div>
-                  <div className="feed-time">
-                    {formatDateTime(item.createdAt)}
-                    {item.vesselName ? ` · ${item.vesselName}` : ''}
+                  </p>
+
+                  <div className="fp-timeline-footer">
+                    <div className="fp-timeline-meta">
+                      {item.vesselName && (
+                        <span>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 17h18M3 17 5.5 8h13L21 17M12 3v5"/></svg>
+                          {item.vesselName}
+                        </span>
+                      )}
+                      {item.changedByName && (
+                        <span>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          {item.changedByName}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Actions with CSS Tooltips */}
+                    <div className="fp-timeline-actions">
+                      {!item.isRead && (
+                        <button
+                          className="fp-btn-highlight fp-btn-read"
+                          onClick={() => markReadMutation.mutate(item.id)}
+                          disabled={markReadMutation.isPending}
+                          data-tooltip="Mark as read"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        </button>
+                      )}
+                      {item.entityType === 'pi_entry' && (
+                        <button
+                          className="fp-btn-highlight fp-btn-view"
+                          onClick={() => handleView(item)}
+                          data-tooltip="View entry"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="feed-actions">
-                  {!item.isRead && (
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => markReadMutation.mutate(item.id)}
-                      disabled={markReadMutation.isPending}
-                    >
-                      Mark as Read
-                    </button>
-                  )}
-                  {item.entityType === 'pi_entry' && (
-                    <button className="btn btn-secondary" onClick={() => handleView(item)}>
-                      View
-                    </button>
-                  )}
-                </div>
+
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {feedQuery.data && feedQuery.data.total > PAGE_SIZE && (
-        <div className="pagination">
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <div className="pager-btns">
-            <button className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </button>
-            <button className="btn btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              Next
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

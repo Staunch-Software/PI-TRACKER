@@ -1,0 +1,725 @@
+/* ==========================================================================
+   TRACKER PAGE — Premium UI  |  Inter font  |  Mobile → 4K
+   ========================================================================== */
+
+/* ── Page wrapper ── */
+.tracker-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  background: var(--color-bg);
+}
+
+/* ==========================================================================
+   TOOLBAR — Premium frosted sticky bar
+   ========================================================================== */
+
+.tracker-page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 28px 16px; /* Clear gap from top nav, and gap before toolbar */
+  flex-shrink: 0;
+}
+.tracker-page-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1; /* Ensures perfect vertical centering with badge */
+}
+.tracker-page-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  line-height: 1;
+  margin-top: 2px;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
+}
+.tracker-page-count .count-number {
+  background: #0284c7;
+  color: #fff;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.tracker-page-count .count-label {
+  font-weight: 600;
+}
+
+.tracker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 28px 24px; /* Distinct gap between toolbar and table */
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(17, 20, 36, 0.08);
+  border-radius: 14px;
+  padding: 12px 16px;
+  flex-shrink: 0;
+  position: relative; /* Sticky is no longer needed since page doesn't scroll */
+  z-index: 20;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Search input ── */
+.tracker-search-wrap {
+  position: relative;
+  flex: 0 1 340px;
+}
+
+.tracker-search-wrap .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9CA3AF;
+  pointer-events: none;
+}
+
+.tracker-search-wrap input[type='search'] {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 10px;
+  background: #F9FAFB;
+  font-size: 13.5px;
+  font-family: 'Inter', sans-serif;
+  color: #111424;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.tracker-search-wrap input[type='search']:focus {
+  background: #FFFFFF;
+  border-color: #111424;
+  box-shadow: 0 0 0 3px rgba(17, 20, 36, 0.06);
+}
+
+.tracker-search-wrap input[type='search']::placeholder {
+  color: #9CA3AF;
+}
+
+/* ── Spacer ── */
+.tracker-toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Premium action buttons ── */
+.tracker-toolbar .btn-tracker-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border: 1px solid;
+  box-sizing: border-box;
+}
+
+.btn-tracker-secondary {
+  background: #FFFFFF;
+  color: #374151;
+  border-color: rgba(17, 20, 36, 0.12);
+  box-shadow: 0 1px 3px rgba(17, 20, 36, 0.06);
+}
+.btn-tracker-secondary:hover:not(:disabled) {
+  background: #F9FAFB;
+  border-color: rgba(17, 20, 36, 0.2);
+  box-shadow: 0 3px 8px rgba(17, 20, 36, 0.1);
+  transform: translateY(-1px);
+}
+.btn-tracker-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-tracker-primary {
+  background: linear-gradient(135deg, #111424 0%, #2A2D4A 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(17, 20, 36, 0.3);
+}
+.btn-tracker-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(17, 20, 36, 0.4);
+  transform: translateY(-1px);
+}
+.btn-tracker-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-tracker-success {
+  background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+.btn-tracker-success:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+  transform: translateY(-1px);
+}
+.btn-tracker-success:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-tracker-warning {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+}
+.btn-tracker-warning:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ── Layout-edit mode indicator ── */
+.tracker-layout-edit-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 10px;
+}
+
+/* ==========================================================================
+   MULTI-SELECT TRIGGER — Premium styling
+   ========================================================================== */
+
+.multi-select-trigger {
+  height: 38px;
+  min-width: 230px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  background: #F9FAFB;
+  font-size: 13.5px;
+  font-family: 'Inter', sans-serif;
+  color: #374151;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.multi-select-trigger:hover {
+  background: #FFFFFF;
+  border-color: rgba(17, 20, 36, 0.22);
+  box-shadow: 0 2px 8px rgba(17, 20, 36, 0.07);
+}
+
+/* ==========================================================================
+   MORE-FILTERS PANEL — Premium dropdown
+   ========================================================================== */
+
+.more-filters-panel {
+  background: #FFFFFF;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 14px;
+  padding: 18px;
+  width: 540px;
+  max-width: calc(100vw - 40px);
+  animation: trackerPanelDrop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes trackerPanelDrop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.more-filters-section {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.more-filters-section:not(:last-child) {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(17, 20, 36, 0.06);
+  margin-bottom: 2px;
+}
+
+.more-filters-clear-row {
+  justify-content: flex-end;
+}
+
+/* ── Filter chips ── */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 999px;
+  background: #F9FAFB;
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-chip:hover {
+  background: #FFFFFF;
+  border-color: rgba(17, 20, 36, 0.22);
+  color: #111424;
+  box-shadow: 0 2px 6px rgba(17, 20, 36, 0.08);
+}
+
+.filter-chip.active {
+  background: linear-gradient(135deg, #111424 0%, #2A2D4A 100%);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(17, 20, 36, 0.25);
+}
+
+/* ── Date range fields ── */
+.more-filters-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr 28px;
+  gap: 10px;
+  align-items: center;
+}
+
+.date-range-group {
+  display: contents;
+}
+
+.date-range-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 8px;
+  background: #F9FAFB;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.date-range-field:focus-within {
+  background: #FFFFFF;
+  border-color: rgba(17, 20, 36, 0.25);
+  box-shadow: 0 0 0 3px rgba(17, 20, 36, 0.05);
+}
+
+.date-range-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9CA3AF;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.date-range-field input[type='date'] {
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: #111424;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+}
+
+.date-range-clear {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: #9CA3AF;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.date-range-clear:hover {
+  background: #F3F4F6;
+  color: #374151;
+}
+
+/* ==========================================================================
+   EXPORT ERROR — Premium alert
+   ========================================================================== */
+
+.tracker-export-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 10px;
+  color: #B91C1C;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   TABLE SHELL — No overflow:hidden so sticky headers work correctly
+   The visual card border/shadow is applied here as a wrapper.
+   ========================================================================== */
+
+.tracker-table-shell {
+  margin: 0 28px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid rgba(17, 20, 36, 0.08);
+  border-radius: 14px 14px 0 0;
+  border-bottom: 1px solid rgba(17, 20, 36, 0.08); /* Re-added bottom border since it's a floating box now */
+  box-shadow:
+    0 2px 6px rgba(17, 20, 36, 0.04),
+    0 8px 24px rgba(17, 20, 36, 0.04);
+  background: #FFFFFF;
+}
+
+/* Loading / error state card — these have no sticky children so overflow:hidden is safe */
+.tracker-table-card {
+  margin: 0 28px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #FFFFFF;
+  border: 1px solid rgba(17, 20, 36, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 2px 6px rgba(17, 20, 36, 0.04),
+    0 8px 24px rgba(17, 20, 36, 0.04);
+}
+
+.tracker-loading,
+.tracker-error {
+  padding: 60px 20px;
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 14px;
+  margin: auto; /* Center vertically within the flex container */
+}
+
+.tracker-loading-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(17, 20, 36, 0.1);
+  border-top-color: #111424;
+  border-radius: 50%;
+  animation: trackerSpin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes trackerSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   PAGINATION — Premium footer bar
+   ========================================================================== */
+
+.tracker-pagination {
+  margin: 16px 28px 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #FFFFFF;
+  border: 1px solid rgba(17, 20, 36, 0.08);
+  border-top: 1px solid rgba(17, 20, 36, 0.06);
+  border-radius: 0 0 14px 14px;
+  margin-top: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.tracker-page-info {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+.tracker-page-info strong {
+  color: #111424;
+}
+
+/* ── Page size control ── */
+.tracker-page-size-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracker-page-size-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.tracker-page-size-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #111424;
+  background: #F9FAFB;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.tracker-page-size-select:hover {
+  border-color: rgba(17, 20, 36, 0.2);
+  background: #FFFFFF;
+}
+
+.tracker-page-size-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tracker-page-size-custom input[type='number'] {
+  width: 72px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: #111424;
+  background: #F9FAFB;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.tracker-page-size-custom input[type='number']:focus {
+  background: #FFFFFF;
+  border-color: rgba(17, 20, 36, 0.25);
+  box-shadow: 0 0 0 3px rgba(17, 20, 36, 0.05);
+}
+
+/* ── Pager buttons ── */
+.tracker-pager-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tracker-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 9px;
+  background: #FFFFFF;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tracker-pager-btn:hover:not(:disabled) {
+  background: #111424;
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(17, 20, 36, 0.25);
+  transform: translateY(-1px);
+}
+
+.tracker-pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   PAGE-SIZE "Set" button
+   ========================================================================== */
+
+.tracker-page-size-set-btn {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(17, 20, 36, 0.1);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tracker-page-size-set-btn:hover:not(:disabled) {
+  background: #111424;
+  color: #FFFFFF;
+  border-color: transparent;
+}
+
+.tracker-page-size-set-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   MEDIA QUERIES
+   ========================================================================== */
+
+/* ── Tablet (≥ 768px) ── */
+@media (min-width: 768px) {
+  .tracker-toolbar {
+    padding: 12px 22px;
+    border-radius: 0 0 16px 16px;
+    gap: 12px;
+    top: 68px;
+  }
+
+  .tracker-search-wrap {
+    flex: 0 1 380px;
+  }
+
+  .tracker-table-shell {
+    border-radius: 16px;
+    margin-top: 20px;
+  }
+
+  .tracker-table-card {
+    border-radius: 16px;
+    margin-top: 20px;
+  }
+
+  .tracker-pagination {
+    padding: 16px 24px;
+    border-radius: 0 0 16px 16px;
+  }
+}
+
+/* ── Desktop (≥ 1280px) ── */
+@media (min-width: 1280px) {
+  .tracker-toolbar {
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .tracker-search-wrap {
+    flex: 0 1 420px;
+  }
+}
+
+/* ── 4K (≥ 2560px) ── */
+@media (min-width: 2560px) {
+  .tracker-toolbar {
+    padding: 18px 40px;
+    top: 90px;
+    border-radius: 0 0 20px 20px;
+    gap: 18px;
+  }
+
+  .tracker-search-wrap {
+    flex: 0 1 560px;
+  }
+
+  .tracker-search-wrap input[type='search'] {
+    height: 48px;
+    font-size: 16px;
+    border-radius: 14px;
+    padding-left: 48px;
+  }
+
+  .tracker-toolbar .btn-tracker-action {
+    height: 48px;
+    padding: 0 22px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .multi-select-trigger {
+    height: 48px;
+    font-size: 16px;
+    border-radius: 14px;
+    min-width: 300px;
+  }
+
+  .tracker-table-shell,
+  .tracker-table-card {
+    border-radius: 20px;
+    margin-top: 24px;
+  }
+
+  .tracker-pagination {
+    padding: 20px 36px;
+    border-radius: 0 0 20px 20px;
+  }
+
+  .tracker-pager-btn {
+    height: 42px;
+    padding: 0 20px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .tracker-page-size-select {
+    height: 42px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .tracker-page-info {
+    font-size: 16px;
+  }
+
+  .tracker-page-size-label {
+    font-size: 14px;
+  }
+}

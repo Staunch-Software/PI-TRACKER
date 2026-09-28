@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import './PIR.css';
+import '../pages/Dashboard.css';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { PaginatedResult, PirDepartment, PirDepartmentCounts, PirEntry, Vessel } from '../shared';
-import { SearchIcon } from '../components/common/SearchIcon';
 import { PirKpiStrip } from '../components/pir/PirKpiStrip';
 import { PirVesselSidebar, NO_VESSEL_GROUP, UNMATCHED_VESSEL_GROUP, type SidebarBucket } from '../components/pir/PirVesselSidebar';
 import { PirInvoiceTable } from '../components/pir/PirInvoiceTable';
@@ -23,8 +24,6 @@ const RESOLVED_FILTERS: { key: ResolvedFilter; label: string }[] = [
   { key: 'ALL', label: 'All History' },
 ];
 
-// Well above today's ~1900-row total — the split-view needs the full matching set in one
-// response to build accurate sidebar bucket counts, same reasoning as the old accordion layout.
 const FETCH_ALL_PAGE_SIZE = 10000;
 
 function isoDate(d: Date): string {
@@ -50,8 +49,6 @@ export function PIRPage() {
   const [resolvedDateTo, setResolvedDateTo] = useState(today());
 
   const countsQuery = useQuery({
-    // Always OPEN-scoped server-side (see get_pir_department_counts) — independent of
-    // resolvedFilter, since these tab counts are specifically "what currently needs attention".
     queryKey: ['pir-department-counts'],
     queryFn: () => api.get<PirDepartmentCounts>('/pir-entries/department-counts'),
   });
@@ -63,8 +60,6 @@ export function PIRPage() {
       if (tab !== 'ALL') params.set('department', tab);
       params.set('resolved', resolvedFilter);
       if (search) params.set('search', search);
-      // Resolved-date range only makes sense against resolved rows — leaving it applied on
-      // Open/All History would just zero out results there (open rows have no resolved_at).
       if (resolvedFilter === 'RESOLVED') {
         if (resolvedDateFrom) params.set('resolved_date_from', resolvedDateFrom);
         if (resolvedDateTo) params.set('resolved_date_to', resolvedDateTo);
@@ -92,11 +87,6 @@ export function PIRPage() {
     [itemsByBucket]
   );
 
-  // Default selection: prefer the largest "needs triage" bucket (the thing most worth looking
-  // at first) if one has items, otherwise the largest real vessel bucket. Re-picks whenever the
-  // current selection disappears from the bucket list (e.g. a department-tab/search change, or
-  // the last row in a bucket just got assigned away) rather than leaving the right pane stuck
-  // showing a bucket that no longer exists.
   useEffect(() => {
     if (selectedBucket && itemsByBucket.has(selectedBucket)) return;
     const triage = buckets
@@ -110,11 +100,14 @@ export function PIRPage() {
   }, [buckets, itemsByBucket]);
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>Problematic Invoice Resolution</h1>
-          <p>
+    <div className="dash-page" style={{ height: 'calc(100vh - 108px)' }}>
+      
+      {/* ── HEADER ── */}
+      <div className="dash-header">
+        <div className="dash-header-left">
+          <p className="dash-greeting">PIR Tracker</p>
+          <h1 className="dash-title">Problematic Invoice Resolution</h1>
+          <p className="dash-subtitle">
             {entriesQuery.data
               ? `${entriesQuery.data.total} invoice${entriesQuery.data.total === 1 ? '' : 's'}`
               : 'Loading…'}
@@ -125,65 +118,75 @@ export function PIRPage() {
 
       <PirKpiStrip />
 
-      <div className="toolbar">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`filter-chip${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {countsQuery.data &&
-              ` (${
-                t.key === 'ALL'
-                  ? countsQuery.data.all
-                  : countsQuery.data[t.key.toLowerCase() as 'technical' | 'manning' | 'unclassified']
-              })`}
-          </button>
-        ))}
-      </div>
-
-      <div className="toolbar" style={{ marginBottom: 10 }}>
-        {RESOLVED_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            className={`filter-chip${resolvedFilter === f.key ? ' active' : ''}`}
-            onClick={() => setResolvedFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="toolbar-row" style={{ marginBottom: 14 }}>
-        <div className="search-wrap">
-          <SearchIcon />
-          <input
-            type="search"
-            placeholder="Search invoice no., vendor, vessel, PO…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {/* ── CONTROLS (TABS + FILTERS) ── */}
+      <div className="pir-controls">
+        
+        {/* Department Tabs */}
+        <div className="pir-tabs-container">
+          <div className="pir-tabs-premium">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                className={`pir-tab-premium${tab === t.key ? ' active' : ''}`}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+                {countsQuery.data && (
+                  <span className="pir-tab-count">
+                    {t.key === 'ALL'
+                      ? countsQuery.data.all
+                      : countsQuery.data[t.key.toLowerCase() as 'technical' | 'manning' | 'unclassified']}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-        {resolvedFilter === 'RESOLVED' && (
-          <>
-            <div className="date-range-field">
-              <label>Resolved From</label>
-              <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} />
-            </div>
-            <div className="date-range-field">
-              <label>Resolved To</label>
-              <input type="date" value={resolvedDateTo} onChange={(e) => setResolvedDateTo(e.target.value)} />
-            </div>
-          </>
-        )}
-      </div>
 
-      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-        {entriesQuery.data ? `${entriesQuery.data.total} record${entriesQuery.data.total === 1 ? '' : 's'} found` : 'Loading…'}
-      </p>
+        {/* Resolved Tabs */}
+        <div className="pir-tabs-container">
+          <div className="pir-tabs-premium">
+            {RESOLVED_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                className={`pir-tab-premium${resolvedFilter === f.key ? ' active' : ''}`}
+                onClick={() => setResolvedFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="pir-filters">
+          <div className="pir-search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="search"
+              placeholder="Search invoice no., vendor, vessel, PO…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {resolvedFilter === 'RESOLVED' && (
+          <div className="pir-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="date-range-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Resolved From</label>
+              <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
+            </div>
+            <div className="date-range-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Resolved To</label>
+              <input type="date" value={resolvedDateTo} onChange={(e) => setResolvedDateTo(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
+            </div>
+          </div>
+        )}
+
+      </div>
 
       {entriesQuery.data && buckets.length === 0 && (
         <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>

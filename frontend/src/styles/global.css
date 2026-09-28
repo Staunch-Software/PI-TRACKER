@@ -1,5 +1,6 @@
 :root {
   --color-primary: #0f4c81;
+  --color-primary-rgb: 15, 76, 129;
   --color-primary-dark: #0b3a63;
   --color-accent: #14919b;
   --color-bg: #f4f6f8;
@@ -14,9 +15,12 @@
   --color-danger: #dc2626;
   --color-danger-bg: #fee2e2;
   --color-info: #0369a1;
+  --color-info-rgb: 3, 105, 161;
   --color-info-bg: #e0f2fe;
   --color-neutral: #475569;
   --color-neutral-bg: #e2e8f0;
+  --color-bg-subtle: #f8fafc;
+  --color-bg-hover: #f1f5f9;
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.1);
   --radius: 8px;
@@ -34,7 +38,7 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--color-bg);
@@ -138,72 +142,29 @@ a {
   flex-direction: column;
 }
 
-.top-nav {
-  background: var(--color-primary);
-  color: #fff;
+/* Force flex height lock when tracker is active */
+body:has(.tracker-page) {
+  overflow: hidden;
+}
+body:has(.tracker-page) #root,
+body:has(.tracker-page) .app-shell {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+body:has(.tracker-page) .page-content {
+  padding: 0;
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  height: 56px;
-  box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 0;
-  z-index: 25;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.top-nav .brand {
-  font-weight: 700;
-  font-size: 16px;
-  margin-right: 32px;
-  white-space: nowrap;
-}
-
-.top-nav nav {
-  display: flex;
-  gap: 4px;
-  flex: 1;
-  /* min-width:0 lets this flex item actually shrink below its links' combined natural width
-     (the flex default is min-width:auto, which — like .user-menu-wrapper elsewhere in this
-     file — refuses to shrink past content size and pushes the whole row past the viewport
-     instead). overflow-x:auto is the backstop: on a window too narrow to fit all 5 links even
-     at their smallest reasonable size, the nav scrolls WITHIN ITSELF instead of forcing the
-     page wider, so the page can never end up with page-level horizontal overflow no matter how
-     narrow the window gets. */
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.top-nav nav::-webkit-scrollbar {
-  display: none;
-}
-
-.top-nav .nav-link {
-  color: rgba(255, 255, 255, 0.85);
-  text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.top-nav .nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.top-nav .nav-link.active {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
+/* .top-nav legacy styles removed — replaced by TopNav.css */
+/* .top-nav { all styles moved to src/components/layout/TopNav.css } */
 
 /* User menu (dropdown) */
 .user-menu-wrapper {
   position: relative;
-  /* Without this, the flex item's automatic min-width is set by its fixed-width child button
-     below, so it can never shrink — that pushed the whole .top-nav past the viewport on
-     narrower screens, hiding content off the right edge instead of the trigger just shrinking. */
-  min-width: 0;
 }
 
 .user-avatar {
@@ -230,8 +191,7 @@ a {
   cursor: pointer;
   padding: 6px 16px;
   border-radius: 8px;
-  width: 100%;
-  max-width: 260px;
+  width: 260px;
   box-sizing: border-box;
 }
 .user-menu-trigger:hover {
@@ -250,19 +210,11 @@ a {
 .user-menu-name {
   font-size: 13px;
   font-weight: 600;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .user-menu-role {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.75);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .user-menu-caret {
@@ -296,49 +248,6 @@ a {
 .user-menu-dropdown-header .user-menu-name {
   color: var(--color-text);
   font-size: 14px;
-}
-
-/* Top nav gets tight below ~900px (brand + 5 nav links + the user menu no longer all fit at
-   their full desktop size) — shrink the parts that don't need to stay full-size instead of
-   letting the row overflow and push content off the right edge. */
-@media (max-width: 900px) {
-  .top-nav {
-    padding: 0 12px;
-  }
-  .top-nav .brand {
-    margin-right: 16px;
-    font-size: 14px;
-  }
-  .top-nav nav {
-    gap: 0;
-  }
-  .top-nav .nav-link {
-    padding: 8px 8px;
-    font-size: 13px;
-  }
-  .user-menu-trigger {
-    padding: 6px 8px;
-    gap: 6px;
-    max-width: 160px;
-  }
-  /* The role badge ("ADMIN"/"EDITOR") is the least essential part of the trigger — drop it
-     first so the person's name keeps its room instead of both getting squeezed to ellipsis. */
-  .user-menu-role {
-    display: none;
-  }
-}
-
-/* Admin panel's 260px fixed sidebar leaves too little room for its tables/forms below this —
-   narrow the sidebar itself and tighten the content padding rather than letting the two-pane
-   shell overflow horizontally. */
-@media (max-width: 900px) {
-  .admin-sidebar {
-    width: 200px;
-    padding: 16px 10px;
-  }
-  .admin-content {
-    padding: 20px 16px;
-  }
 }
 
 .user-menu-dropdown-header .user-menu-email {
@@ -463,15 +372,12 @@ a {
    PiEntriesTable.tsx) applied identically to both tables' <colgroup>s — with no measurement
    step, there is nothing left that could ever diverge between the two tables. */
 .table-header-scroll {
-  position: sticky;
-  /* --toolbar-bottom is the toolbar's actual live bottom edge (getBoundingClientRect().bottom
-     in TrackerPage.tsx, re-read on resize and scroll) — using the real measured edge instead
-     of a hand-added-up nav-height + toolbar-height guess, which kept drifting from reality. */
-  top: var(--toolbar-bottom, 132px);
+  /* No longer sticky because the tracker page flex layout confines scrolling strictly to the table body */
   z-index: 10;
   overflow-x: hidden;
   border-radius: var(--radius) var(--radius) 0 0;
-  background: #f8fafc;
+  background: #E2E8F0;
+  border-bottom: 1px solid rgba(17, 20, 36, 0.08);
   /* Scrolled only programmatically (mirroring the body) — hide the scrollbar this needs. */
   scrollbar-width: none;
 }
@@ -481,6 +387,9 @@ a {
 
 .table-body-scroll {
   overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
@@ -490,16 +399,18 @@ table.data-table {
   border-spacing: 0;
   width: 100%;
   font-size: 13px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   white-space: nowrap;
 }
 
 table.data-table th,
 table.data-table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: background-color 0.2s ease;
 }
 
 table.data-table thead th {
@@ -511,16 +422,24 @@ table.data-table thead th {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  background: #f8fafc;
-  color: var(--color-text-muted);
-  font-weight: 600;
+  background: #E2E8F0;
+  color: #334155;
+  font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
-table.data-table tbody tr:hover {
-  background: #f8fafc;
+table.data-table tbody tr:nth-child(even) {
+  background: #FAFAFA;
+}
+table.data-table tbody tr:nth-child(even) td.sticky-col {
+  background: #FAFAFA;
+}
+
+table.data-table tbody tr:hover,
+table.data-table tbody tr:hover td.sticky-col {
+  background: #F0F9FF;
 }
 
 table.data-table th.sticky-col,
@@ -528,6 +447,7 @@ table.data-table td.sticky-col {
   position: sticky;
   z-index: 3;
   background: #fff;
+  transition: background-color 0.2s ease;
 }
 
 /* Within the header's own row, sticky-col cells (Actions/S.No/DPR No) must out-rank their
@@ -535,7 +455,7 @@ table.data-table td.sticky-col {
    — and hide — the pinned ones (later DOM siblings paint on top by default at equal z-index). */
 table.data-table thead th.sticky-col {
   z-index: 4;
-  background: #f8fafc;
+  background: #E2E8F0;
 }
 
 /* Sticky column widths are pinned (width, not just min-width) so the "left" offset
@@ -545,19 +465,19 @@ table.data-table thead th.sticky-col {
 table.data-table td.col-actions,
 table.data-table th.col-actions {
   left: 0;
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
   text-align: center;
   overflow: hidden;
 }
 
 table.data-table td.col-dpr,
 table.data-table th.col-dpr {
-  left: 80px;
-  width: 140px;
-  min-width: 140px;
-  max-width: 140px;
+  left: 110px;
+  width: 150px;
+  min-width: 150px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -572,12 +492,12 @@ table.data-table th.col-dpr-noactions {
    column, so it carries the box-shadow marking the sticky/scrollable boundary. */
 table.data-table td.col-status,
 table.data-table th.col-status {
-  left: 220px;
-  box-shadow: 2px 0 4px -2px rgba(15, 23, 42, 0.15);
+  left: 260px;
+  box-shadow: 2px 0 6px -2px rgba(15, 23, 42, 0.1);
 }
 table.data-table td.col-status-noactions,
 table.data-table th.col-status-noactions {
-  left: 140px;
+  left: 150px;
 }
 
 /* Sortable column headers */
@@ -620,46 +540,70 @@ table.data-table th.col-drag-over {
   opacity: 0.5;
 }
 
-/* Inline row editing */
-tr.row-editing td {
-  background: #fffbeb;
-  vertical-align: middle;
-  padding: 6px 8px;
-}
+/* Inline row editing - Premium Marine UI */
+tr.row-editing td,
 tr.row-editing td.sticky-col {
-  background: #fffbeb;
+  background: #F0F9FF !important; /* Soft Ocean Blue Highlight */
+  vertical-align: middle;
+  padding: 8px 10px;
+  border-top: 1px solid #0F4C81 !important;
+  border-bottom: 1px solid #0F4C81 !important;
 }
+
+/* Ensure the first and last cells have rounded highlighting */
+tr.row-editing td:first-child {
+  border-left: 3px solid #0F4C81 !important;
+}
+
 tr.row-editing input,
 tr.row-editing select,
 tr.row-editing textarea {
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 0 7px;
-  font-size: 13px;
-  width: 100%;
-  height: 30px;
-  box-sizing: border-box;
-  background: #fff;
-  vertical-align: middle;
-}
-tr.row-editing input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  vertical-align: middle;
-}
-/* LookupSelect's inline "+ New" button, and any other button embedded in an editing cell,
-   should match the 30px control height so the row doesn't visually zig-zag. */
-tr.row-editing .btn {
-  height: 30px;
+  border: 1px solid #0F4C81;
+  border-radius: 8px;
   padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  background: #FFFFFF;
+  color: #111424;
+  vertical-align: middle;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+tr.row-editing input:focus,
+tr.row-editing select:focus,
+tr.row-editing textarea:focus {
+  outline: none;
+  border-color: #0F4C81;
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15);
+}
+
+tr.row-editing input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  cursor: pointer;
+  accent-color: #0F4C81;
+}
+
+/* LookupSelect's inline "+ New" button */
+tr.row-editing .btn {
+  height: 34px;
+  padding: 0 14px;
   font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   box-sizing: border-box;
 }
 
 .row-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   justify-content: center;
+  align-items: center;
 }
 
 /* Momentary highlight for a row jumped to from the Activity Feed's "View" button */
@@ -677,36 +621,57 @@ tr.row-flash td {
 }
 
 .icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #64748b;
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 .icon-btn:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: #E0F2FE;
+  color: #0284C7;
 }
 .icon-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* Destructive actions (deactivate/delete) — uses TrashIcon (an inline SVG with
-   stroke="currentColor"), not an emoji, specifically so this color actually applies to it. */
+/* Destructive actions (deactivate/delete) */
 .icon-btn-danger {
-  border-color: var(--color-danger);
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
+  color: #ef4444;
 }
 .icon-btn-danger:hover:not(:disabled) {
-  border-color: var(--color-danger);
-  background: #fecaca;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Success actions (save inline edits) */
+.icon-btn-success {
+  color: #10B981;
+  background: #ECFDF5;
+}
+.icon-btn-success:hover:not(:disabled) {
+  background: #D1FAE5;
+  color: #059669;
+  transform: scale(1.05);
+}
+
+.icon-btn-muted {
+  color: #64748B;
+  background: #F1F5F9;
+}
+.icon-btn-muted:hover:not(:disabled) {
+  background: #E2E8F0;
+  color: #334155;
+  transform: scale(1.05);
 }
 
 tr.add-row-trigger {
@@ -726,11 +691,20 @@ tr.add-row-trigger:hover td {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+.status-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
 }
 
 /* Empty / loading states */
@@ -943,10 +917,6 @@ tr.add-row-trigger:hover td {
   padding: 12px 16px;
   font-size: 13px;
   color: var(--color-text-muted);
-  /* Rows-per-page controls + "Page X of Y" + Previous/Next don't all fit on one line below
-     ~500px — wrap instead of pushing Previous/Next past the edge of the page. */
-  flex-wrap: wrap;
-  row-gap: 8px;
 }
 
 .pagination .pager-btns {
@@ -1181,11 +1151,6 @@ tr.add-row-trigger:hover td {
 .kpi-card {
   border-radius: var(--radius);
   padding: 20px 20px;
-  /* Same class of bug as .user-menu-wrapper/.top-nav nav elsewhere in this file: a grid item's
-     default min-width is its content's min-content size, not 0 — a long unbroken value (e.g.
-     SOA's "Outstanding" card: "SGD 41,174.65 · JPY 2,43,438.65 · USD 62,188.54") can hold every
-      1fr track wider than its fair share and push the whole grid past the viewport. */
-  min-width: 0;
 }
 
 .kpi-value {
@@ -1225,13 +1190,13 @@ tr.add-row-trigger:hover td {
    Mirrors .admin-shell/.admin-sidebar/.admin-content's two-pane shape (see AdminLayout.tsx) —
    same fixed-sidebar-plus-scrolling-content structure, just with a narrower rail and a
    selectable-row list instead of nav links. */
-.pir-split {
+.zzz-pir-split {
   display: flex;
   gap: 16px;
   align-items: flex-start;
 }
 
-.pir-sidebar {
+.zzz-pir-sidebar {
   width: 270px;
   flex-shrink: 0;
   background: #fff;
@@ -1242,7 +1207,7 @@ tr.add-row-trigger:hover td {
   overflow-y: auto;
 }
 
-.pir-sidebar-section-heading {
+.zzz-pir-sidebar-section-heading {
   position: sticky;
   top: 0;
   background: #f8fafc;
@@ -1259,12 +1224,12 @@ tr.add-row-trigger:hover td {
 /* "Needs triage" heading gets the red accent the task calls for — a left border rather than
    a full-red background, so it reads as "flagged" without fighting the row-level danger colors
    used for Age below. */
-.pir-sidebar-section-heading.needs-triage {
+.zzz-pir-sidebar-section-heading.needs-triage {
   border-left: 3px solid var(--color-danger);
   color: var(--color-danger);
 }
 
-.pir-sidebar-row {
+.zzz-pir-sidebar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1274,19 +1239,19 @@ tr.add-row-trigger:hover td {
   border-bottom: 1px solid #f1f5f9;
   font-size: 13px;
 }
-.pir-sidebar-row:hover {
+.zzz-pir-sidebar-row:hover {
   background: #f8fafc;
 }
-.pir-sidebar-row.active {
+.zzz-pir-sidebar-row.active {
   background: var(--color-info-bg);
   color: var(--color-primary);
   font-weight: 600;
 }
-.pir-sidebar-row.needs-triage-row {
+.zzz-pir-sidebar-row.needs-triage-row {
   border-left: 3px solid var(--color-danger);
 }
 
-.pir-sidebar-count {
+.zzz-pir-sidebar-count {
   font-size: 12px;
   color: var(--color-text-muted);
   background: #f1f5f9;
@@ -1294,18 +1259,18 @@ tr.add-row-trigger:hover td {
   padding: 1px 8px;
   flex-shrink: 0;
 }
-.pir-sidebar-row.active .pir-sidebar-count {
+.zzz-pir-sidebar-row.active .zzz-pir-sidebar-count {
   background: #fff;
   color: var(--color-primary);
 }
 
-.pir-content-pane {
+.zzz-pir-content-pane {
   flex: 1;
   min-width: 0;
 }
 
 /* Right-pane toolbar: bucket name + count badge on the left, bulk-action buttons on the right */
-.pir-pane-toolbar {
+.zzz-pir-pane-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1320,7 +1285,7 @@ tr.add-row-trigger:hover td {
    split-header/body-table approach (needed there for horizontal column drag/resize/sticky-col
    support), this table has neither, so a single scrolling container with a plain
    position:sticky <thead> is enough and far simpler. */
-.pir-table-scroll {
+.zzz-pir-table-scroll {
   max-height: calc(100vh - 420px);
   min-height: 280px;
   overflow: auto;
@@ -1328,7 +1293,7 @@ tr.add-row-trigger:hover td {
   border-top: none;
   border-radius: 0 0 var(--radius) var(--radius);
 }
-.pir-table-scroll table.data-table thead th {
+.zzz-pir-table-scroll table.data-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -1355,11 +1320,10 @@ tr.add-row-trigger:hover td {
      and rounding those two corners left a sliver of pale background poking into the seam. */
   border-radius: 0 0 var(--radius) var(--radius);
   padding: 10px 12px;
-  box-shadow: var(--shadow-sm);
   /* Keeps the search bar and "+ Add New PI" button reachable without scrolling back to the
      top — important with larger page sizes (e.g. 50 rows/page) where the table runs long. */
   position: sticky;
-  top: 56px;
+  top: 64px;
   /* Must outrank .table-header-scroll's z-index (10, in global.css) — position:sticky always
      creates a new stacking context, so a tie here would be broken by DOM order (the table
      header comes later in the DOM and would win), sending the status dropdown open below it
@@ -1563,9 +1527,7 @@ tr.add-row-trigger:hover td {
 }
 
 .page-size-custom-input {
-  /* 72px clipped the "Custom" placeholder itself (only ~52px of usable text room after
-     padding/border) — wide enough now to show it in full at any zoom level. */
-  width: 88px;
+  width: 72px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -1627,60 +1589,6 @@ table.data-table th.col-vendor {
 table.data-table td.col-status,
 table.data-table th.col-status {
   overflow: visible;
-}
-
-/* Actions(80) + DPR No.(140) + Follow-up Status(260, its default) = 480px of pinned columns
-   that always stay on screen via position:sticky — scrolling the table horizontally only moves
-   the OTHER columns underneath/past them, so if the visible table width is narrower than that
-   pinned total, the tail end of the Follow-up Status badge is cut off by the scroll container's
-   own edge and there is no way to scroll to reveal it (unlike a normal column, which you could
-   just scroll right to see). Below this breakpoint, shrink the pinned columns themselves —
-   overriding the inline per-column width set from PiEntriesTable.tsx — so the full pinned block
-   fits a narrow window/laptop screen without hard-clipping any of it.
-   !important is required here: col elements' width comes from an inline style, which normal
-   cascade specificity can never beat. */
-@media (max-width: 620px) {
-  /* col-actions is left at its normal 80px here — it already holds 3 icon buttons (Edit/Send
-     Vendor Notice/Send Owner Reminder) that need every bit of that room; shrinking it further
-     just clips the icons themselves instead of fixing an overflow problem. */
-  col.col-dpr {
-    width: 100px !important;
-  }
-  col.col-status {
-    width: 150px !important;
-  }
-  table.data-table td.col-dpr,
-  table.data-table th.col-dpr {
-    /* left unset here (stays the default 80px, or 0px via .col-dpr-noactions, whichever
-       already applies) — only the width is shrinking. */
-    width: 100px;
-    min-width: 100px;
-    max-width: 100px;
-  }
-  table.data-table td.col-status,
-  table.data-table th.col-status {
-    left: 180px;
-  }
-  /* Viewer role has no Actions column, so DPR No. starts at 0 and Follow-up Status starts right
-     after the (now-narrower) 100px DPR No. column instead of the actions+dpr 180px offset above. */
-  table.data-table td.col-status-noactions,
-  table.data-table th.col-status-noactions {
-    left: 100px;
-  }
-  .status-badge {
-    font-size: 11px;
-    padding: 3px 7px;
-    /* Even after shrinking the pinned columns above, the longest labels ("Pending - Not Yet
-       Followed Up", "Pending - Discrepancy to Resolve") are still wider than the 150px column
-       affords on a genuinely narrow window (~400px) — the .col-status overflow:visible fallback
-       (see its rule above) only has a few px of slack past the column edge before hitting the
-       scroll container's own boundary, which is not enough for these. Cap the badge itself to
-       the column's actual content width and ellipsis it here so the worst case is a clearly
-       truncated "…" label — never a silent hard cut with no indication anything is missing. */
-    max-width: 126px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
 }
 
 /* Fills the <td>'s own content box exactly (width:100%, not a hardcoded pixel value matching
@@ -1966,125 +1874,201 @@ table.data-table thead th.col-has-filter {
   text-align: center;
 }
 
+.searchable-select-add-new {
+  padding: 10px 12px;
+  color: #0F4C81;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border-top: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchable-select-add-new:hover {
+  background: #E0F2FE;
+  color: #0B3A61;
+}
+
 /* Evidence Gallery (attachment viewer) */
 .gallery-panel {
-  position: fixed;
-  inset: 0;
+  position: relative;
   display: flex;
-  z-index: 100;
+  width: 96vw;
+  max-width: 1800px;
+  height: 90vh;
+  background: #FFFFFF;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(17, 20, 36, 0.2);
+  flex-direction: row;
+  animation: modalPanelSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .gallery-sidebar {
-  width: 340px;
+  width: 320px;
   flex-shrink: 0;
-  background: #fff;
+  background: #F8FAFC;
+  border-right: 1px solid rgba(17, 20, 36, 0.08);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--color-border);
+}
+
+.gallery-absolute-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  transition: all 0.2s ease;
+}
+
+.gallery-absolute-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.gallery-absolute-close svg {
+  width: 20px;
+  height: 20px;
 }
 
 .gallery-sidebar-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid rgba(17, 20, 36, 0.05);
 }
 
 .gallery-sidebar-header h2 {
   margin: 0;
   font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
 }
 
 .gallery-file-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .gallery-file-card {
   position: relative;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 14px;
+  background: #FFFFFF;
+  border: 1px solid rgba(17, 20, 36, 0.08);
+  border-radius: 12px;
+  padding: 12px;
   cursor: pointer;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(17, 20, 36, 0.02);
 }
+
 .gallery-file-card:hover {
-  border-color: var(--color-accent);
+  border-color: rgba(17, 20, 36, 0.15);
+  box-shadow: 0 4px 12px rgba(17, 20, 36, 0.06);
+  transform: translateY(-1px);
 }
+
 .gallery-file-card.active {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-info-bg);
+  border-color: #0284C7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+  background: #F0F9FF;
 }
 
-.gallery-file-meta {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-bottom: 10px;
-}
-
-.gallery-file-thumb {
-  background: #f8fafc;
+.gallery-file-icon-wrap {
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
-  padding: 24px 12px;
+  background: #F8FAFC;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0284C7;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(17, 20, 36, 0.05);
+}
+
+.gallery-file-card.active .gallery-file-icon-wrap {
+  background: #FFFFFF;
+  border-color: rgba(2, 132, 199, 0.1);
+}
+
+.gallery-file-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  text-align: center;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.gallery-file-icon {
-  font-size: 28px;
-  color: var(--color-primary);
+  gap: 4px;
 }
 
 .gallery-file-name {
   display: block;
-  width: 100%;
-  max-width: 100%;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: anywhere !important;
-  box-sizing: border-box;
+  color: #0F172A;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
-.gallery-file-hint {
+.gallery-file-meta {
   font-size: 11px;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  color: #64748B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gallery-file-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: static;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.gallery-file-card:hover .gallery-file-delete,
+.gallery-file-card.active .gallery-file-delete {
+  opacity: 1;
 }
 
 .gallery-close-btn {
-  margin: 16px;
+  margin: 20px;
   justify-content: center;
+  border-radius: 12px;
+  height: 44px;
+  font-size: 14px;
 }
 
 .gallery-preview {
   flex: 1;
-  background: #0f172a;
+  background: #0B1121; /* Very dark slate, almost obsidian */
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 32px;
   min-width: 0;
 }
 
@@ -2145,35 +2129,53 @@ table.data-table thead th.col-has-filter {
 
 /* Attachment column cell (Tracker table) */
 .attachment-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  background: #F1F5F9;
+  border-radius: 20px;
+  padding: 2px;
+  border: 1px solid rgba(17, 20, 36, 0.05);
 }
 
 .attachment-view-btn,
 .attachment-add-btn {
-  border: 1px solid var(--color-border);
-  background: #fff;
-  border-radius: 6px;
-  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 18px;
+  height: 24px;
   padding: 0 8px;
   font-size: 13px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  color: #475569;
+  transition: all 0.2s ease;
 }
+
+.attachment-view-btn svg,
+.attachment-add-btn svg {
+  pointer-events: none;
+}
+
+.attachment-add-btn {
+  width: 24px;
+  padding: 0;
+  color: #0284C7;
+}
+
 .attachment-view-btn:hover,
 .attachment-add-btn:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: #FFFFFF;
+  color: #0F172A;
+  box-shadow: 0 1px 3px rgba(17, 20, 36, 0.1);
 }
-.attachment-add-btn {
-  width: 26px;
-  padding: 0;
-  justify-content: center;
-  font-weight: 700;
-  color: var(--color-primary);
+
+.attachment-add-btn:hover:not(:disabled) {
+  color: #0284C7;
 }
+
 .attachment-add-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -2182,7 +2184,11 @@ table.data-table thead th.col-has-filter {
 .attachment-count {
   font-size: 11px;
   font-weight: 700;
-  color: var(--color-text-muted);
+  color: #475569;
+}
+
+.attachment-spinner {
+  animation: trackerSpin 1s linear infinite;
 }
 
 .attachment-error {
@@ -2309,3 +2315,204 @@ table.dashboard-mini-table thead th {
 .dashboard-mini-table tbody tr:hover {
   background: #f8fafc;
 }
+
+/* Add PI Modal Styles - Premium Edition */
+.add-pi-modal-panel {
+  max-width: 900px !important;
+  max-height: 85vh !important;
+  border-radius: 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(2, 6, 23, 0.25), 0 0 0 1px rgba(2, 6, 23, 0.05) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.add-pi-modal-panel .modal-header {
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border-bottom: 1px solid rgba(2, 6, 23, 0.06);
+  padding: 24px 32px;
+}
+
+.add-pi-modal-panel .modal-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.add-pi-scroll-area {
+  padding: 32px;
+  overflow-y: auto;
+  flex: 1;
+  background: #f8fafc;
+}
+
+.add-pi-error {
+  background: #FEF2F2;
+  color: #DC2626;
+  padding: 14px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  border: 1px solid #FCA5A5;
+  box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.1);
+}
+
+.form-group-section {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-group-section:hover {
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05);
+  transform: translateY(-2px);
+}
+
+.form-group-section h3 {
+  margin: 0 0 24px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  border-bottom: 2px solid #F1F5F9;
+  padding-bottom: 12px;
+  display: inline-block;
+}
+
+.form-grid-2-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.form-grid-3-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+}
+
+.col-span-2 {
+  grid-column: span 2;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.form-group .form-control {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #0F172A;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+.form-group .form-control:focus {
+  background: #ffffff;
+  border-color: #38BDF8;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15), inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  outline: none;
+}
+
+.form-group .form-control:hover:not(:focus) {
+  border-color: #CBD5E1;
+  background: #F1F5F9;
+}
+
+.checkbox-align {
+  justify-content: flex-end;
+  padding-bottom: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px !important;
+  font-weight: 500;
+  color: #334155 !important;
+  background: #F8FAFC;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  transition: all 0.2s ease;
+}
+
+.checkbox-label:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #0284C7;
+  cursor: pointer;
+}
+
+.add-pi-form {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.modal-footer {
+  padding: 20px 32px;
+  border-top: 1px solid rgba(2, 6, 23, 0.06);
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+}
+
+.modal-footer .btn {
+  border-radius: 9999px; /* Pill shape for premium feel */
+  padding: 10px 24px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.2s ease;
+}
+
+.modal-footer .btn-secondary {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+}
+
+.modal-footer .btn-secondary:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.modal-footer .btn-primary {
+  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.modal-footer .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
+  transform: translateY(-1px);
+}
+

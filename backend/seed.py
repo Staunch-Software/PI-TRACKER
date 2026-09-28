@@ -29,7 +29,7 @@ VENDORS = [
 ]
 
 ADMIN_EMAIL = os.environ.get("SEED_ADMIN_EMAIL", "admin@ozellar.com")
-ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", "ChangeMe123!")
+ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", "Admin@123")
 ADMIN_NAME = os.environ.get("SEED_ADMIN_NAME", "Admin")
 
 
@@ -39,6 +39,7 @@ def seed() -> None:
         admin = db.query(User).filter(User.email == ADMIN_EMAIL).first()
         if admin:
             admin.full_name = ADMIN_NAME
+            admin.password_hash = hash_password(ADMIN_PASSWORD)
         else:
             admin = User(
                 email=ADMIN_EMAIL,

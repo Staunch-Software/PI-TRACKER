@@ -15,7 +15,8 @@ const STATUS_COLORS: Record<FollowUpStatus, { bg: string; color: string }> = {
 export function StatusBadge({ status }: { status: FollowUpStatus }) {
   const { bg, color } = STATUS_COLORS[status];
   return (
-    <span className="status-badge" style={{ background: bg, color }}>
+    <span className="status-badge" style={{ background: bg, color, border: `1px solid ${color}30` }}>
+      <span className="status-badge-dot" style={{ background: color, boxShadow: `0 0 6px ${color}80` }} />
       {FOLLOW_UP_STATUS_LABELS[status]}
     </span>
   );

@@ -1,0 +1,242 @@
+/* 
+  SOA.css 
+  Premium UI overrides and custom components for the SOA section.
+*/
+
+/* --- Rematch Now Button --- */
+.soa-btn-primary {
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-primary, var(--color-primary));
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.2);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+.soa-btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(var(--color-primary-rgb), 0.3);
+}
+.soa-btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* --- Filter Chips Container & Buttons --- */
+.soa-filter-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.soa-filter-chip {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #4B5563;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.soa-filter-chip:hover:not(.active) {
+  background: #F9FAFB;
+  color: #111827;
+  border-color: #D1D5DB;
+}
+.soa-filter-chip.active {
+  border: 1px solid var(--color-primary, var(--color-primary));
+  background: var(--color-primary, var(--color-primary));
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.25);
+}
+
+/* --- KPI Strip --- */
+.soa-kpi-label-wrap {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* --- Table Styles --- */
+.soa-attachment-cell-wrap {
+  display: inline-flex;
+}
+.soa-status-badge-info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-weight: 600;
+}
+.soa-status-badge-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+.soa-col-narrow {
+  text-align: center;
+  white-space: nowrap;
+  width: 120px;
+}
+
+/* --- Modal Overrides --- */
+.soa-modal-overlay {
+  backdrop-filter: blur(4px);
+  background: rgba(17, 20, 36, 0.4);
+}
+.soa-modal-panel {
+  max-width: 1300px !important;
+  width: 95vw !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15) !important;
+  overflow: hidden !important;
+}
+.soa-modal-header {
+  padding: 24px 32px !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  background: #FFFFFF !important;
+}
+.soa-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111424;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.soa-modal-icon-wrap {
+  background: #F0F9FF;
+  color: var(--color-info);
+  padding: 8px;
+  border-radius: 10px;
+  display: flex;
+}
+.soa-modal-subtitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #9CA3AF;
+  margin-left: 4px;
+}
+.soa-modal-close-icon {
+  background: #F8FAFC;
+  color: #64748B;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.soa-modal-close-icon:hover {
+  background: #F1F5F9;
+  color: #111424;
+}
+.soa-modal-body {
+  max-height: 60vh !important;
+  overflow-y: auto !important;
+  padding: 0 !important;
+  background: #FFFFFF !important;
+}
+.soa-modal-footer {
+  padding: 20px 32px !important;
+  border-top: 1px solid #F1F5F9 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  background: #FAFEFF !important;
+}
+.soa-btn-close {
+  font-weight: 700;
+  padding: 10px 28px;
+  border-radius: 12px;
+  background: #F1F5F9;
+  color: #475569;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+.soa-btn-close:hover {
+  background: #E2E8F0;
+  color: #1E293B;
+}
+.soa-currency-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: #F1F5F9;
+  border-radius: 6px;
+  color: #64748B;
+}
+
+/* --- Responsive Media Queries (Mobile to 4K) --- */
+
+/* Mobile & Tablet (up to 768px) */
+@media (max-width: 768px) {
+  .soa-filter-container {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+  .soa-filter-container::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+  .soa-modal-panel {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  .soa-modal-body {
+    max-height: calc(100vh - 150px) !important;
+  }
+  .soa-kpi-label-wrap {
+    font-size: 11px;
+  }
+}
+
+/* 4K and Ultra-Wide (min-width: 2560px) */
+@media (min-width: 2560px) {
+  .soa-modal-panel {
+    max-width: 1800px !important;
+  }
+  .soa-filter-chip {
+    font-size: 15px;
+    height: 44px;
+    padding: 0 24px;
+  }
+  .soa-btn-primary {
+    font-size: 16px;
+    padding: 14px 28px;
+  }
+  .soa-modal-title {
+    font-size: 26px;
+  }
+  .soa-modal-subtitle {
+    font-size: 18px;
+  }
+  .soa-currency-badge {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+}

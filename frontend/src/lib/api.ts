@@ -17,7 +17,28 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let message = res.statusText;
     try {
       const body = await res.json();
-      message = body.detail ?? message;
+      if (Array.isArray(body.detail)) {
+        message = body.detail.map((e: any) => {
+          if (e.loc && Array.isArray(e.loc) && e.loc.length > 0) {
+            let field = String(e.loc[e.loc.length - 1]);
+            // Make field name more human readable (e.g. vendorId -> Vendor)
+            field = field.replace(/Id$/, '').replace(/([A-Z])/g, ' $1').trim();
+            field = field.charAt(0).toUpperCase() + field.slice(1);
+            
+            let customMsg = e.msg;
+            if (customMsg.includes('valid UUID') || customMsg.includes('Field required') || e.type === 'value_error.missing') {
+              customMsg = 'is a required field';
+            }
+            
+            return `${field} ${customMsg}`;
+          }
+          return e.msg || JSON.stringify(e);
+        }).join(' • ');
+      } else if (typeof body.detail === 'string') {
+        message = body.detail;
+      } else if (body.detail) {
+        message = JSON.stringify(body.detail);
+      }
     } catch {
       // no JSON body
     }
@@ -43,7 +64,28 @@ export const api = {
       if (!res.ok) {
         let message = res.statusText;
         try {
-          message = (await res.json()).detail ?? message;
+          const body = await res.json();
+          if (Array.isArray(body.detail)) {
+            message = body.detail.map((e: any) => {
+              if (e.loc && Array.isArray(e.loc) && e.loc.length > 0) {
+                let field = String(e.loc[e.loc.length - 1]);
+                field = field.replace(/Id$/, '').replace(/([A-Z])/g, ' $1').trim();
+                field = field.charAt(0).toUpperCase() + field.slice(1);
+                
+                let customMsg = e.msg;
+                if (customMsg.includes('valid UUID') || customMsg.includes('Field required') || e.type === 'value_error.missing') {
+                  customMsg = 'is a required field';
+                }
+                
+                return `${field} ${customMsg}`;
+              }
+              return e.msg || JSON.stringify(e);
+            }).join(' • ');
+          } else if (typeof body.detail === 'string') {
+            message = body.detail;
+          } else if (body.detail) {
+            message = JSON.stringify(body.detail);
+          }
         } catch {
           // no JSON body
         }

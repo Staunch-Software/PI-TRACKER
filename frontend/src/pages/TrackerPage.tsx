@@ -25,10 +25,13 @@ import {
   type ReorderableColumnKey,
   type SortColumn,
 } from '../components/table/PiEntriesTable';
+import { Toast } from '../components/common/Toast';
 import { MultiSelectDropdown } from '../components/common/MultiSelectDropdown';
 import { MoreFiltersPopover } from '../components/common/MoreFiltersPopover';
 import { SearchIcon } from '../components/common/SearchIcon';
 import { ImportWizardModal } from '../components/modals/ImportWizardModal';
+
+import './Tracker.css';
 
 // ADD_NEW_PI is excluded here — it's a real, savable Follow-up Status (selectable in the per-row
 // dropdown while adding/editing an entry), but it isn't meaningful to filter the table by, so the
@@ -161,6 +164,8 @@ export function TrackerPage() {
   const [newRowForm, setNewRowForm] = useState<PiEntryFormState>(blankPiEntryForm());
   const [saveError, setSaveError] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+
 
   const tableRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -459,9 +464,16 @@ export function TrackerPage() {
   const hasAnyActiveFilter = filters.search !== '' || filters.status.length > 0 || moreFiltersActiveCount > 0;
 
   return (
-    <div>
-      <div className="toolbar-row" ref={toolbarRef}>
-        <div className="search-wrap">
+    <div className="tracker-page">
+      <div className="tracker-page-header">
+        <h1 className="tracker-page-title">Proforma Invoice Tracker</h1>
+        <div className="tracker-page-count">
+          <span className="count-number">{entriesQuery.data?.total ?? 0}</span>
+          <span className="count-label">Purchase Invoices</span>
+        </div>
+      </div>
+      <div className="tracker-toolbar" ref={toolbarRef}>
+        <div className="tracker-search-wrap">
           <SearchIcon />
           <input
             type="search"
@@ -574,52 +586,60 @@ export function TrackerPage() {
             </div>
           </div>
         </MoreFiltersPopover>
-        <div className="toolbar-spacer" />
-        <button className="btn btn-secondary" onClick={handleExport} disabled={isExporting}>
-          {isExporting ? 'Exporting…' : '⇩ Export to Excel'}
+        <div className="tracker-toolbar-spacer" />
+        <button className="btn-tracker-action btn-tracker-secondary" onClick={handleExport} disabled={isExporting}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          {isExporting ? 'Exporting…' : 'Export'}
         </button>
         {canEdit && (
           <>
-            <button className="btn btn-secondary" onClick={() => setIsImporting(true)}>
-              ⇪ Import from Excel
+            <button className="btn-tracker-action btn-tracker-secondary" onClick={() => setIsImporting(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Import
             </button>
-            <button className="btn btn-primary" onClick={startAdd} disabled={isAddingNew || layoutEditable}>
-              + Add New PI
+            <button className="btn-tracker-action btn-tracker-primary" onClick={startAdd} disabled={isAddingNew || layoutEditable}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add New PI
             </button>
             {layoutEditable ? (
-              <>
-                <button className="btn btn-primary" onClick={() => saveLayoutMutation.mutate()} disabled={saveLayoutMutation.isPending}>
+              <div className="tracker-layout-edit-group">
+                <button className="btn-tracker-action btn-tracker-success" onClick={() => saveLayoutMutation.mutate()} disabled={saveLayoutMutation.isPending}>
                   {saveLayoutMutation.isPending ? 'Saving…' : 'Save Layout'}
                 </button>
-                <button className="btn btn-secondary" onClick={cancelLayoutEdit}>
+                <button className="btn-tracker-action btn-tracker-secondary" onClick={cancelLayoutEdit}>
                   Cancel
                 </button>
-              </>
+              </div>
             ) : (
-              <button className="btn btn-secondary" onClick={startLayoutEdit} disabled={isAddingNew || editingId !== null}>
-                ⚙ Edit Layout
+              <button className="btn-tracker-action btn-tracker-secondary" onClick={startLayoutEdit} disabled={isAddingNew || editingId !== null}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Edit Layout
               </button>
             )}
           </>
         )}
       </div>
       {exportError && (
-        <p className="form-error" style={{ margin: '0 0 12px' }}>
+        <div className="tracker-export-error">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           {exportError}
-        </p>
+        </div>
       )}
 
       {entriesQuery.isLoading ? (
-        <div className="card">
-          <div className="empty-state">Loading tracker…</div>
+        <div className="tracker-table-card">
+          <div className="tracker-loading">
+            <div className="tracker-loading-spinner" />
+            <div>Loading tracker…</div>
+          </div>
         </div>
       ) : entriesQuery.isError ? (
-        <div className="card">
-          <div className="empty-state">Failed to load PI entries.</div>
+        <div className="tracker-table-card">
+          <div className="tracker-error">Failed to load PI entries.</div>
         </div>
       ) : (
         <>
-          <div ref={tableRef}>
+          <div className="tracker-table-shell" ref={tableRef}>
             <PiEntriesTable
               entries={entriesQuery.data?.items ?? []}
               canEdit={canEdit}
@@ -656,64 +676,80 @@ export function TrackerPage() {
               }}
             />
           </div>
-          <div className="pagination">
-            <div className="page-size-control">
-              <label htmlFor="page-size">Rows per page</label>
-              <select
-                id="page-size"
-                className="page-size-select"
-                value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
-                onChange={(e) => {
-                  if (e.target.value) applyPageSize(Number(e.target.value));
-                }}
-              >
-                {!PAGE_SIZE_OPTIONS.includes(pageSize) && (
-                  <option value="">{pageSize} (custom)</option>
-                )}
-                {PAGE_SIZE_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                className="page-size-custom-input"
-                placeholder="Custom"
-                min={MIN_PAGE_SIZE}
-                max={MAX_PAGE_SIZE}
-                value={customPageSizeInput}
-                onChange={(e) => setCustomPageSizeInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && customPageSizeInput) applyPageSize(Number(customPageSizeInput));
-                }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary page-size-apply-btn"
-                onClick={() => customPageSizeInput && applyPageSize(Number(customPageSizeInput))}
-                disabled={!customPageSizeInput}
-              >
-                Set
+          <div className="tracker-pagination">
+            {/* LEFT: Page Size Control */}
+            <div className="pagination-left">
+              <span className="pagination-label">Rows per page:</span>
+              <div className="pagination-size-pill">
+                <select
+                  className="pagination-select"
+                  value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
+                  onChange={(e) => {
+                    if (e.target.value) applyPageSize(Number(e.target.value));
+                  }}
+                >
+                  {!PAGE_SIZE_OPTIONS.includes(pageSize) && <option value="">{pageSize} (custom)</option>}
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <div className="pagination-custom">
+                  <input
+                    type="number"
+                    placeholder="Custom"
+                    min={MIN_PAGE_SIZE}
+                    max={MAX_PAGE_SIZE}
+                    value={customPageSizeInput}
+                    onChange={(e) => setCustomPageSizeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customPageSizeInput) applyPageSize(Number(customPageSizeInput));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => customPageSizeInput && applyPageSize(Number(customPageSizeInput))}
+                    disabled={!customPageSizeInput}
+                  >
+                    Set
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER: Navigation */}
+            <div className="pagination-center">
+              <button className="pagination-nav-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} title="Previous Page">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div className="pagination-current">
+                Page <strong>{page}</strong> of {totalPages}
+              </div>
+              <button className="pagination-nav-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} title="Next Page">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
-            <span>
-              Page {page} of {totalPages}
-            </span>
-            <div className="pager-btns">
-              <button className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </button>
-              <button
-                className="btn btn-secondary"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </button>
+
+            {/* RIGHT: Total Info */}
+            <div className="pagination-right">
+              <span className="pagination-total">
+                {entriesQuery.data ? (
+                  <><strong>{entriesQuery.data.total.toLocaleString()}</strong> entries found</>
+                ) : (
+                  '...'
+                )}
+              </span>
             </div>
           </div>
         </>
+      )}
+
+      {saveError && (
+        <Toast 
+          type="error" 
+          message={saveError} 
+          onClose={() => setSaveError(null)} 
+          duration={5000} 
+        />
       )}
 
       {isImporting && <ImportWizardModal onClose={() => setIsImporting(false)} />}

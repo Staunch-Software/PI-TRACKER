@@ -70,6 +70,15 @@ export function SoaVendorTable({ items }: Props) {
     <>
       <div className="pir-table-scroll">
         <table className="data-table">
+          <colgroup>
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '130px' }} />
+            <col style={{ width: '16%' }} />
+            <col style={{ width: 'auto' }} />
+            <col style={{ width: '160px' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Vendor</th>
@@ -85,15 +94,30 @@ export function SoaVendorTable({ items }: Props) {
             {groups.map((g) => (
               <tr key={g.canonicalDomain} onClick={() => setSelectedVendor(g)} style={{ cursor: 'pointer' }}>
                 <td>{g.vendorLabel}</td>
-                <td style={{ textAlign: 'center' }}>{g.hasAttachment ? '📎' : '—'}</td>
-                <td style={{ textAlign: 'center' }}>{g.items.length}</td>
                 <td style={{ textAlign: 'center' }}>
-                  {g.needsTriageCount > 0 ? (
-                    <span className="status-badge" style={{ background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
-                      {g.needsTriageCount}
-                    </span>
+                  {g.hasAttachment ? (
+                    <div className="attachment-cell soa-attachment-cell-wrap">
+                      <button type="button" className="attachment-view-btn" title="SOA Document Attached" style={{ pointerEvents: 'none' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                        <span className="attachment-count">1</span>
+                      </button>
+                    </div>
                   ) : (
                     '—'
+                  )}
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <span className="pir-status-badge soa-status-badge-info">
+                    {g.items.length} item{g.items.length === 1 ? '' : 's'}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  {g.needsTriageCount > 0 ? (
+                    <span className="pir-status-badge soa-status-badge-danger">
+                      {g.needsTriageCount} pending
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--color-text-muted)' }}>—</span>
                   )}
                 </td>
                 <td>
@@ -101,7 +125,7 @@ export function SoaVendorTable({ items }: Props) {
                     .map(([code, amount]) => `${code} ${formatAmount(amount)}`)
                     .join(' · ')}
                 </td>
-                <td style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td title={g.soaSubject ?? undefined} style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {g.soaSubject ?? '—'}
                 </td>
                 <td>{formatDateTime(g.soaReceivedAt)}</td>

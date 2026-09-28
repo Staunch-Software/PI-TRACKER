@@ -7,14 +7,13 @@ import type { User } from '../../shared';
 import { UserModal } from '../../components/modals/UserModal';
 import { formatDate } from '../../lib/format';
 import { TrashIcon } from '../../components/common/TrashIcon';
-import { useAdminCreateModal } from './AdminCreateModalContext';
+import { EditIcon } from '../../components/common/EditIcon';
 
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalUser, setModalUser] = useState<User | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const { setIsUsersCreateOpen } = useAdminCreateModal();
   const queryClient = useQueryClient();
 
   const usersQuery = useQuery({ queryKey: ['users'], queryFn: () => api.get<User[]>('/users') });
@@ -27,23 +26,6 @@ export function AdminUsersPage() {
     },
   });
 
-  // Mirrors isAdding into shared context so the sidebar's "+ Create User" link can highlight
-  // only while this modal is actually open — reset on unmount too, so navigating away while
-  // it's open (e.g. clicking "Back to Tracker") doesn't leave a stale highlight behind.
-  useEffect(() => {
-    setIsUsersCreateOpen(isAdding);
-    return () => setIsUsersCreateOpen(false);
-  }, [isAdding, setIsUsersCreateOpen]);
-
-  useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setIsAdding(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   function handleDelete(user: User) {
     const verb = user.isActive ? 'Deactivate' : 'Reactivate';
     if (window.confirm(`${verb} ${user.fullName}?`)) {
@@ -52,25 +34,33 @@ export function AdminUsersPage() {
   }
 
   return (
-    <div>
-      <div className="page-header">
+    <>
+      {/* Header */}
+      <div className="admin-page-header">
         <div>
-          <h1>User Management</h1>
-          <p>{usersQuery.data ? `${usersQuery.data.length} users` : 'Loading…'}</p>
+          <div className="admin-title-row">
+            <h1 className="admin-page-title">User Management</h1>
+            <div className="admin-page-count">
+              <span className="count-number">{usersQuery.data ? usersQuery.data.length : 0}</span>
+              <span className="count-label">Registered Users</span>
+            </div>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+        <button className="admin-btn-primary" onClick={() => setIsAdding(true)}>
           + Add New User
         </button>
       </div>
 
-      <div className="card table-scroll">
-        <table className="data-table">
+      <div className="admin-page-body">
+        {/* Table */}
+        <div className="admin-card admin-table-wrapper">
+          <table className="admin-table">
           <thead>
             <tr>
               <th>Full Name</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Access</th>
+              <th>Module Access</th>
               <th>Status</th>
               <th>Created</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
@@ -80,60 +70,55 @@ export function AdminUsersPage() {
             {(usersQuery.data ?? []).map((u) => {
               const isSelf = u.id === currentUser?.id;
               return (
-              <tr key={u.id}>
-                <td>{u.fullName}</td>
-                <td>{u.email}</td>
-                <td>{u.role}</td>
-                <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {u.role === 'ADMIN'
-                    ? 'PI, PIR, SOA'
-                    : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA'].filter(Boolean).join(', ') ||
-                      '—'}
-                </td>
-                <td>
-                  <span
-                    className="status-badge"
-                    style={
-                      u.isActive
-                        ? { background: 'var(--color-success-bg)', color: 'var(--color-success)' }
-                        : { background: 'var(--color-neutral-bg)', color: 'var(--color-neutral)' }
-                    }
-                  >
-                    {u.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td>{formatDate(u.createdAt)}</td>
-                <td style={{ textAlign: 'center' }}>
-                  <div className="row-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setModalUser(u)}>
-                      ✎
-                    </button>
-                    <button
-                      className={`icon-btn${u.isActive ? ' icon-btn-danger' : ''}`}
-                      title={isSelf ? "You can't deactivate your own account" : u.isActive ? 'Deactivate' : 'Reactivate'}
-                      onClick={() => handleDelete(u)}
-                      disabled={deactivateMutation.isPending || isSelf}
-                    >
-                      {u.isActive ? <TrashIcon /> : '↺'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
+                <tr key={u.id}>
+                  <td><strong>{u.fullName}</strong></td>
+                  <td style={{ color: '#6B7280' }}>{u.email}</td>
+                  <td>
+                    <span className="admin-badge role">{u.role}</span>
+                  </td>
+                  <td>
+                    <span className="admin-badge access">
+                      {u.role === 'ADMIN'
+                        ? 'PI · PIR · SOA'
+                        : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA']
+                            .filter(Boolean).join(' · ') || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`admin-badge ${u.isActive ? 'active' : 'inactive'}`}>
+                      {u.isActive ? '● Active' : '○ Inactive'}
+                    </span>
+                  </td>
+                  <td style={{ color: '#9CA3AF', fontSize: 12 }}>{formatDate(u.createdAt)}</td>
+                  <td>
+                    <div className="admin-row-actions">
+                      <button className="admin-action-btn" title="Edit" onClick={() => setModalUser(u)}>
+                        <EditIcon />
+                      </button>
+                      <button
+                        className={`admin-action-btn${u.isActive ? ' danger' : ''}`}
+                        title={isSelf ? "Can't deactivate own account" : u.isActive ? 'Deactivate' : 'Reactivate'}
+                        onClick={() => handleDelete(u)}
+                        disabled={deactivateMutation.isPending || isSelf}
+                      >
+                        {u.isActive ? <TrashIcon /> : '↺'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      </div>
 
       {(isAdding || modalUser) && (
         <UserModal
           user={modalUser}
-          onClose={() => {
-            setIsAdding(false);
-            setModalUser(null);
-          }}
+          onClose={() => { setIsAdding(false); setModalUser(null); }}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -1,80 +1,56 @@
-import { Link, Navigate, NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import { useRole } from '../../auth/useRole';
-import { AdminCreateModalProvider, useAdminCreateModal } from './AdminCreateModalContext';
+import './AdminLayout.css';
+
+const ShieldIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+const ChevronLeftIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+);
 
 function AdminSidebar() {
-  const {
-    isUsersCreateOpen,
-    isVesselsCreateOpen,
-    isVendorMappingCreateOpen,
-    isVendorsCreateOpen,
-    isOwnerRecipientsCreateOpen,
-  } = useAdminCreateModal();
-
   return (
     <aside className="admin-sidebar">
+      {/* Header */}
       <div className="admin-sidebar-header">
-        <span className="admin-shield">🛡</span>
-        <span>Admin Panel</span>
+        <div className="admin-sidebar-icon">
+          <ShieldIcon />
+        </div>
+        <div className="admin-sidebar-title-container">
+          <div className="admin-sidebar-title">Admin Panel</div>
+          <div className="admin-sidebar-subtitle">Ozellar Marine</div>
+        </div>
       </div>
+
+      {/* Back link */}
       <NavLink to="/tracker" className="admin-back-link">
-        ← Back to Tracker
+        <ChevronLeftIcon />
+        Back to App
       </NavLink>
 
-      <div className="admin-nav-section">
-        <div className="admin-nav-heading">Users</div>
+      {/* Nav sections */}
+      <div className="admin-nav-sections">
         <NavLink to="/admin/users" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
           All Users
         </NavLink>
-        <Link to="/admin/users?new=1" className={`admin-nav-link create${isUsersCreateOpen ? ' active' : ''}`}>
-          + Create User
-        </Link>
-      </div>
-
-      <div className="admin-nav-section">
-        <div className="admin-nav-heading">Vessels</div>
         <NavLink to="/admin/vessels" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
           All Vessels
         </NavLink>
-        <Link to="/admin/vessels?new=1" className={`admin-nav-link create${isVesselsCreateOpen ? ' active' : ''}`}>
-          + Create Vessel
-        </Link>
-      </div>
-
-      <div className="admin-nav-section">
-        <div className="admin-nav-heading">Vendor Mapping</div>
         <NavLink to="/admin/vendor-mapping" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
-          All Vendors
+          Vendor Mapping
         </NavLink>
-        <Link
-          to="/admin/vendor-mapping?new=1"
-          className={`admin-nav-link create${isVendorMappingCreateOpen ? ' active' : ''}`}
-        >
-          + Create Vendor Mapping
-        </Link>
-      </div>
-
-      <div className="admin-nav-section">
-        <div className="admin-nav-heading">Vendors</div>
         <NavLink to="/admin/vendors" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
           All Vendors
         </NavLink>
-        <Link to="/admin/vendors?new=1" className={`admin-nav-link create${isVendorsCreateOpen ? ' active' : ''}`}>
-          + Create Vendor
-        </Link>
-      </div>
-
-      <div className="admin-nav-section">
-        <div className="admin-nav-heading">Owner Recipients</div>
         <NavLink to="/admin/owner-recipients" end className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}>
-          All Recipients
+          Owner Recipients
         </NavLink>
-        <Link
-          to="/admin/owner-recipients?new=1"
-          className={`admin-nav-link create${isOwnerRecipientsCreateOpen ? ' active' : ''}`}
-        >
-          + Add Recipient
-        </Link>
       </div>
     </aside>
   );
@@ -88,13 +64,11 @@ export function AdminLayout() {
   }
 
   return (
-    <AdminCreateModalProvider>
-      <div className="admin-shell">
-        <AdminSidebar />
-        <div className="admin-content">
-          <Outlet />
-        </div>
+    <div className="admin-shell">
+      <AdminSidebar />
+      <div className="admin-content">
+        <Outlet />
       </div>
-    </AdminCreateModalProvider>
+    </div>
   );
 }

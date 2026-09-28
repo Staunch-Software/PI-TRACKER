@@ -261,7 +261,19 @@ def export_pi_entries(
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "PI Follow-up Tracker"
-    sheet.append([label for label, _ in _EXPORT_HEADERS])
+    
+    from openpyxl.styles import Alignment, Font, PatternFill
+    header_fill = PatternFill("solid", fgColor="0F4C81")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+    
+    headers = [label for label, _ in _EXPORT_HEADERS]
+    sheet.append(headers)
+    
+    for col_idx in range(1, len(headers) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     for row in rows:
         values = []

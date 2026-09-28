@@ -175,7 +175,7 @@ export function PirInvoiceTable({ vesselGroup, items, vessels }: Props) {
                   </td>
                 )}
                 <td style={{ textAlign: 'center' }}>
-                  <span className="age-badge" style={ageBadgeStyle(e.ageDays)}>
+                  <span className="pir-status-badge" style={ageBadgeStyle(e.ageDays)}>
                     {e.ageDays === null ? '—' : `${e.ageDays}d`}
                   </span>
                 </td>
@@ -196,17 +196,17 @@ export function PirInvoiceTable({ vesselGroup, items, vessels }: Props) {
                     '—'
                   )}
                 </td>
-                <td>{e.vesselName ?? '—'}</td>
-                <td>{e.vendorName ?? '—'}</td>
-                <td>{e.vendorInvoiceNo ?? '—'}</td>
-                <td>{e.poNos ?? '—'}</td>
+                <td title={e.vesselName ?? undefined}>{e.vesselName ?? '—'}</td>
+                <td title={e.vendorName ?? undefined}>{e.vendorName ?? '—'}</td>
+                <td title={e.vendorInvoiceNo ?? undefined}>{e.vendorInvoiceNo ?? '—'}</td>
+                <td title={e.poNos ?? undefined}>{e.poNos ?? '—'}</td>
                 <td>{formatDate(e.regDate)}</td>
                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatAmount(e.amount)}</td>
                 <td>{e.currencyCode ?? '—'}</td>
                 <td>
                   <span
-                    className="status-badge"
-                    style={{ ...DEPARTMENT_BADGE_STYLE[e.department], fontSize: 12, padding: '3px 10px' }}
+                    className="pir-status-badge"
+                    style={{ ...DEPARTMENT_BADGE_STYLE[e.department] }}
                   >
                     {DEPARTMENT_LABEL[e.department]}
                   </span>

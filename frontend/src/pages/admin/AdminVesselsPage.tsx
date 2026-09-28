@@ -4,13 +4,12 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Vessel } from '../../shared';
 import { VesselModal } from '../../components/modals/VesselModal';
-import { useAdminCreateModal } from './AdminCreateModalContext';
+import { EditIcon } from '../../components/common/EditIcon';
 
 export function AdminVesselsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalVessel, setModalVessel] = useState<Vessel | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const { setIsVesselsCreateOpen } = useAdminCreateModal();
   const queryClient = useQueryClient();
 
   const vesselsQuery = useQuery({
@@ -31,37 +30,24 @@ export function AdminVesselsPage() {
     },
   });
 
-  // Mirrors isAdding into shared context so the sidebar's "+ Create Vessel" link can highlight
-  // only while this modal is actually open — reset on unmount too, so navigating away while
-  // it's open (e.g. clicking "Back to Tracker") doesn't leave a stale highlight behind.
-  useEffect(() => {
-    setIsVesselsCreateOpen(isAdding);
-    return () => setIsVesselsCreateOpen(false);
-  }, [isAdding, setIsVesselsCreateOpen]);
-
-  useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setIsAdding(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   return (
-    <div>
-      <div className="page-header">
+    <>
+      <div className="admin-page-header">
         <div>
-          <h1>Vessel Management</h1>
-          <p>{vesselsQuery.data ? `${vesselsQuery.data.length} vessels` : 'Loading…'}</p>
+          <div className="admin-title-row">
+            <h1 className="admin-page-title">Vessel Management</h1>
+            <div className="admin-page-count">
+              <span className="count-number">{vesselsQuery.data ? vesselsQuery.data.length : 0}</span>
+              <span className="count-label">Vessels</span>
+            </div>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
-          + Add New Vessel
-        </button>
+        <button className="admin-btn-primary" onClick={() => setIsAdding(true)}>+ Add New Vessel</button>
       </div>
 
-      <div className="card table-scroll">
-        <table className="data-table">
+      <div className="admin-page-body">
+        <div className="admin-card admin-table-wrapper">
+          <table className="admin-table">
           <thead>
             <tr>
               <th>Vessel Name</th>
@@ -74,22 +60,22 @@ export function AdminVesselsPage() {
           <tbody>
             {(vesselsQuery.data ?? []).map((v) => (
               <tr key={v.id}>
-                <td>{v.name}</td>
-                <td>{v.imoNumber ?? '—'}</td>
+                <td><strong>{v.name}</strong></td>
+                <td style={{ color: '#6B7280' }}>{v.imoNumber ?? '—'}</td>
                 <td>{v.assignedTaName ?? '—'}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={v.isActive}
                     disabled={toggleApplicableMutation.isPending}
-                    title="Whether this vessel is applicable for PI — shows up in the PI vessel dropdown when checked"
+                    title="Whether this vessel is applicable for PI"
                     onChange={() => toggleApplicableMutation.mutate(v)}
                   />
                 </td>
-                <td style={{ textAlign: 'center' }}>
-                  <div className="row-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setModalVessel(v)}>
-                      ✎
+                <td>
+                  <div className="admin-row-actions">
+                    <button className="admin-action-btn" title="Edit" onClick={() => setModalVessel(v)}>
+                      <EditIcon />
                     </button>
                   </div>
                 </td>
@@ -97,6 +83,7 @@ export function AdminVesselsPage() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       {(isAdding || modalVessel) && (
@@ -108,6 +95,6 @@ export function AdminVesselsPage() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

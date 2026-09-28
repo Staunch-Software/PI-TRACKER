@@ -1,0 +1,453 @@
+/* ==========================================================================
+   TOPNAV — Premium Frosted Glass  |  Mobile → Desktop → 4K
+   ========================================================================== */
+
+/* ── Sticky wrapper ── */
+.marine-topnav-container {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 6px 14px;
+  background: rgba(248, 247, 252, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Inner navbar card — curved, floating ── */
+.marine-topnav {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 18px;
+  gap: 10px;
+  background: #FFFFFF;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.12);
+  box-shadow:
+    0 2px 8px rgba(17, 20, 36, 0.06),
+    0 8px 24px rgba(var(--color-primary-rgb), 0.08),
+    0 1px 0 rgba(255,255,255,0.8) inset;
+}
+
+/* ── Brand: two-colour gradient ── */
+.marine-topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.marine-topnav-logo {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  filter: drop-shadow(0 2px 4px rgba(14,165,233,0.4));
+}
+
+.marine-topnav-brand span {
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: -0.4px;
+  background: linear-gradient(120deg, #111424 0%, var(--color-primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Slim vertical divider ── */
+.marine-topnav-divider {
+  width: 1px;
+  height: 18px;
+  background: linear-gradient(to bottom, transparent, rgba(14,165,233,0.25), transparent);
+  flex-shrink: 0;
+  display: none;
+}
+
+/* ── Navigation links ── */
+.marine-topnav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+}
+.marine-topnav-links::-webkit-scrollbar { display: none; }
+
+.marine-nav-link {
+  text-decoration: none;
+  color: #6B7280;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+  white-space: nowrap;
+  position: relative;
+}
+
+.marine-nav-link:hover {
+  color: #111424;
+  background: rgba(17, 20, 36, 0.04);
+}
+
+/* Active link: gradient pill */
+.marine-nav-link.active {
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #111424 0%, #2A2D4A 100%);
+  box-shadow: 0 4px 12px rgba(17, 20, 36, 0.25), 0 1px 0 rgba(255,255,255,0.1) inset;
+}
+
+/* ── Right: user pill area ── */
+.marine-topnav-actions {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ==========================================================================
+   USER MENU — Premium Cylinder / Pill
+   ========================================================================== */
+
+.marine-user-menu-wrapper {
+  position: relative;
+}
+
+.marine-user-menu-trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Pill */
+.marine-user-avatar-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border-radius: 999px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+  box-shadow:
+    0 2px 8px rgba(var(--color-primary-rgb), 0.12),
+    0 1px 0 rgba(255,255,255,0.9) inset;
+  transition: all 0.25s ease;
+}
+
+.marine-user-menu-trigger:hover .marine-user-avatar-pill {
+  border-color: rgba(var(--color-primary-rgb), 0.45);
+  box-shadow:
+    0 6px 20px rgba(var(--color-primary-rgb), 0.22),
+    0 1px 0 rgba(255,255,255,0.9) inset;
+  transform: translateY(-1px);
+}
+
+/* Avatar circle */
+.marine-user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #0a365c 100%);
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(14,165,233,0.4);
+}
+
+/* Name + role */
+.marine-user-menu-info {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+}
+
+.marine-user-menu-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111424;
+  line-height: 1;
+}
+
+.marine-user-menu-role {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Chevron */
+.marine-user-caret {
+  color: #9CA3AF;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.marine-user-caret.open {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   DROPDOWN PANEL — Premium light glass
+   ========================================================================== */
+
+.marine-user-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 248px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.12);
+  box-shadow:
+    0 4px 8px rgba(17, 20, 36, 0.05),
+    0 16px 48px rgba(17, 20, 36, 0.14),
+    0 1px 0 rgba(255,255,255,0.9) inset;
+  overflow: hidden;
+  z-index: 200;
+  animation: navDropDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes navDropDown {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* Dropdown header */
+.marine-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border-bottom: 1px solid rgba(var(--color-primary-rgb), 0.1);
+}
+
+.marine-user-avatar.lg {
+  width: 42px;
+  height: 42px;
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgba(14,165,233,0.35);
+}
+
+.marine-dropdown-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.marine-dropdown-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111424;
+}
+
+.marine-dropdown-email {
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.marine-role-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, rgba(14,165,233,0.15) 0%, rgba(14,165,233,0.08) 100%);
+  color: var(--color-primary);
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(14,165,233,0.25);
+  margin-top: 2px;
+}
+
+/* Body */
+.marine-dropdown-body {
+  padding: 8px;
+}
+
+.marine-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: left;
+}
+
+.marine-dropdown-item:hover {
+  background: rgba(17, 20, 36, 0.04);
+  color: #111424;
+}
+
+.marine-dropdown-item svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.marine-dropdown-divider {
+  height: 1px;
+  background: rgba(var(--color-primary-rgb), 0.1);
+  margin: 4px 0;
+}
+
+.marine-dropdown-item.danger { color: #EF4444; }
+.marine-dropdown-item.danger:hover {
+  background: #FFF1F1;
+  color: #DC2626;
+}
+.marine-dropdown-item.danger svg { color: #EF4444; }
+
+/* ==========================================================================
+   TABLET & DESKTOP  (≥ 768px)
+   ========================================================================== */
+
+@media (min-width: 768px) {
+  .marine-topnav-container {
+    padding: 7px 28px;
+  }
+
+  .marine-topnav {
+    height: 54px;
+    padding: 0 22px;
+    gap: 14px;
+    border-radius: 16px;
+  }
+
+  .marine-topnav-brand span {
+    font-size: 17px;
+  }
+
+  .marine-topnav-logo {
+    width: 22px;
+    height: 22px;
+  }
+
+  .marine-topnav-divider {
+    display: block;
+  }
+
+  .marine-topnav-links {
+    gap: 4px;
+    flex: unset;
+    margin-right: auto;
+  }
+
+  .marine-nav-link {
+    font-size: 13.5px;
+    padding: 7px 14px;
+  }
+
+  .marine-user-menu-info {
+    display: flex;
+  }
+
+  .marine-user-avatar-pill {
+    padding: 5px 14px 5px 5px;
+    gap: 10px;
+  }
+
+  .marine-user-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 12px;
+  }
+}
+
+/* ==========================================================================
+   4K DISPLAYS  (≥ 2560px)
+   ========================================================================== */
+
+@media (min-width: 2560px) {
+  .marine-topnav-container {
+    padding: 10px 56px;
+  }
+
+  .marine-topnav {
+    height: 72px;
+    padding: 0 36px;
+    gap: 24px;
+    border-radius: 20px;
+    box-shadow:
+      0 4px 16px rgba(17, 20, 36, 0.08),
+      0 16px 40px rgba(var(--color-primary-rgb), 0.1),
+      0 1px 0 rgba(255,255,255,0.9) inset;
+  }
+
+  .marine-topnav-brand span {
+    font-size: 26px;
+  }
+
+  .marine-topnav-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .marine-topnav-links {
+    gap: 8px;
+  }
+
+  .marine-nav-link {
+    font-size: 18px;
+    padding: 10px 22px;
+    border-radius: 12px;
+  }
+
+  .marine-user-avatar-pill {
+    padding: 7px 20px 7px 7px;
+    gap: 14px;
+  }
+
+  .marine-user-avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 16px;
+  }
+
+  .marine-user-menu-name  { font-size: 17px; }
+  .marine-user-menu-role  { font-size: 12px; }
+
+  .marine-user-caret {
+    width: 20px;
+    height: 20px;
+  }
+
+  .marine-user-dropdown {
+    width: 310px;
+    border-radius: 20px;
+    top: calc(100% + 16px);
+  }
+
+  .marine-dropdown-item {
+    font-size: 16px;
+    padding: 13px 16px;
+    border-radius: 12px;
+  }
+
+  .marine-user-avatar.lg {
+    width: 54px;
+    height: 54px;
+    font-size: 20px;
+  }
+
+  .marine-dropdown-name  { font-size: 18px; }
+  .marine-dropdown-email { font-size: 14px; }
+}

@@ -4,65 +4,58 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Vendor } from '../../shared';
 import { VendorModal } from '../../components/modals/VendorModal';
-import { useAdminCreateModal } from './AdminCreateModalContext';
+import { EditIcon } from '../../components/common/EditIcon';
 
 export function AdminVendorsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalVendor, setModalVendor] = useState<Vendor | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const { setIsVendorsCreateOpen } = useAdminCreateModal();
 
   const vendorsQuery = useQuery({
     queryKey: ['admin-vendors'],
     queryFn: () => api.get<Vendor[]>('/vendors?include_inactive=true'),
   });
 
-  useEffect(() => {
-    setIsVendorsCreateOpen(isAdding);
-    return () => setIsVendorsCreateOpen(false);
-  }, [isAdding, setIsVendorsCreateOpen]);
-
-  useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setIsAdding(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   return (
-    <div>
-      <div className="page-header">
+    <>
+      <div className="admin-page-header">
         <div>
-          <h1>Vendor Management</h1>
-          <p>{vendorsQuery.data ? `${vendorsQuery.data.length} vendors` : 'Loading…'}</p>
+          <div className="admin-title-row">
+            <h1 className="admin-page-title">Vendor Management</h1>
+            <div className="admin-page-count">
+              <span className="count-number">{vendorsQuery.data ? vendorsQuery.data.length : 0}</span>
+              <span className="count-label">Vendors</span>
+            </div>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
-          + Add New Vendor
-        </button>
+        <button className="admin-btn-primary" onClick={() => setIsAdding(true)}>+ Add New Vendor</button>
       </div>
 
-      <div className="card table-scroll">
-        <table className="data-table">
+      <div className="admin-page-body">
+        <div className="admin-card admin-table-wrapper">
+          <table className="admin-table">
           <thead>
             <tr>
               <th>Vendor Name</th>
               <th>Email</th>
-              <th style={{ textAlign: 'center' }}>Active</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
               <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {(vendorsQuery.data ?? []).map((v) => (
               <tr key={v.id}>
-                <td>{v.name}</td>
-                <td>{v.email ?? '—'}</td>
-                <td style={{ textAlign: 'center' }}>{v.isActive ? 'Yes' : 'No'}</td>
+                <td><strong>{v.name}</strong></td>
+                <td style={{ color: '#6B7280' }}>{v.email ?? '—'}</td>
                 <td style={{ textAlign: 'center' }}>
-                  <div className="row-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setModalVendor(v)}>
-                      ✎
+                  <span className={`admin-badge ${v.isActive ? 'active' : 'inactive'}`}>
+                    {v.isActive ? '● Active' : '○ Inactive'}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <div className="admin-row-actions">
+                    <button className="admin-action-btn" title="Edit" onClick={() => setModalVendor(v)}>
+                      <EditIcon />
                     </button>
                   </div>
                 </td>
@@ -70,6 +63,7 @@ export function AdminVendorsPage() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       {(isAdding || modalVendor) && (
@@ -81,6 +75,6 @@ export function AdminVendorsPage() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

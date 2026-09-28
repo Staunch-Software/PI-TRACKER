@@ -39,47 +39,68 @@ export function LookupSelect({ label, items, value, onChange, createPath, queryK
 
   const canSave = newName.trim() && (!isVessel || newImoNumber.trim()) && !createMutation.isPending;
 
-  const body = isAdding ? (
-    <div style={{ display: 'flex', gap: 6 }}>
+  const addForm = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#111424' }}>Add New {label}</div>
       <input
         autoFocus
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
         placeholder={`New ${label.toLowerCase()} name`}
+        style={{ border: '1px solid var(--color-primary)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none' }}
+        onFocus={(e) => (e.target.style.boxShadow = '0 0 0 3px rgba(var(--color-primary-rgb), 0.15)')}
+        onBlur={(e) => (e.target.style.boxShadow = 'none')}
       />
       {isVessel && (
         <input
           value={newImoNumber}
           onChange={(e) => setNewImoNumber(e.target.value)}
           placeholder="IMO number"
-          style={{ width: 120 }}
+          style={{ border: '1px solid var(--color-primary)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none' }}
+          onFocus={(e) => (e.target.style.boxShadow = '0 0 0 3px rgba(var(--color-primary-rgb), 0.15)')}
+          onBlur={(e) => (e.target.style.boxShadow = 'none')}
         />
       )}
-      <button
-        type="button"
-        className="btn btn-secondary"
-        disabled={!canSave}
-        onClick={() => createMutation.mutate(newName.trim())}
-      >
-        Save
-      </button>
-      <button type="button" className="btn btn-secondary" onClick={() => setIsAdding(false)}>
-        Cancel
-      </button>
-    </div>
-  ) : (
-    <div style={{ display: 'flex', gap: 6 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <SearchableSelect
-          options={items.map((item) => ({ value: item.id, label: item.name }))}
-          value={value}
-          onChange={onChange}
-          placeholder={`Select ${label.toLowerCase()}…`}
-        />
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+        <button
+          type="button"
+          className="btn-tracker-action btn-tracker-secondary"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsAdding(false);
+          }}
+          style={{ padding: '6px 12px', height: 'auto', fontSize: 13 }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn-tracker-action btn-tracker-primary"
+          disabled={!canSave}
+          onClick={(e) => {
+            e.stopPropagation();
+            createMutation.mutate(newName.trim());
+          }}
+          style={{ padding: '6px 12px', height: 'auto', fontSize: 13 }}
+        >
+          {createMutation.isPending ? 'Saving...' : 'Save'}
+        </button>
       </div>
-      <button type="button" className="btn btn-secondary" onClick={() => setIsAdding(true)}>
-        + New
-      </button>
+    </div>
+  );
+
+  const body = (
+    <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 0 }}>
+      <SearchableSelect
+        options={items.map((item) => ({ value: item.id, label: item.name }))}
+        value={value}
+        onChange={onChange}
+        placeholder={`Select ${label.toLowerCase()}…`}
+        onAddNew={() => setIsAdding(true)}
+        addNewLabel={`+ Add New ${label}`}
+        customPanelContent={isAdding ? addForm : undefined}
+        onClose={() => setIsAdding(false)}
+      />
     </div>
   );
 

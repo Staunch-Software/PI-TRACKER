@@ -12,6 +12,10 @@ interface Props {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  onAddNew?: () => void;
+  addNewLabel?: string;
+  customPanelContent?: React.ReactNode;
+  onClose?: () => void;
 }
 
 // Only ~4 options are visible at once — the rest are reachable by scrolling the list — so the
@@ -27,7 +31,7 @@ const VIEWPORT_MARGIN = 12;
 const SEARCH_ROW_HEIGHT = 37;
 const PANEL_BORDER = 2;
 
-export function SearchableSelect({ options, value, onChange, placeholder = 'Select…', disabled }: Props) {
+export function SearchableSelect({ options, value, onChange, placeholder = 'Select…', disabled, onAddNew, addNewLabel, customPanelContent, onClose }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -73,6 +77,7 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sele
   function close() {
     setIsOpen(false);
     setQuery('');
+    if (onClose) onClose();
   }
 
   function open() {
@@ -117,34 +122,52 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sele
           <div
             className="searchable-select-panel"
             ref={panelRef}
-            style={{ top: position.top, left: position.left, width: position.width }}
+            style={{ top: position.top, left: position.left, width: customPanelContent ? Math.max(position.width, 300) : position.width }}
           >
-            <input
-              ref={searchRef}
-              type="text"
-              className="searchable-select-search"
-              placeholder="Search…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <div className="searchable-select-list" style={{ maxHeight: OPTION_HEIGHT * VISIBLE_OPTIONS }}>
-              {filtered.length === 0 ? (
-                <div className="searchable-select-empty">No matches</div>
-              ) : (
-                filtered.map((o) => (
+            {customPanelContent ? (
+              customPanelContent
+            ) : (
+              <>
+                <input
+                  ref={searchRef}
+                  type="text"
+                  className="searchable-select-search"
+                  placeholder="Search…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                <div className="searchable-select-list" style={{ maxHeight: OPTION_HEIGHT * VISIBLE_OPTIONS }}>
+                  {filtered.length === 0 ? (
+                    <div className="searchable-select-empty">No matches</div>
+                  ) : (
+                    filtered.map((o) => (
+                      <div
+                        key={o.value}
+                        className={`searchable-select-option${o.value === value ? ' selected' : ''}`}
+                        onClick={() => {
+                          onChange(o.value);
+                          close();
+                        }}
+                      >
+                        {o.label}
+                      </div>
+                    ))
+                  )}
+                </div>
+                {onAddNew && (
                   <div
-                    key={o.value}
-                    className={`searchable-select-option${o.value === value ? ' selected' : ''}`}
-                    onClick={() => {
-                      onChange(o.value);
-                      close();
+                    className="searchable-select-add-new"
+                    onClick={(e) => {
+                      // Do not close the popup, just switch content!
+                      e.stopPropagation();
+                      onAddNew();
                     }}
                   >
-                    {o.label}
+                    {addNewLabel || '+ Add New'}
                   </div>
-                ))
-              )}
-            </div>
+                )}
+              </>
+            )}
           </div>,
           document.body
         )}

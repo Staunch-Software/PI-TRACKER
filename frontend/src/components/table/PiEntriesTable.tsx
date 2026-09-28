@@ -23,6 +23,7 @@ import type { PiEntryFormState } from '../../lib/piEntryForm';
 import { formatAmount, formatDate, formatDateTime } from '../../lib/format';
 import { LookupSelect } from '../modals/LookupSelect';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { Toast } from '../common/Toast';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
 import { MailIcon } from '../common/MailIcon';
 import { BellIcon } from '../common/BellIcon';
@@ -35,8 +36,8 @@ import { StatusBadge } from './StatusBadge';
 // or resizable (see ReorderableColumnKey below), so they stay out of the column-width map that
 // Edit Layout mutates.
 const STICKY_COL_WIDTHS = {
-  actions: 80,
-  dpr: 140,
+  actions: 110,
+  dpr: 150,
 } as const;
 
 // Every reorderable column's default width, static and hardcoded — used as the fallback for any
@@ -46,37 +47,37 @@ const STICKY_COL_WIDTHS = {
 // fractional pixels differently, and that drift compounds left-to-right. A static width has
 // nothing left to measure, so nothing can diverge between the two tables.
 export const DEFAULT_COL_WIDTHS = {
-  attachment: 90,
-  poNumber: 130,
-  piNumber: 130,
-  piSentDate: 130,
-  invoiceNo: 130,
-  dprDate: 110,
-  vessel: 170,
-  vendor: 220,
-  serviceDetails: 460,
-  amountInr: 130,
-  fcAmount: 110,
-  currency: 100,
+  attachment: 100,
+  poNumber: 150,
+  piNumber: 150,
+  piSentDate: 140,
+  invoiceNo: 150,
+  dprDate: 130,
+  vessel: 190,
+  vendor: 240,
+  serviceDetails: 480,
+  amountInr: 150,
+  fcAmount: 130,
+  currency: 110,
   paymentDate: 120,
   paymentReference: 340,
   daysSincePayment: 150,
   // Wide enough for the longest label ("Pending - Discrepancy to Resolve") on one line without
   // the badge getting silently hard-clipped — see .col-status in global.css for the overflow
   // fallback that also guards against this if a future label ends up even longer.
-  followupStatus: 260,
+  followupStatus: 280,
   // Sized for realistic remarks (2-line clamp via ExpandableCell) — the longest seen so far,
   // "Final Invoice will be sent after Installation at Vizag- 22nd July 2026" (~72 chars), fits
   // comfortably in 2 lines at this width. Was 600, which left a lot of dead space since most
   // remarks are one short sentence.
-  lastKnownRemark: 300,
-  reminder1: 140,
-  reminder2: 140,
-  finalInvoiceReceived: 160,
-  invoiceDate: 120,
-  attachedBy: 120,
-  dateAttached: 170,
-  notes: 340,
+  lastKnownRemark: 320,
+  reminder1: 150,
+  reminder2: 150,
+  finalInvoiceReceived: 180,
+  invoiceDate: 130,
+  attachedBy: 140,
+  dateAttached: 180,
+  notes: 360,
 } as const;
 
 export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
@@ -579,7 +580,7 @@ export function PiEntriesTable({
   }
 
   return (
-    <div className="card">
+    <>
       <div className="table-header-scroll" ref={headerScrollRef}>
         <table className="data-table">
           {colgroup}
@@ -639,10 +640,10 @@ export function PiEntriesTable({
                   <td className="sticky-col col-actions">
                     {isEditing ? (
                       <div className="row-actions">
-                        <button className="icon-btn" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
+                        <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
                           {isSavingEdit ? '…' : '✓'}
                         </button>
-                        <button className="icon-btn" title="Cancel" onClick={onCancelEdit}>
+                        <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelEdit}>
                           ×
                         </button>
                       </div>
@@ -654,7 +655,10 @@ export function PiEntriesTable({
                           onClick={() => onStartEdit(entry)}
                           disabled={editingId !== null || isAddingNew || layoutEditable}
                         >
-                          ✎
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
                         </button>
                         <button
                           className="icon-btn"
@@ -707,10 +711,10 @@ export function PiEntriesTable({
             <tr className="row-editing">
               <td className="sticky-col col-actions">
                 <div className="row-actions">
-                  <button className="icon-btn" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
+                  <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
                     {isSavingNew ? '…' : '✓'}
                   </button>
-                  <button className="icon-btn" title="Cancel" onClick={onCancelNew}>
+                  <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>
                     ×
                   </button>
                 </div>
@@ -742,15 +746,12 @@ export function PiEntriesTable({
         </tbody>
         </table>
       </div>
-      {saveError && (
-        <div className="empty-state" style={{ color: 'var(--color-danger)', textAlign: 'left', padding: '10px 16px' }}>
-          {saveError}
-        </div>
-      )}
       {sendError && (
-        <div className="empty-state" style={{ color: 'var(--color-danger)', textAlign: 'left', padding: '10px 16px' }}>
-          {sendError}
-        </div>
+        <Toast 
+          type="error" 
+          message={sendError} 
+          onClose={() => setSendError(null)} 
+        />
       )}
       {pendingSend && (
         <ConfirmDialog
@@ -766,6 +767,6 @@ export function PiEntriesTable({
           onCancel={() => setPendingSend(null)}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -4,50 +4,42 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { OwnerRecipient } from '../../shared';
 import { OwnerRecipientModal } from '../../components/modals/OwnerRecipientModal';
-import { useAdminCreateModal } from './AdminCreateModalContext';
+import { EditIcon } from '../../components/common/EditIcon';
 
 export function AdminOwnerRecipientsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalRecipient, setModalRecipient] = useState<OwnerRecipient | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const { setIsOwnerRecipientsCreateOpen } = useAdminCreateModal();
 
   const recipientsQuery = useQuery({
     queryKey: ['admin-owner-recipients'],
     queryFn: () => api.get<OwnerRecipient[]>('/owner-recipients?include_inactive=true'),
   });
 
-  useEffect(() => {
-    setIsOwnerRecipientsCreateOpen(isAdding);
-    return () => setIsOwnerRecipientsCreateOpen(false);
-  }, [isAdding, setIsOwnerRecipientsCreateOpen]);
-
-  useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setIsAdding(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   return (
-    <div>
-      <div className="page-header">
+    <>
+      <div className="admin-page-header">
         <div>
-          <h1>Owner Recipients</h1>
-          <p>
-            {recipientsQuery.data ? `${recipientsQuery.data.length} recipients` : 'Loading…'}
-            {' — receive the "send owner reminder" email from the Tracker page (shared across all vessels)'}
+          <div className="admin-title-row">
+            <h1 className="admin-page-title">Owner Recipients</h1>
+            <div className="admin-page-count">
+              <span className="count-number">{recipientsQuery.data ? recipientsQuery.data.length : 0}</span>
+              <span className="count-label">Recipients</span>
+            </div>
+          </div>
+          <p className="admin-page-subtitle">
+            (Receive the "send owner reminder" email from Tracker)
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+        <button className="admin-btn-primary" onClick={() => setIsAdding(true)}>
           + Add Recipient
         </button>
       </div>
 
-      <div className="card table-scroll">
-        <table className="data-table">
+      <div className="admin-page-body">
+
+      <div className="admin-card admin-table-wrapper">
+        <table className="admin-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -61,11 +53,15 @@ export function AdminOwnerRecipientsPage() {
               <tr key={r.id}>
                 <td>{r.name ?? '—'}</td>
                 <td>{r.email}</td>
-                <td style={{ textAlign: 'center' }}>{r.isActive ? 'Yes' : 'No'}</td>
                 <td style={{ textAlign: 'center' }}>
-                  <div className="row-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setModalRecipient(r)}>
-                      ✎
+                  <span className={`admin-badge ${r.isActive ? 'active' : 'inactive'}`}>
+                    {r.isActive ? '● Active' : '○ Inactive'}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <div className="admin-row-actions">
+                    <button className="admin-action-btn" title="Edit" onClick={() => setModalRecipient(r)}>
+                      <EditIcon />
                     </button>
                   </div>
                 </td>
@@ -73,6 +69,7 @@ export function AdminOwnerRecipientsPage() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       {(isAdding || modalRecipient) && (
@@ -84,6 +81,6 @@ export function AdminOwnerRecipientsPage() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

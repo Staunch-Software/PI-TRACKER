@@ -58,9 +58,9 @@ def download_import_template() -> StreamingResponse:
         "PI Sent Date",
     ]
 
-    header_fill = PatternFill("solid", fgColor="1E3A5F")
+    header_fill = PatternFill("solid", fgColor="0F4C81")
     header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
-    example_fill = PatternFill("solid", fgColor="EBF3FB")
+    example_fill = PatternFill("solid", fgColor="F0F9FF")
 
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=header)

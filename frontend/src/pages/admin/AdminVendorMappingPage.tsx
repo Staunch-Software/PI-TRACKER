@@ -6,9 +6,9 @@ import { DEPARTMENT_LABELS, Department, type VendorMapping, type VendorMappingHe
 import { VendorMappingModal } from '../../components/modals/VendorMappingModal';
 import { VendorMappingImportWizardModal } from '../../components/modals/VendorMappingImportWizardModal';
 import { TrashIcon } from '../../components/common/TrashIcon';
+import { EditIcon } from '../../components/common/EditIcon';
 import { SearchIcon } from '../../components/common/SearchIcon';
 import { formatDate } from '../../lib/format';
-import { useAdminCreateModal } from './AdminCreateModalContext';
 
 export function AdminVendorMappingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -17,7 +17,6 @@ export function AdminVendorMappingPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState<Department | 'ALL'>('ALL');
-  const { setIsVendorMappingCreateOpen } = useAdminCreateModal();
   const queryClient = useQueryClient();
 
   const mappingsQuery = useQuery({
@@ -54,23 +53,6 @@ export function AdminVendorMappingPage() {
     },
   });
 
-  // Mirrors isAdding into shared context so the sidebar's "+ Create Vendor Mapping" link
-  // highlights only while this modal is actually open — reset on unmount too, so navigating
-  // away while it's open (e.g. clicking "Back to Tracker") doesn't leave a stale highlight.
-  useEffect(() => {
-    setIsVendorMappingCreateOpen(isAdding);
-    return () => setIsVendorMappingCreateOpen(false);
-  }, [isAdding, setIsVendorMappingCreateOpen]);
-
-  useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setIsAdding(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   function handleDelete(mapping: VendorMapping) {
     const verb = mapping.active ? 'Deactivate' : 'Reactivate';
     if (window.confirm(`${verb} ${mapping.vendorName}?`)) {
@@ -85,47 +67,43 @@ export function AdminVendorMappingPage() {
   });
 
   return (
-    <div>
-      <div className="page-header">
+    <>
+      <div className="admin-page-header">
         <div>
-          <h1>Vendor Mapping</h1>
-          <p>{mappingsQuery.data ? `${filtered.length} vendors` : 'Loading…'}</p>
+          <div className="admin-title-row">
+            <h1 className="admin-page-title">Vendor Mapping</h1>
+            <div className="admin-page-count">
+              <span className="count-number">{mappingsQuery.data ? filtered.length : 0}</span>
+              <span className="count-label">Vendor Mappings</span>
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={() => setIsImporting(true)}>
+        <div className="admin-btn-group">
+          <button className="admin-btn-secondary" onClick={() => setIsImporting(true)}>
             ⇧ Import from Excel
           </button>
-          <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+          <button className="admin-btn-primary" onClick={() => setIsAdding(true)}>
             + Add New Vendor
           </button>
         </div>
       </div>
 
+      <div className="admin-page-body">
+
       {/* Mapping health check — see healthQuery comment above. Default expanded via native
           <details>/<summary>, same pattern PIRPage.tsx already uses for collapsible sections. */}
       {healthQuery.data && healthQuery.data.unmatchedCount > 0 && (
         <details
-          className="card"
+          className="admin-health-card"
           open
-          style={{ marginBottom: 14, padding: 0, overflow: 'hidden', border: '1px solid var(--color-danger)' }}
         >
-          <summary
-            style={{
-              cursor: 'pointer',
-              padding: '12px 16px',
-              fontWeight: 600,
-              color: 'var(--color-danger)',
-              background: 'var(--color-danger-bg)',
-            }}
-          >
-            {healthQuery.data.unmatchedCount} Manning mapping{healthQuery.data.unmatchedCount === 1 ? '' : 's'} with no
-            matching PIR invoices — possible spelling mismatch
+          <summary className="admin-health-summary">
+            {healthQuery.data.unmatchedCount} Manning mapping{healthQuery.data.unmatchedCount === 1 ? '' : 's'} with no matching PIR invoices — possible spelling mismatch
           </summary>
-          <div style={{ padding: '12px 16px' }}>
-            <p style={{ marginTop: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+          <div className="admin-health-content">
+            <p style={{ marginTop: 0, fontSize: 13, color: '#991B1B', opacity: 0.8 }}>
               Zero matches isn't necessarily a problem — the vendor may just have no open PIR invoices right now.
-              Suggestions below are fuzzy-matched real PIR vendor names; review before applying, some will be
-              unrelated vendors that just share a common word.
+              Suggestions below are fuzzy-matched real PIR vendor names; review before applying.
             </p>
             {healthQuery.data.issues.map((issue) => (
               <div
@@ -135,21 +113,21 @@ export function AdminVendorMappingPage() {
                   alignItems: 'center',
                   flexWrap: 'wrap',
                   gap: 8,
-                  padding: '8px 0',
-                  borderTop: '1px solid var(--color-border)',
+                  padding: '12px 0',
+                  borderTop: '1px solid rgba(252, 165, 165, 0.5)',
                 }}
               >
-                <strong style={{ fontSize: 13 }}>{issue.vendorName}</strong>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>({DEPARTMENT_LABELS[issue.department]})</span>
+                <strong style={{ fontSize: 13, color: '#7F1D1D' }}>{issue.vendorName}</strong>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>({DEPARTMENT_LABELS[issue.department]})</span>
                 {issue.candidates.length === 0 ? (
-                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>— no similar PIR vendor found</span>
+                  <span style={{ fontSize: 12, opacity: 0.7 }}>— no similar PIR vendor found</span>
                 ) : (
                   issue.candidates.map((c) => (
                     <button
                       key={c.vendorName}
                       type="button"
-                      className="btn btn-secondary"
-                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      className="admin-btn-secondary"
+                      style={{ fontSize: 12, padding: '4px 10px', height: 'auto', background: '#FFFFFF', borderColor: '#FCA5A5' }}
                       disabled={renameMutation.isPending}
                       onClick={() => renameMutation.mutate({ mappingId: issue.mappingId, vendorName: c.vendorName })}
                       title={`Rename this mapping to exactly match the real PIR vendor name`}
@@ -184,8 +162,8 @@ export function AdminVendorMappingPage() {
         </select>
       </div>
 
-      <div className="card table-scroll">
-        <table className="data-table">
+      <div className="admin-card admin-table-wrapper">
+        <table className="admin-table">
           <thead>
             <tr>
               <th>Vendor Name</th>
@@ -201,25 +179,18 @@ export function AdminVendorMappingPage() {
                 <td>{m.vendorName}</td>
                 <td>{DEPARTMENT_LABELS[m.department]}</td>
                 <td>
-                  <span
-                    className="status-badge"
-                    style={
-                      m.active
-                        ? { background: 'var(--color-success-bg)', color: 'var(--color-success)' }
-                        : { background: 'var(--color-neutral-bg)', color: 'var(--color-neutral)' }
-                    }
-                  >
+                  <span className={`admin-badge ${m.active ? 'active' : 'inactive'}`}>
                     {m.active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
                 <td>{formatDate(m.createdAt)}</td>
                 <td style={{ textAlign: 'center' }}>
-                  <div className="row-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setModalMapping(m)}>
-                      ✎
+                  <div className="admin-row-actions">
+                    <button className="admin-action-btn" title="Edit" onClick={() => setModalMapping(m)}>
+                      <EditIcon />
                     </button>
                     <button
-                      className={`icon-btn${m.active ? ' icon-btn-danger' : ''}`}
+                      className={`admin-action-btn${m.active ? ' danger' : ''}`}
                       title={m.active ? 'Deactivate' : 'Reactivate'}
                       onClick={() => handleDelete(m)}
                       disabled={deactivateMutation.isPending}
@@ -233,6 +204,7 @@ export function AdminVendorMappingPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
       {(isAdding || modalMapping) && (
         <VendorMappingModal
@@ -245,6 +217,6 @@ export function AdminVendorMappingPage() {
       )}
 
       {isImporting && <VendorMappingImportWizardModal onClose={() => setIsImporting(false)} />}
-    </div>
+    </>
   );
 }

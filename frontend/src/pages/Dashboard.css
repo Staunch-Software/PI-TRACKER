@@ -1,0 +1,462 @@
+/* ==========================================================================
+   DASHBOARD — Premium UI  |  Mobile → Desktop → 4K
+   Palette: Royal Indigo #111424, Ocean Blue var(--color-primary), light surfaces
+   Font: Inter (project-wide)
+   ========================================================================== */
+
+/* ── Page wrapper ── */
+.dash-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: calc(100vh - 108px);
+  min-height: 0;
+}
+
+/* ── Page header ── */
+.dash-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dash-header-left {}
+
+.dash-greeting {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 4px;
+}
+
+.dash-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111424;
+  letter-spacing: -0.5px;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.dash-subtitle {
+  font-size: 13px;
+  color: #9CA3AF;
+  margin: 4px 0 0;
+  font-weight: 500;
+}
+
+.dash-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border: 1px solid rgba(14,165,233,0.25);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111424;
+  box-shadow: 0 4px 12px rgba(14,165,233,0.1), 0 1px 0 rgba(255,255,255,0.9) inset;
+}
+
+.dash-date-badge svg {
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   KPI CARDS — Premium horizontal card with left accent bar
+   ========================================================================== */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.kpi-card-premium {
+  background: #FFFFFF;
+  border-radius: 10px;
+  padding: 14px 16px 14px 0;
+  border: 1px solid rgba(17,20,36,0.07);
+  box-shadow: 0 1px 4px rgba(17,20,36,0.05), 0 4px 16px rgba(17,20,36,0.03);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  overflow: hidden;
+  position: relative;
+}
+
+.kpi-card-premium:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(17,20,36,0.1);
+}
+
+/* Vertical left accent bar */
+.kpi-accent-bar {
+  width: 4px;
+  align-self: stretch;
+  border-radius: 0 3px 3px 0;
+  flex-shrink: 0;
+}
+
+/* Icon box */
+.kpi-icon-glass {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.kpi-card-premium:hover .kpi-icon-glass {
+  transform: scale(1.08);
+}
+
+.kpi-icon-glass svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Text block */
+.kpi-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.kpi-value-premium {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111424;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.kpi-label-premium {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9CA3AF;
+  line-height: 1.3;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* ==========================================================================
+   BOTTOM GRID — 2 panels side by side
+   ========================================================================== */
+
+.dash-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Panel card */
+.dash-panel {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid rgba(17,20,36,0.08);
+  box-shadow: 0 2px 6px rgba(17,20,36,0.04), 0 8px 24px rgba(17,20,36,0.03);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Panel header */
+.dash-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(17,20,36,0.06);
+  background: #FFFFFF;
+  flex-shrink: 0;
+}
+
+.dash-panel-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111424;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.dash-panel-subtitle {
+  font-size: 11px;
+  color: #9CA3AF;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.dash-panel-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(14,165,233,0.2);
+  background: rgba(14,165,233,0.06);
+  transition: all 0.15s;
+}
+
+.dash-panel-link:hover {
+  background: rgba(14,165,233,0.12);
+  border-color: rgba(14,165,233,0.35);
+  color: #0a365c;
+}
+
+/* Panel body */
+.dash-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17,20,36,0.15) transparent;
+}
+
+.dash-panel-body::-webkit-scrollbar {
+  width: 6px;
+}
+.dash-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dash-panel-body::-webkit-scrollbar-thumb {
+  background-color: rgba(17,20,36,0.15);
+  border-radius: 10px;
+}
+
+/* ── Needs Attention table ── */
+.dash-mini-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.dash-mini-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #F9FAFB;
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(17,20,36,0.06);
+  box-shadow: 0 2px 4px rgba(17,20,36,0.02);
+}
+
+.dash-mini-table tbody tr {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dash-mini-table tbody tr:hover {
+  background: rgba(17,20,36,0.02);
+}
+
+.dash-mini-table tbody td {
+  padding: 14px 18px;
+  color: #374151;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(17,20,36,0.04);
+}
+
+.dash-mini-table tbody tr:last-child td { 
+  border-bottom: none; 
+}
+
+.dash-overdue-days {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 6px;
+  font-weight: 700;
+  color: #B91C1C;
+  font-size: 11px;
+}
+
+/* ── Recent Activity feed (Premium Timeline) ── */
+.dash-feed-list {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 22px;
+  position: relative;
+}
+
+.dash-feed-list::before {
+  content: '';
+  position: absolute;
+  top: 36px;
+  bottom: 36px;
+  left: 37px; /* 22px padding + 15px icon center */
+  width: 2px;
+  background: rgba(17,20,36,0.05);
+  z-index: 1;
+}
+
+.dash-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  position: relative;
+  z-index: 2;
+}
+
+.dash-feed-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 3px solid #FFFFFF;
+  box-shadow: 0 0 0 1px rgba(17,20,36,0.08);
+}
+
+.dash-feed-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.dash-feed-icon.create  { background: #DCFCE7; color: #16A34A; }
+.dash-feed-icon.update  { background: #DBEAFE; color: #2563EB; }
+.dash-feed-icon.delete  { background: #FEE2E2; color: #DC2626; }
+.dash-feed-icon.import  { background: #F3E8FF; color: #7C3AED; }
+.dash-feed-icon.attach  { background: #FEF3C7; color: #D97706; }
+.dash-feed-icon.receive { background: #DCFCE7; color: #16A34A; }
+.dash-feed-icon.default { background: #F3F4F6; color: #6B7280; }
+
+.dash-feed-content {
+  padding-top: 5px;
+}
+
+.dash-feed-summary {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #111424;
+  line-height: 1.4;
+  letter-spacing: -0.2px;
+}
+
+.dash-feed-time {
+  font-size: 11px;
+  color: #9CA3AF;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.dash-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   TABLET  (≥ 768px)
+   ========================================================================== */
+
+@media (min-width: 768px) {
+  .dash-title { font-size: 28px; }
+
+  .kpi-row {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .kpi-card-premium { padding: 14px 18px 14px 0; border-radius: 10px; }
+  .kpi-value-premium { font-size: 22px; }
+  .kpi-label-premium { font-size: 10.5px; }
+
+  .dash-panels {
+    grid-template-columns: 1.6fr 1fr;
+    gap: 20px;
+  }
+}
+
+/* ==========================================================================
+   LARGE DESKTOP  (≥ 1280px)
+   ========================================================================== */
+
+@media (min-width: 1280px) {
+  .kpi-row {
+    grid-template-columns: repeat(8, 1fr);
+    gap: 10px;
+  }
+
+  .kpi-card-premium { padding: 14px 14px 14px 0; border-radius: 10px; gap: 12px; }
+  .kpi-icon-glass { width: 38px; height: 38px; border-radius: 9px; }
+  .kpi-icon-glass svg { width: 18px; height: 18px; }
+  .kpi-value-premium { font-size: 20px; }
+  .kpi-label-premium { font-size: 10px; }
+
+  .dash-panels {
+    grid-template-columns: 1.8fr 1fr;
+  }
+}
+
+/* ==========================================================================
+   4K DISPLAYS  (≥ 2560px)
+   ========================================================================== */
+
+@media (min-width: 2560px) {
+  .dash-title { font-size: 40px; }
+  .dash-subtitle { font-size: 18px; }
+  .dash-greeting { font-size: 14px; }
+  .dash-date-badge { font-size: 16px; padding: 12px 20px; border-radius: 14px; }
+
+  .kpi-row { grid-template-columns: repeat(8, 1fr); gap: 16px; }
+
+  .kpi-card-premium { padding: 20px 22px 20px 0; border-radius: 14px; gap: 18px; }
+  .kpi-accent-bar { width: 5px; }
+  .kpi-icon-glass { width: 52px; height: 52px; border-radius: 14px; }
+  .kpi-icon-glass svg { width: 26px; height: 26px; }
+
+  .kpi-value-premium { font-size: 30px; }
+  .kpi-label-premium { font-size: 13px; }
+
+  .dash-panels { gap: 28px; }
+
+  .dash-panel { border-radius: 20px; }
+
+  .dash-panel-header { padding: 22px 28px; }
+  .dash-panel-title { font-size: 20px; }
+  .dash-panel-subtitle { font-size: 15px; }
+  .dash-panel-link { font-size: 16px; padding: 8px 16px; }
+
+  .dash-mini-table { font-size: 17px; }
+  .dash-mini-table thead th { font-size: 13px; padding: 14px 22px; }
+  .dash-mini-table tbody td { padding: 16px 22px; }
+
+  .dash-feed-item { padding: 18px 28px; gap: 16px; }
+  .dash-feed-icon { width: 44px; height: 44px; font-size: 18px; border-radius: 12px; }
+  .dash-feed-summary { font-size: 17px; }
+  .dash-feed-time { font-size: 14px; }
+}
