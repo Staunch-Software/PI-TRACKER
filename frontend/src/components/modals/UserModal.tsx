@@ -50,7 +50,7 @@ export function UserModal({ user, onClose }: Props) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-panel user-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isEdit ? `Edit User — ${user.fullName}` : 'Add New User'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">

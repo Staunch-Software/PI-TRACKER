@@ -9,6 +9,13 @@
   top: 0;
   z-index: 50;
   padding: 6px 14px;
+}
+
+.marine-topnav-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: rgba(248, 247, 252, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -16,6 +23,7 @@
 
 /* ── Inner navbar card — curved, floating ── */
 .marine-topnav {
+  position: relative;
   display: flex;
   align-items: center;
   height: 52px;
@@ -67,15 +75,41 @@
 }
 
 /* ── Navigation links ── */
+/* Mobile + tablet: right-side slide-in drawer */
 .marine-topnav-links {
   display: flex;
-  align-items: center;
-  gap: 2px;
-  overflow-x: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 85vw);
+  padding: 16px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
-  flex: 1;
+  background: #FFFFFF;
+  border-left: 1px solid rgba(var(--color-primary-rgb), 0.12);
+  box-shadow: -16px 0 48px rgba(17, 20, 36, 0.18);
+  z-index: 100;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
 }
 .marine-topnav-links::-webkit-scrollbar { display: none; }
+
+.marine-topnav-links.open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.marine-topnav-links.open .marine-nav-link {
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
 
 .marine-nav-link {
   text-decoration: none;
@@ -108,6 +142,89 @@
 .marine-topnav-actions {
   flex-shrink: 0;
   margin-left: auto;
+}
+
+/* ── Hamburger (mobile + tablet) ── */
+.marine-topnav-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+}
+
+.marine-topnav-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #111424;
+  border-radius: 2px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.marine-topnav-hamburger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.marine-topnav-hamburger.open span:nth-child(2) { opacity: 0; }
+.marine-topnav-hamburger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+
+/* ── Backdrop behind drawer ── */
+.marine-topnav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(17, 20, 36, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.marine-topnav-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ── Drawer header (mobile + tablet) ── */
+.marine-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(var(--color-primary-rgb), 0.1);
+}
+
+.marine-drawer-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #111424;
+}
+
+.marine-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #111424;
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
 }
 
 /* ==========================================================================
@@ -320,7 +437,7 @@
 .marine-dropdown-item.danger svg { color: #EF4444; }
 
 /* ==========================================================================
-   TABLET & DESKTOP  (≥ 768px)
+   TABLET  (≥ 768px)
    ========================================================================== */
 
 @media (min-width: 768px) {
@@ -344,19 +461,18 @@
     height: 22px;
   }
 
-  .marine-topnav-divider {
-    display: block;
+  .marine-topnav-hamburger {
+    width: 42px;
+    height: 42px;
   }
 
-  .marine-topnav-links {
-    gap: 4px;
-    flex: unset;
-    margin-right: auto;
+    .marine-topnav-links {
+    width: 340px;
   }
 
-  .marine-nav-link {
-    font-size: 13.5px;
-    padding: 7px 14px;
+  .marine-topnav-links.open .marine-nav-link {
+    font-size: 16px;
+    padding: 13px 16px;
   }
 
   .marine-user-menu-info {
@@ -372,6 +488,51 @@
     width: 34px;
     height: 34px;
     font-size: 12px;
+  }
+}
+
+/* ==========================================================================
+   DESKTOP  (≥ 1024px): inline links, no hamburger
+   ========================================================================== */
+
+@media (min-width: 1024px) {
+  .marine-topnav-divider {
+    display: block;
+  }
+
+    .marine-topnav-links {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    padding: 0;
+    gap: 4px;
+    flex: unset;
+    margin-right: auto;
+    overflow-x: auto;
+    overflow-y: visible;
+    background: none;
+    border: none;
+    box-shadow: none;
+    transform: none;
+    visibility: visible;
+    transition: none;
+    z-index: auto;
+  }
+
+  .marine-drawer-head,
+  .marine-topnav-backdrop {
+    display: none;
+  }
+
+  .marine-nav-link {
+    font-size: 13.5px;
+    padding: 7px 14px;
+  }
+
+  .marine-topnav-hamburger {
+    display: none;
   }
 }
 
@@ -453,4 +614,28 @@
 
   .marine-dropdown-name  { font-size: 18px; }
   .marine-dropdown-email { font-size: 14px; }
+}
+
+/* ==========================================================================
+   VERY SMALL PHONES  (≤ 400px)
+   ========================================================================== */
+
+@media (max-width: 400px) {
+  .marine-topnav {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .marine-topnav-brand {
+    gap: 6px;
+  }
+
+  .marine-topnav-brand span {
+    font-size: 14px;
+  }
+
+  .marine-topnav-hamburger {
+    width: 36px;
+    height: 36px;
+  }
 }

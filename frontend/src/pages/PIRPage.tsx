@@ -165,7 +165,7 @@ export function PIRPage() {
   }, [buckets, itemsByBucket]);
 
   return (
-    <div className="dash-page" style={{ height: 'calc(100vh - 108px)' }}>
+    <div className="dash-page pir-page">
       
       {/* ── HEADER ── */}
       <div className="dash-header">
@@ -261,7 +261,7 @@ export function PIRPage() {
         </div>
 
         {resolvedFilter === 'RESOLVED' && (
-          <div className="pir-filters" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="pir-filters pir-date-filters">
             <div className="pir-date-filter">
               <label>From</label>
               <input type="date" value={resolvedDateFrom} onChange={(e) => setResolvedDateFrom(e.target.value)} />
@@ -275,12 +275,12 @@ export function PIRPage() {
 
       </div>
 
-      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+      <p className="pir-record-count">
         {entriesQuery.data ? `${entriesQuery.data.total} record${entriesQuery.data.total === 1 ? '' : 's'} found` : 'Loading…'}
       </p>
 
       {entriesQuery.data && buckets.length === 0 && (
-        <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+        <div className="card pir-empty-card">
           No problematic invoices match this filter.
         </div>
       )}

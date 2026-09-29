@@ -6,8 +6,8 @@
 .admin-shell {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 66px); /* strict full height */
-  overflow: hidden;
+  min-height: calc(100vh - 66px);
+  min-height: calc(100dvh - 66px); /* mobile browser toolbars */
   background: #F4F7FB;
 }
 
@@ -15,31 +15,138 @@
   .admin-shell {
     flex-direction: row;
     align-items: stretch;
+    height: calc(100vh - 66px); /* strict full height (desktop only) */
+    height: calc(100dvh - 66px);
+    min-height: 0;
+    overflow: hidden;
   }
 }
 
 /* ==========================================================================
-   FULL HEIGHT SIDEBAR
+   MOBILE / TABLET TOP BAR + HAMBURGER (hidden on desktop)
+   ========================================================================== */
+
+.admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+@media (min-width: 1024px) {
+  .admin-topbar {
+    display: none;
+  }
+}
+
+.admin-menu-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #0F172A;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.admin-menu-btn:hover {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  color: var(--color-primary);
+}
+
+.admin-topbar-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.3px;
+}
+
+/* Dark overlay behind the open drawer */
+.admin-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+  z-index: 1090;
+}
+
+.admin-backdrop.visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.25s ease;
+}
+
+@media (min-width: 1024px) {
+  .admin-backdrop {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   SIDEBAR — off-canvas drawer below 1024px, full height panel on desktop
    ========================================================================== */
 
 .admin-sidebar {
-  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(280px, 85vw);
   background: #FFFFFF;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #E2E8F0;
-  z-index: 50;
+  z-index: 1100;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.28s;
+}
+
+.admin-sidebar.open {
+  transform: translateX(0);
+  visibility: visible;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (min-width: 1024px) {
   .admin-sidebar {
+    position: static;
     width: 260px;
     height: 100%; /* Fill the shell */
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: #CBD5E1 transparent;
+    padding-bottom: 0;
+    transform: none;
+    visibility: visible;
+    transition: none;
+    box-shadow: none;
+    z-index: 50;
+  }
+}
+
+@media (min-width: 1440px) {
+  .admin-sidebar {
+    width: 280px;
   }
 }
 
@@ -89,6 +196,35 @@
   margin-top: 2px;
 }
 
+/* Close button inside the drawer (hidden on desktop) */
+.admin-sidebar-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #64748B;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.admin-sidebar-close:hover {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  color: var(--color-primary);
+}
+
+@media (min-width: 1024px) {
+  .admin-sidebar-close {
+    display: none;
+  }
+}
+
 /* Back link */
 .admin-back-link {
   display: flex;
@@ -116,20 +252,9 @@
 /* Nav sections */
 .admin-nav-sections {
   display: flex;
-  flex-direction: row;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 0 16px 16px;
+  flex-direction: column;
+  padding: 0 16px 24px;
   gap: 4px;
-}
-
-.admin-nav-sections::-webkit-scrollbar { display: none; }
-
-@media (min-width: 1024px) {
-  .admin-nav-sections {
-    flex-direction: column;
-    padding: 0 16px 24px;
-  }
 }
 
 .admin-nav-link {
@@ -165,10 +290,16 @@
 .admin-content {
   flex: 1;
   width: 100%;
+  min-width: 0; /* stops wide tables from stretching the layout */
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* only children scroll */
   box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  .admin-content {
+    overflow: hidden; /* only children scroll */
+  }
 }
 
 /* Fixed Page Header */
@@ -193,6 +324,7 @@
 .admin-title-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* count pill drops below title on narrow screens */
   gap: 16px;
   margin-bottom: 8px;
 }
@@ -298,6 +430,26 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 767px) {
+  .admin-page-header {
+    padding: 16px;
+  }
+
+  .admin-page-title {
+    font-size: 22px;
+  }
+
+  .admin-title-row {
+    gap: 10px;
+  }
+
+  .admin-page-header > .admin-btn-primary,
+  .admin-page-header > .admin-btn-secondary,
+  .admin-page-header > .admin-btn-group {
+    width: 100%;
+  }
+}
+
 /* ==========================================================================
    CARDS & TABLES (SCROLLING ONLY THE TABLE)
    ========================================================================== */
@@ -305,17 +457,41 @@
 /* Main content wrapper (flex 1 to consume height, min-height 0 to allow shrinking) */
 .admin-page-body {
   flex: 1;
-  min-height: 0; 
-  padding: 0 24px 32px;
+  min-height: 0;
+  padding: 0 16px 24px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+}
+
+@media (min-width: 576px) {
+  .admin-page-body {
+    padding: 0 24px 32px;
+  }
 }
 
 @media (min-width: 768px) {
   .admin-page-body {
     padding: 0 32px 32px;
   }
+
+  
 }
+.admin-page-body > .admin-card {
+  min-height: 420px;
+}
+
+/* Admin pages: toolbar scrolls normally with the page body.
+   The global sticky rule (top: 64px) is meant for the Tracker page's top nav,
+   and here it made the toolbar overlap the table header. */
+.admin-page-body .toolbar-row {
+  position: static;
+  top: auto;
+  z-index: auto;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
 
 .admin-card {
   flex: 1;
@@ -331,13 +507,15 @@
 /* Table Wrapper for scrolling the body ONLY */
 .admin-table-wrapper {
   flex: 1;
-  min-height: 0;
+  min-height: 420px;
   overflow: auto;
   width: 100%;
+  -webkit-overflow-scrolling: touch; /* smooth swipe scrolling on iOS */
 }
 
 .admin-table {
   width: 100%;
+  min-width: 860px; /* scroll horizontally instead of crushing columns */
   border-collapse: collapse;
   text-align: left;
   font-size: 13px;
@@ -361,6 +539,13 @@
   top: 0; /* Sticks within the table scroll container */
   z-index: 10;
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+@media (max-width: 767px) {
+  .admin-table th,
+  .admin-table td {
+    padding: 12px 14px;
+  }
 }
 
 .admin-table tbody tr {
@@ -488,6 +673,36 @@
   color: #7F1D1D;
 }
 
+/* Health-check "Rename to ..." buttons: let long vendor names wrap instead of overflowing */
+.admin-health-content .admin-btn-secondary {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-health-summary {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 575px) {
+  .admin-health-summary {
+    padding: 14px 16px;
+    align-items: flex-start;
+  }
+
+  .admin-health-content {
+    padding: 0 16px 16px;
+  }
+
+  .admin-health-content .admin-btn-secondary {
+    width: 100%;
+  }
+}
+
 /* ==========================================================================
    CONFIRMATION MODAL
    ========================================================================== */
@@ -509,6 +724,8 @@
   border-radius: 12px;
   width: 100%;
   max-width: 400px;
+  max-height: 100%;
+  overflow-y: auto; /* short landscape phones */
   padding: 28px 24px 24px;
   text-align: center;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.03);
@@ -566,3 +783,24 @@
   cursor: not-allowed;
   transform: none;
 }
+
+@media (max-width: 480px) {
+  .admin-confirm-modal {
+    padding: 24px 16px 16px;
+  }
+
+  .admin-confirm-actions button {
+    flex: 1; /* Cancel / Confirm share the width equally */
+  }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar,
+  .admin-sidebar.open,
+  .admin-backdrop,
+  .admin-backdrop.visible {
+    transition: none;
+  }
+}
+

@@ -544,28 +544,20 @@
 @media (max-width: 1023px) {
   .pir-split {
     flex-direction: column;
-    overflow-y: auto;
+    overflow: visible;
+    flex: none;
   }
   .pir-sidebar {
     width: 100%;
     flex: 0 0 220px;
     padding-bottom: 0;
   }
-  .pir-controls {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 10px;
-  }
-  .pir-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .pir-search {
-    min-width: 100%;
-  }
   .pir-content-pane {
-    min-height: 400px;
+    height: clamp(420px, 70vh, 640px); /* table scrolls inside instead of 500+ rows stretching the page */
+    min-height: 0;
   }
+  .pir-controls,
+  .pir-controls * { box-sizing: border-box; }
 }
 
 /* Desktop (≥ 1280px) */
@@ -638,6 +630,229 @@
     padding: 6px 14px;
   }
 }
+/* =========================================================
+   PAGE WRAPPER + INLINE-STYLE REPLACEMENTS
+   ========================================================= */
+.dash-page.pir-page { height: auto; }
 
+.pir-record-count {
+  margin: 0 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.card.pir-empty-card {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.pir-filters.pir-date-filters { gap: 8px; }
+
+.pir-table-scroll { min-height: 0; }
+
+@media (min-width: 1024px) {
+  .dash-page.pir-page {
+    height: calc(100vh - 108px);
+    height: calc(100dvh - 108px);
+    min-height: 760px; /* short laptop screens scroll instead of squashing the table */
+  }
+}
+
+/* Phones (≤ 600px): show all tabs instead of a clipped scroll strip */
+@media (max-width: 600px) {
+  .pir-tabs-container { overflow-x: visible; }
+  .pir-tabs-premium { display: flex; flex-wrap: wrap; width: 100%; }
+  .pir-tab-premium {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .pir-tab-count { padding: 2px 6px; font-size: 10px; }
+  .pir-sidebar { flex-basis: 200px; }
+}
+
+/* Small phones (≤ 480px) */
+@media (max-width: 480px) {
+  .kpi-row.pir-kpi-row { grid-template-columns: 1fr; } /* "Currency Mix" card no longer truncates */
+  .pir-date-filter {
+    flex: 1 1 0;
+    padding: 8px;
+    gap: 6px;
+  }
+  .pir-date-filter input {
+    font-size: 12px;
+  }
+}
+
+
+/* ==========================================================================
+   CONTROLS: two rows from 768px up (row 1 = tabs, row 2 = search + actions)
+   ========================================================================== */
+@media (min-width: 768px) {
+  /* Invisible full-width item placed between the tabs and the filters = forced line break */
+  .pir-page .pir-controls::after {
+    content: '';
+    order: 3;
+    flex: 0 0 100%;
+    height: 0;
+  }
+  .pir-page .pir-controls {
+    row-gap: 6px; /* the line break adds a second gap, so ~12px between the two rows */
+    align-items: center;
+  }
+
+  /* Row 1: department tabs + resolved tabs */
+  .pir-page .pir-controls > .pir-tabs-container {
+    order: 1;
+  }
+
+  /* Row 2: search + Edit Layout, then the From/To dates */
+  .pir-page .pir-controls > .pir-filters {
+    order: 4;
+  }
+  .pir-page .pir-controls > .pir-filters:not(.pir-date-filters) {
+    flex: 1 1 320px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .pir-page .pir-controls > .pir-filters.pir-date-filters {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+  }
+  .pir-page .pir-controls .pir-search {
+    flex: 1 1 auto;
+    min-width: 140px;
+    height: 38px;            /* same height as Edit Layout and the date fields */
+  }
+  .pir-page .pir-controls .pir-layout-btn,
+  .pir-page .pir-controls .pir-layout-edit-group {
+    flex-shrink: 0;
+  }
+}
+
+/* 4K: keep the wider column gap, but not a huge row gap */
+@media (min-width: 2560px) {
+  .pir-page .pir-controls {
+    flex-wrap: nowrap;
+    align-items: center;
+    column-gap: 24px;
+    row-gap: 0;
+  }
+
+  /* Remove the forced line break */
+  .pir-page .pir-controls::after {
+    display: none;
+  }
+
+  /* Order: tabs, tabs, search + Edit Layout, dates */
+  .pir-page .pir-controls > .pir-tabs-container {
+    order: 1;
+    flex-shrink: 0;
+  }
+  .pir-page .pir-controls > .pir-filters:not(.pir-date-filters) {
+    order: 2;
+    flex: 1 1 0;              /* search takes all the leftover width */
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .pir-page .pir-controls > .pir-filters.pir-date-filters {
+    order: 3;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  /* Match the larger 4K tab size so the whole row lines up */
+  .pir-page .pir-controls .pir-search,
+  .pir-page .pir-controls .pir-layout-btn,
+  .pir-page .pir-controls .pir-date-filter {
+    height: 48px;
+  }
+  .pir-page .pir-controls .pir-layout-btn {
+    font-size: 16px;
+    padding: 0 22px;
+  }
+  .pir-page .pir-controls .pir-date-filter input {
+    font-size: 16px;
+  }
+  .pir-page .pir-controls .pir-date-filter label {
+    font-size: 13px;
+  }
+}
+
+/* ==========================================================================
+   CONTROLS: mobile stack (below 768px)
+   ========================================================================== */
+@media (max-width: 767px) {
+  .pir-page .pir-controls {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px;
+    gap: 10px;
+  }
+  .pir-page .pir-controls::after {
+    display: none;
+  }
+
+  /* Each tab group fills the width and its tabs share it */
+  /* Each tab group stays on ONE line; scrolls sideways only if it still doesn't fit */
+  .pir-page .pir-tabs-container {
+    width: 100%;
+    overflow-x: auto;
+  }
+  .pir-page .pir-tabs-premium {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: max-content;   /* never wraps; grows past 100% instead, container scrolls */
+    gap: 2px;
+  }
+  .pir-page .pir-tab-premium {
+    flex: 1 0 auto;           /* share spare width, never shrink below content */
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 9px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .pir-page .pir-tab-count {
+    padding: 2px 5px;
+    font-size: 10px;
+  }
+
+  /* Search full width, then Edit Layout full width */
+  .pir-page .pir-filters {
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pir-page .pir-search {
+    min-width: 100%;
+    height: 38px;
+  }
+  .pir-page .pir-layout-btn {
+    justify-content: center;
+  }
+  .pir-page .pir-layout-edit-group {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* From / To side by side, stacking on very small phones */
+  .pir-page .pir-filters.pir-date-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .pir-date-filter {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .pir-date-filter input {
+    width: 100%;
+    min-width: 0;
+  }
+}
 
 

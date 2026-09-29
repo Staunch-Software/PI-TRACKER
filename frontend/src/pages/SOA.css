@@ -100,6 +100,11 @@
   border: 1px solid rgba(255,255,255,0.1) !important;
   box-shadow: 0 20px 40px rgba(0,0,0,0.15) !important;
   overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: auto !important;
+  max-height: 90vh !important;
+  max-height: 90dvh !important;
 }
 .soa-modal-header {
   padding: 24px 32px !important;
@@ -117,6 +122,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.soa-modal-close-icon {   /* also add flex-shrink to your existing rule */
+  flex-shrink: 0;
 }
 .soa-modal-icon-wrap {
   background: #F0F9FF;
@@ -149,10 +159,20 @@
   color: #111424;
 }
 .soa-modal-body {
-  max-height: 60vh !important;
-  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;   /* scrolls both ways inside the modal */
   padding: 0 !important;
   background: #FFFFFF !important;
+}
+.soa-modal-body .data-table {
+  width: 100%;
+  min-width: 640px;            /* keeps all 6 columns readable, body scrolls sideways */
+}
+.soa-modal-body .data-table th,
+.soa-modal-body .data-table td {
+  white-space: nowrap;
 }
 .soa-modal-footer {
   padding: 20px 32px !important;
@@ -160,6 +180,7 @@
   display: flex !important;
   justify-content: flex-end !important;
   background: #FAFEFF !important;
+  flex-shrink: 0 !important;
 }
 .soa-btn-close {
   font-weight: 700;
@@ -199,21 +220,39 @@
   .soa-filter-container::-webkit-scrollbar {
     display: none; /* Chrome/Safari */
   }
-  .soa-modal-panel {
-    width: 100vw !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    border-radius: 0 !important;
-    margin: 0 !important;
-    border: none !important;
+  .modal-overlay.soa-modal-overlay {
+    padding: 12px;
+    align-items: center;
+    justify-content: center;
   }
-  .soa-modal-body {
-    max-height: calc(100vh - 150px) !important;
+  .soa-modal-panel {
+    width: 100% !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    border-radius: 14px !important;
+    margin: 0 !important;
+  }
+  .soa-modal-header {
+    padding: 16px 18px !important;
+    gap: 12px !important;
+  }
+  .soa-modal-title {
+    font-size: 17px;
+    gap: 8px;
+  }
+  .soa-modal-subtitle {
+    font-size: 13px;
+    margin-left: 0;
+  }
+  .soa-modal-footer {
+    padding: 14px 18px !important;
   }
   .soa-kpi-label-wrap {
     font-size: 11px;
   }
 }
+
+
 
 /* 4K and Ultra-Wide (min-width: 2560px) */
 @media (min-width: 2560px) {
@@ -238,5 +277,146 @@
   .soa-currency-badge {
     font-size: 13px;
     padding: 6px 10px;
+  }
+}
+
+/* --- Layout containment: lets the table scroll inside its own box --- */
+.soa-page {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.soa-content-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;      /* KEY FIX: allows the flex child to shrink below table width */
+  max-width: 100%;
+  overflow: hidden;
+}
+.soa-content-pane .pir-controls {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.soa-content-pane .soa-filter-container {
+  min-width: 0;
+  max-width: 100%;
+}
+.soa-filter-chip {
+  flex: 0 0 auto;   /* chips keep their size and never squash */
+}
+.soa-content-pane .pir-filters,
+.soa-content-pane .pir-search {
+  min-width: 0;
+  max-width: 100%;
+}
+.soa-content-pane .pir-search input {
+  min-width: 0;
+  width: 100%;
+  text-overflow: ellipsis;
+}
+.soa-content-pane .pir-table-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow-x: auto;   /* horizontal scroll happens here */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.soa-content-pane .pir-table-scroll .data-table {
+  width: max-content;
+  min-width: 100%;
+}
+.soa-content-pane .pir-table-scroll .data-table th,
+.soa-content-pane .pir-table-scroll .data-table td {
+  white-space: nowrap;
+}
+
+/* SOA Subject is the 6th column */
+.soa-content-pane .pir-table-scroll .data-table th:nth-child(6),
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(6) {
+  min-width: 320px;
+  white-space: normal;      /* show the full subject by wrapping onto more lines */
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+
+/* --- Controls: stack + scroll chips on tablet/mobile --- */
+@media (max-width: 1100px) {
+  .soa-content-pane .pir-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .soa-content-pane .soa-filter-container {
+    width: 100%;
+    flex: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .soa-content-pane .soa-filter-container::-webkit-scrollbar {
+    display: none;
+  }
+  .soa-content-pane .pir-filters,
+  .soa-content-pane .pir-search {
+    width: 100%;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .soa-filter-chip {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+  .soa-btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Small phones: modal goes full screen */
+@media (max-width: 480px) {
+  .modal-overlay.soa-modal-overlay {
+    padding: 12px;
+  }
+  .soa-modal-panel {
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  .soa-modal-header {
+    padding: 14px 16px !important;
+  }
+  .soa-modal-icon-wrap {
+    display: none;            /* saves width for the title */
+  }
+  .soa-modal-footer {
+    padding: 12px 16px !important;
+  }
+  .soa-btn-close {
+    width: 100%;
+  }
+  .soa-modal-body .data-table th,
+  .soa-modal-body .data-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
+/* Large screens */
+@media (min-width: 2560px) {
+  .soa-modal-body .data-table th,
+  .soa-modal-body .data-table td {
+    font-size: 15px;
   }
 }

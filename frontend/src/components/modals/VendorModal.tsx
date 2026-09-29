@@ -38,7 +38,7 @@ export function VendorModal({ vendor, onClose }: Props) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-panel user-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isEdit ? `Edit Vendor — ${vendor.name}` : 'Add New Vendor'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">

@@ -8,6 +8,8 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   gap: 0;
   background: var(--color-bg);
 }
@@ -402,6 +404,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   border: 1px solid rgba(17, 20, 36, 0.08);
   border-bottom: none;
   border-radius: 14px 14px 0 0;
@@ -756,5 +759,190 @@
 
   .pagination-total {
     font-size: 14px;
+  }
+}
+
+
+/* ==========================================================================
+   RESPONSIVE FIXES — tablet & mobile
+   ========================================================================== */
+
+/* ── A. Below desktop (or short landscape screens): unlock page scroll ──
+   global.css locks the tracker page to 100vh with overflow:hidden. Here the toolbar can
+   wrap to several rows, so the page scrolls and the table gets a fixed share of the screen. */
+@media (max-width: 1023px), (max-height: 560px) {
+  html body:has(.tracker-page) {
+    overflow-y: auto;
+  }
+  html body:has(.tracker-page) #root,
+  html body:has(.tracker-page) .app-shell {
+    height: auto;
+    min-height: 100%;
+    max-height: none;
+    overflow: visible;
+  }
+  html body:has(.tracker-page) .page-content {
+    overflow: visible;
+  }
+  .tracker-page {
+    flex: none;
+  }
+  .tracker-table-shell {
+    flex: none;
+    height: 75vh;
+    height: 75dvh;
+    min-height: 380px;
+  }
+}
+
+/* ── B. Tablet & below (≤1023px): Follow-up Status stops being pinned ──
+   Actions (110) + DPR (150) stay pinned; Status (280px) scrolls with the rest. */
+@media (max-width: 1023px) {
+  .tracker-table-shell table.data-table th.col-status,
+  .tracker-table-shell table.data-table td.col-status {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+/* ── C. Tablet only (768px – 1279px) ── */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .tracker-search-wrap {
+    flex: 1 1 260px;
+  }
+}
+
+/* ── D. Mobile (≤767px) ── */
+@media (max-width: 767px) {
+  /* Nothing is pinned: all columns scroll sideways so every column is reachable */
+  .tracker-table-shell table.data-table th.sticky-col,
+  .tracker-table-shell table.data-table td.sticky-col {
+    position: static;
+    box-shadow: none;
+  }
+
+  /* Header */
+  .tracker-page-header {
+    padding: 10px 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .tracker-page-title {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  /* Side margins 28px -> 12px */
+  .tracker-toolbar,
+  .tracker-table-shell,
+  .tracker-table-card,
+  .tracker-pagination,
+  .tracker-export-error {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  /* Toolbar: search on its own row, other controls two per row */
+  .tracker-toolbar {
+    padding: 10px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+  .tracker-toolbar-spacer {
+    display: none;
+  }
+  .tracker-search-wrap {
+    flex: 1 1 100%;
+  }
+  .tracker-toolbar > .multi-select,
+  .tracker-toolbar > .more-filters {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .tracker-toolbar > .multi-select .multi-select-trigger,
+  .tracker-toolbar > .more-filters > .btn {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    justify-content: center;
+  }
+  .tracker-toolbar .btn-tracker-action {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    padding: 0 10px;
+  }
+  .tracker-layout-edit-group {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* More-filters panel: anchor to the toolbar (not the button) and fill its width */
+  .tracker-toolbar .more-filters {
+    position: static;
+  }
+  .tracker-toolbar .more-filters-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .more-filters-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .date-range-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .date-range-field {
+    flex: 1 1 130px;
+    min-width: 0;
+  }
+
+  /* Pagination: stack instead of overflowing */
+  .tracker-pagination {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .pagination-left {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    order: 1;
+  }
+  .pagination-center {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    order: 2;
+  }
+  .pagination-right {
+    flex: 0 0 auto;
+    order: 3;
+  }
+  .pagination-label {
+    font-size: 11px;
+  }
+}
+
+/* ── E. Small phones (≤400px) ── */
+@media (max-width: 400px) {
+  .tracker-page-title {
+    font-size: 18px;
+  }
+  .tracker-toolbar .btn-tracker-action {
+    font-size: 12px;
+    gap: 5px;
+  }
+  .pagination-custom input[type='number'] {
+    width: 44px;
   }
 }

@@ -8,8 +8,8 @@
 .dash-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  height: calc(100vh - 108px);
+  gap: 12px;
+  height: auto;            /* RESPONSIVE: was calc(100vh - 108px); fixed height now only ≥1024px */
   min-height: 0;
 }
 
@@ -65,6 +65,7 @@
 
 .dash-date-badge svg {
   color: var(--color-primary);
+  flex-shrink: 0;          /* RESPONSIVE */
 }
 
 /* ==========================================================================
@@ -90,6 +91,7 @@
   gap: 14px;
   overflow: hidden;
   position: relative;
+  min-width: 0;            /* RESPONSIVE */
 }
 
 .kpi-card-premium:hover {
@@ -142,6 +144,8 @@
   line-height: 1;
   letter-spacing: -0.5px;
   white-space: nowrap;
+  overflow: hidden;        /* RESPONSIVE */
+  text-overflow: ellipsis; /* RESPONSIVE */
 }
 
 .kpi-label-premium {
@@ -176,7 +180,8 @@
   box-shadow: 0 2px 6px rgba(17,20,36,0.04), 0 8px 24px rgba(17,20,36,0.03);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: clamp(360px, 60vh, 480px);  /* RESPONSIVE: was 100%; stacked panels get a real height */
+  min-width: 0;                        /* RESPONSIVE */
   overflow: hidden;
 }
 
@@ -228,6 +233,7 @@
 .dash-panel-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto;        /* RESPONSIVE: table scrolls sideways instead of being cut off */
   position: relative;
   scrollbar-width: thin;
   scrollbar-color: rgba(17,20,36,0.15) transparent;
@@ -247,6 +253,7 @@
 /* ── Needs Attention table ── */
 .dash-mini-table {
   width: 100%;
+  min-width: 520px;        /* RESPONSIVE */
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
@@ -354,6 +361,8 @@
 
 .dash-feed-content {
   padding-top: 5px;
+  min-width: 0;                /* RESPONSIVE */
+  overflow-wrap: anywhere;     /* RESPONSIVE: long PI numbers wrap instead of overflowing */
 }
 
 .dash-feed-summary {
@@ -395,10 +404,22 @@
   .kpi-value-premium { font-size: 22px; }
   .kpi-label-premium { font-size: 10.5px; }
 
-  .dash-panels {
-    grid-template-columns: 1.6fr 1fr;
-    gap: 20px;
+  /* RESPONSIVE: panels stay stacked on tablet; side-by-side moved to ≥1024px */
+}
+
+/* ==========================================================================
+   LAPTOP  (≥ 1024px)  — NEW
+   ========================================================================== */
+
+@media (min-width: 1024px) {
+  .dash-page {
+    height: calc(100vh - 108px);
+    height: calc(100dvh - 108px);
+    min-height: 560px;     /* short landscape screens scroll instead of squashing */
   }
+
+  .dash-panels { grid-template-columns: 1.6fr 1fr; }
+  .dash-panel  { height: 100%; }
 }
 
 /* ==========================================================================
@@ -407,8 +428,7 @@
 
 @media (min-width: 1280px) {
   .kpi-row {
-    grid-template-columns: repeat(8, 1fr);
-    gap: 10px;
+    gap: 10px;             /* RESPONSIVE: 8 columns now start at 1536px (see below) */
   }
 
   .kpi-card-premium { padding: 14px 14px 14px 0; border-radius: 10px; gap: 12px; }
@@ -420,6 +440,14 @@
   .dash-panels {
     grid-template-columns: 1.8fr 1fr;
   }
+}
+
+/* ==========================================================================
+   EXTRA-LARGE DESKTOP  (≥ 1536px)  — NEW
+   ========================================================================== */
+
+@media (min-width: 1536px) {
+  .kpi-row { grid-template-columns: repeat(8, 1fr); }
 }
 
 /* ==========================================================================
@@ -455,8 +483,50 @@
   .dash-mini-table thead th { font-size: 13px; padding: 14px 22px; }
   .dash-mini-table tbody td { padding: 16px 22px; }
 
-  .dash-feed-item { padding: 18px 28px; gap: 16px; }
-  .dash-feed-icon { width: 44px; height: 44px; font-size: 18px; border-radius: 12px; }
+  /* RESPONSIVE: fixed timeline alignment (round icons, correct line position) */
+  .dash-feed-list { padding: 20px 28px; }
+  .dash-feed-list::before { left: 50px; } /* 28px padding + 22px icon center */
+  .dash-feed-item { padding: 18px 0; gap: 20px; }
+  .dash-feed-icon { width: 44px; height: 44px; }
+  .dash-feed-icon svg { width: 20px; height: 20px; }
+  .dash-feed-content { padding-top: 10px; }
   .dash-feed-summary { font-size: 17px; }
   .dash-feed-time { font-size: 14px; }
+}
+
+/* ==========================================================================
+   PHONES  (≤ 600px)  — NEW
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .dash-page { gap: 16px; }
+  .dash-header { align-items: flex-start; }
+  .dash-date-badge { font-size: 12px; padding: 6px 12px; border-radius: 10px; }
+  .dash-subtitle { font-size: 12px; }
+
+  /* Let KPI labels wrap instead of being cut to "Total..." */
+  .kpi-label-premium { white-space: normal; overflow: visible; text-overflow: clip; }
+
+  .dash-panels { gap: 16px; }
+  .dash-panel-header { padding: 14px 16px; }
+
+  .dash-mini-table thead th { padding: 10px 14px; }
+  .dash-mini-table tbody td { padding: 12px 14px; }
+
+  .dash-feed-list { padding: 12px 16px; }
+  .dash-feed-list::before { left: 31px; } /* 16px padding + 15px icon center */
+  .dash-feed-summary { font-size: 13px; }
+}
+
+/* ==========================================================================
+   SMALL PHONES  (≤ 400px)  — NEW
+   ========================================================================== */
+
+@media (max-width: 400px) {
+  .kpi-row { gap: 8px; }
+  .kpi-card-premium { padding: 12px 10px 12px 0; gap: 8px; }
+  .kpi-icon-glass { width: 32px; height: 32px; border-radius: 8px; }
+  .kpi-icon-glass svg { width: 16px; height: 16px; }
+  .kpi-value-premium { font-size: 18px; }
+  .dash-title { font-size: 22px; }
 }

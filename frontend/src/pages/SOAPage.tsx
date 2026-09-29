@@ -50,7 +50,7 @@ export function SOAPage() {
   });
 
   return (
-    <div className="dash-page">
+    <div className="dash-page soa-page">
       {/* ── HEADER ── */}
       <div className="dash-header">
         <div className="dash-header-left">
@@ -85,7 +85,7 @@ export function SOAPage() {
 
       {/* ── CONTROLS & TABLE SPLIT (or unified panel) ── */}
       {/* For SOA we don't have a sidebar, just a full-width table under controls */}
-      <div className="dash-panel pir-content-pane" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="dash-panel pir-content-pane soa-content-pane">
         
         <div className="pir-controls">
           <div className="soa-filter-container">
