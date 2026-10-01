@@ -674,7 +674,13 @@ export function PiEntriesTable({
                           title="Send Owner Reminder"
                           style={{ color: 'var(--color-danger)' }}
                           onClick={() => openSendConfirm(entry, 'owner')}
-                          disabled={editingId !== null || isAddingNew || layoutEditable}
+                          // Enabled when there's no DPR No. yet OR the status is "New PI".
+                          disabled={
+                            editingId !== null ||
+                            isAddingNew ||
+                            layoutEditable ||
+                            (!!entry.dprNo?.trim() && entry.followupStatus !== FollowUpStatus.ADD_NEW_PI)
+                          }
                         >
                           <BellIcon />
                         </button>

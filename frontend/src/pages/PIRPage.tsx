@@ -11,6 +11,8 @@ import {
   PirInvoiceTable,
   DEFAULT_PIR_COLUMN_ORDER,
   DEFAULT_PIR_COL_WIDTHS,
+  EMPTY_PIR_COLUMN_FILTERS,
+  type PirColumnFilters,
   type PirColumnKey,
 } from '../components/pir/PirInvoiceTable';
 
@@ -75,6 +77,8 @@ export function PIRPage() {
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
   const [resolvedDateFrom, setResolvedDateFrom] = useState(yesterday());
   const [resolvedDateTo, setResolvedDateTo] = useState(today());
+
+  const [columnFilters, setColumnFilters] = useState<PirColumnFilters>(EMPTY_PIR_COLUMN_FILTERS);
 
   const { canEdit } = useRole();
   const [layoutEditable, setLayoutEditable] = useState(false);
@@ -302,6 +306,8 @@ export function PIRPage() {
               layoutEditable={layoutEditable}
               onReorderColumn={setColumnOrder}
               onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={setColumnFilters}
             />
           )}
         </div>

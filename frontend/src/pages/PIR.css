@@ -856,3 +856,72 @@
 }
 
 
+
+/* Overall search box at the right end of the table toolbar. */
+.pir-table-search {
+  margin-left: auto;
+  width: 240px;
+  max-width: 100%;
+  padding: 7px 12px;
+  font-size: 13px;
+  border: 1px solid #E8EAED;
+  border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+  outline: none;
+  order: 99;
+}
+.pir-table-search:focus {
+  border-color: var(--color-accent);
+}
+
+.pir-export-btn {
+  order: 100;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+/* Header cell layout: label first, then a fixed-width sort arrow, then the filter icon — all in
+   one flex row so nothing overlaps and the arrow/icon never shift the label. Multi-line labels
+   wrap inside their own box and keep the column's text alignment. */
+.pir-table-scroll .data-table thead th {
+  vertical-align: middle;
+}
+.pir-table-scroll .data-table thead th.col-has-filter {
+  position: sticky; /* keep the header pinned (col-has-filter would otherwise make it relative) */
+  padding-right: 10px;
+}
+.pir-th-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pir-th-label {
+  min-width: 0;
+  text-align: inherit;
+  line-height: 1.25;
+}
+.pir-th-inner .sort-arrow {
+  flex: none;
+  display: inline-block;
+  width: 12px;
+  text-align: center;
+  line-height: 1;
+}
+.pir-th-inner .column-filter-icon {
+  position: static;
+  transform: none;
+  flex: none;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+/* Safety net for very narrow columns: long words wrap instead of spilling under the arrow/icon. */
+.pir-table-scroll .data-table thead th {
+  overflow: hidden;
+}
+.pir-th-label {
+  overflow-wrap: anywhere;
+}

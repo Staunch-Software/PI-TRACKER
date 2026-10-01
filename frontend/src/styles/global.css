@@ -2849,3 +2849,39 @@ table.dashboard-mini-table thead th {
 
 
 
+
+/* Free-form column header filter (text contains / date range / number range). */
+.column-filter-range {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+.column-filter-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.column-filter-range input {
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-sizing: border-box;
+  width: 100%;
+}
+.column-filter-clear {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+}

@@ -1,11 +1,16 @@
 import uuid
 from collections import Counter
-from datetime import date
+from datetime import date, datetime
+from io import BytesIO
 
-from sqlalchemy import text
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from pydantic import BaseModel
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import require_module_access, require_roles
 from app.core.enums import AuditAction, AuditEntityType, UserRole
@@ -160,6 +165,94 @@ def list_pir_entries(
         "page": page,
         "page_size": page_size,
     }
+
+
+class PirExportRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+# (header, row key) — the only columns written to the PIR Excel export, in this order.
+_PIR_EXPORT_HEADERS = [
+    ("Department", "department"),
+    ("Age", "age_days"),
+    ("Invoice Number", "invoice_no"),
+    ("Reg Invoice Number", "reg_invoice_no"),
+    ("Vendor Invoice No.", "vendor_invoice_no"),
+    ("Vendor Name", "vendor_name"),
+    ("Vessel Name (raw)", "vessel_name"),
+    ("Company Name", "company_name"),
+    ("Vendor Bank Name", "vendor_bank_name"),
+    ("Vendor Account Code", "vendor_account_code"),
+    ("Vendor SWIFT Code", "vendor_swift_code"),
+    ("Reg. Date", "reg_date"),
+    ("Forwarded From", "frwd_from"),
+    ("Amount", "amount"),
+    ("Currency", "currency_code"),
+    ("PO Number", "po_nos"),
+    ("Available Data Points", "available_data_points"),
+    ("Total Data Points", "total_datapoints"),
+    ("Resolved At", "resolved_at"),
+]
+
+
+@router.post("/export")
+def export_pir_entries(
+    payload: PirExportRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_module_access("pir")),
+) -> StreamingResponse:
+    """Exports the given PIR invoices (in the order given) as .xlsx. The frontend sends the ids of
+    exactly the rows currently visible after the sidebar bucket, tabs, search and column filters,
+    so the file always matches what's on screen."""
+    stmt = text(f"{_CLASSIFIED_CTE} SELECT * FROM classified WHERE id IN :ids").bindparams(
+        bindparam("ids", expanding=True)
+    )
+    rows = db.execute(stmt, {"ids": [str(i) for i in payload.ids]}).mappings().all() if payload.ids else []
+    by_id = {str(r["id"]): r for r in rows}
+
+    db_vessel_names, vessel_id_to_name = _vessel_lookup(db)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "PIR"
+    header_fill = PatternFill("solid", fgColor="0F4C81")
+    sheet.append([label for label, _ in _PIR_EXPORT_HEADERS])
+    for col_idx in range(1, len(_PIR_EXPORT_HEADERS) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        sheet.column_dimensions[cell.column_letter].width = 20
+
+    for entry_id in payload.ids:
+        row = by_id.get(str(entry_id))
+        if row is None:
+            continue
+        item = dict(row)
+        item["vessel_group"] = resolve_vessel_group(
+            item["vessel_name"], item["assigned_vessel_id"], vessel_id_to_name, db_vessel_names
+        )
+        values = []
+        for _, key in _PIR_EXPORT_HEADERS:
+            value = item.get(key)
+            if isinstance(value, datetime) and value.tzinfo is not None:
+                value = value.replace(tzinfo=None)
+            elif isinstance(value, bool):
+                value = "Yes" if value else "No"
+            elif hasattr(value, "quantize"):  # Decimal
+                value = float(value)
+            values.append(value)
+        sheet.append(values)
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    filename = f"PIR_Export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/department-counts", response_model=PirDepartmentCounts)
