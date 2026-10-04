@@ -6,6 +6,7 @@ import { useRole } from '../auth/useRole';
 import { api } from '../lib/api';
 import type { PaginatedResult, PirDepartment, PirDepartmentCounts, PirEntry, Vessel } from '../shared';
 import { PirKpiStrip } from '../components/pir/PirKpiStrip';
+import { UserActivityButton } from '../components/pir/UserActivityButton';
 import { PirVesselSidebar, NO_VESSEL_GROUP, UNMATCHED_VESSEL_GROUP, type SidebarBucket } from '../components/pir/PirVesselSidebar';
 import {
   PirInvoiceTable,
@@ -183,6 +184,7 @@ export function PIRPage() {
             {' — scraped from SmartPAL, classified by vendor'}
           </p>
         </div>
+        <UserActivityButton />
       </div>
 
       <PirKpiStrip />

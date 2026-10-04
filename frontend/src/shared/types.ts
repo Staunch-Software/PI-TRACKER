@@ -332,6 +332,32 @@ export interface PirKpis {
   currencyMix: PirCurrencyMixEntry[];
 }
 
+// Mirrors backend/app/schemas/invoice_registration.py InvoiceRegistrationSummaryEntry.
+export interface InvoiceRegistrationSummaryEntry {
+  registeredBy: string;
+  count: number;
+}
+
+// Mirrors backend/app/schemas/invoice_registration.py InvoiceRegistrationDailyEntry.
+export interface InvoiceRegistrationDailyEntry {
+  date: string;
+  registeredBy: string;
+  count: number;
+}
+
+// Mirrors backend/app/schemas/pir_rejection.py PirRejectionSummaryEntry.
+export interface PirRejectionSummaryEntry {
+  rejectedBy: string;
+  count: number;
+}
+
+// Mirrors backend/app/schemas/pir_rejection.py PirRejectionDailyEntry.
+export interface PirRejectionDailyEntry {
+  date: string;
+  rejectedBy: string;
+  count: number;
+}
+
 // ── SOA (Statement of Account reconciliation) ───────────────────────────────────
 
 // Mirrors backend/app/schemas/soa_entry.py SoaLineItemOut.

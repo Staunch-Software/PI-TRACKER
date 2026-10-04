@@ -26,20 +26,40 @@
 # skip-if-seen, since a problematic invoice's fields can be corrected in
 # SmartPAL after the fact. See app/models/pir_entry.py for why department
 # (Technical/Manning/Unclassified) is deliberately not stored here.
+#
+# Also scrapes pir_rejections (who rejected each invoice and when) from this same page's
+# "Rejected invoice" category (pCategoryId=-100) — see _scrape_rejections below. Confirmed live
+# 2026-10-02 that per-row interaction on THIS grid, despite the module-docstring warning above
+# about `a.showInvoiceDetails` never being clickable, DOES work for the "Audit Trial" icon once
+# two gotchas are handled: (1) the column header carries a DECOY icon with the identical `title`
+# attribute as the real per-row ones (a static tooltip, not a row control — must be excluded via
+# `.closest('th')`); (2) the grid virtualizes rows, and the obvious scroll container
+# (`.k-grid-content`) does NOT trigger Kendo to render more of them — only scrolling the actual
+# proxy scrollbar element (`.k-scrollbar.k-scrollbar-vertical`) does. With both of those, real
+# per-row clicks (JS-dispatched, not Playwright's native `.click()` — same "some rows' handlers
+# don't fire from a native click" gotcha as approved_invoice_scraper) were 100% reliable across a
+# 20-row live test.
 # ===========================================================================
 import logging
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import MARIAPPS_AUTH_JSON, settings
 from app.db.session import SessionLocal
 from app.models.pir_entry import PirEntry
+from app.models.pir_rejection import PirRejection
 from app.services.vendor_mapping_importer import normalize_vendor_name
 from .generate_auth import run_automated_login
 
 log = logging.getLogger(__name__)
+
+_REJECTED_CATEGORY_LABEL = "Rejected invoice"
+_REJECTED_ACTION = "REJECTED"
+# A few consecutive scroll rounds that reveal no new (not-yet-seen) invoice number means we've
+# reached the end of the virtualized grid — stop rather than scroll forever.
+_MAX_STAGNANT_SCROLL_ROUNDS = 3
 
 # The app's own deep-link default (see problematicinvoiceoverview.js
 # settingInitialDefaultLoadingData) — a safe "beginning of time" for this
@@ -140,6 +160,151 @@ def _js_ymd(d: date) -> list[int]:
     return [d.year, d.month - 1, d.day]
 
 
+def _select_rejected_category(page) -> None:
+    """[SELECTOR] Sidebar category link — plain clickable text, same pattern as the tab-click
+    convention used elsewhere in this codebase's other MariApps/SmartPAL scrapers."""
+    page.locator(f"*:text-is('{_REJECTED_CATEGORY_LABEL}')").first.click(timeout=10000)
+    page.wait_for_timeout(2000)
+
+
+def _scroll_grid_further(page, scroll_top: int) -> bool:
+    """Advances the grid's virtual-scroll window. Confirmed live 2026-10-02 that scrolling the
+    obvious container (`.k-grid-content`) does nothing — Kendo only renders more rows when the
+    actual proxy scrollbar element's scrollTop changes and a real `scroll` event fires on it.
+
+    Returns False (rather than crashing the whole run) if the scrollbar element can't be found —
+    confirmed live 2026-10-02 this happens when every row has already been rendered (Kendo removes
+    or hides the scrollbar once there's nothing left to virtualize), which the caller should treat
+    as "reached the end", not an error."""
+    scrollbar = page.locator(".k-scrollbar.k-scrollbar-vertical").first
+    try:
+        scrollbar.wait_for(state="attached", timeout=5000)
+    except PlaywrightTimeoutError:
+        return False
+    try:
+        scrollbar.evaluate(
+            f"el => {{ el.scrollTop = {scroll_top}; el.dispatchEvent(new Event('scroll', {{bubbles: true}})); }}"
+        )
+    except Exception as e:
+        log.warning(f"[REJ]      Scroll attempt failed ({e}) — treating as end of grid.")
+        return False
+    page.wait_for_timeout(800)
+    return True
+
+
+def _visible_row_links(page) -> list:
+    """Every currently-rendered grid row's invoice-number link, in DOM order — only a window of
+    rows exists at a time (virtual scrolling), so this must be re-queried after every scroll."""
+    return page.locator("td a").all()
+
+
+def _fetch_rejection_history(page, link) -> list[dict]:
+    """Clicks the given row's Audit Trial icon (JS-dispatched — confirmed live 2026-10-02 that
+    Playwright's native `.click()` doesn't reliably trigger it, same gotcha as
+    approved_invoice_scraper's invoice links) and returns the parsed audit-trail array. No page
+    navigation happens — the data arrives via a plain API response, no modal content to read."""
+    row = link.locator("xpath=ancestor::tr[1]")
+    # Excludes the column header's decoy icon (same `title`, a static tooltip, not a row control)
+    # by scoping to this specific row's own <td> — see module docstring.
+    icon = row.locator("button.btn-info-icon.i2pPopUpClick, i.btn-info-icon").first
+    if icon.count() == 0:
+        raise RuntimeError("No Audit Trial icon found in this row")
+    with page.expect_response(lambda resp: "pInvoiceId" in resp.url, timeout=10000) as resp_info:
+        icon.evaluate("el => el.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, view: window}))")
+    data = resp_info.value.json()
+    if data.get("isError"):
+        raise RuntimeError(f"Audit trail API error: {data}")
+    # Dismiss whatever popup this opened before moving to the next row — Escape is enough since,
+    # unlike approved_invoice_scraper's modal, there's no page to navigate back from here.
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(150)
+    return data.get("result") or []
+
+
+def _scrape_rejections(page, db, existing_invoice_nos: set[str]) -> dict:
+    """Walks the "Rejected invoice" category, scrolling through the whole virtualized grid, and
+    for each invoice not already in pir_rejections, fetches its audit trail and stores the
+    "REJECTED" action's actor/date/remarks. See module docstring for the two selector gotchas
+    (decoy header icon, real scrollbar element) that make this reliable.
+
+    Confirmed live 2026-10-02 that rejected invoices are NOT a subset of the main "All"
+    (pCategoryId=-1) sweep _fetch_rows returns — they're excluded from it entirely once rejected,
+    the same way resolved_at rows eventually drop out of future sweeps — so the smartpal id can't
+    be pre-resolved from `rows`. It comes from the audit-trail response itself instead (every
+    history entry carries the invoice's own "id"), and the skip-already-scraped check is keyed by
+    invoice_no (known before clicking, from the DOM) rather than id (only known after)."""
+    counters = {"fetched": 0, "found": 0, "errors": 0}
+    log.info(f"[REJ]      Selecting '{_REJECTED_CATEGORY_LABEL}' category...")
+    _select_rejected_category(page)
+
+    seen_invoice_nos: set[str] = set()
+    scroll_top = 0
+    stagnant_rounds = 0
+
+    while stagnant_rounds < _MAX_STAGNANT_SCROLL_ROUNDS:
+        links = _visible_row_links(page)
+        progressed = False
+        for link in links:
+            try:
+                invoice_no = link.inner_text(timeout=1000).strip()
+            except Exception:
+                continue
+            if not invoice_no or invoice_no in seen_invoice_nos:
+                continue
+            seen_invoice_nos.add(invoice_no)
+            progressed = True
+
+            if invoice_no in existing_invoice_nos:
+                continue
+
+            try:
+                history = _fetch_rejection_history(page, link)
+                smartpal_id = next((h.get("id") for h in history if h.get("id") is not None), None)
+                if smartpal_id is None:
+                    raise RuntimeError("Audit trail response had no 'id' field on any row")
+                rejected_entry = next((h for h in history if h.get("action") == _REJECTED_ACTION), None)
+                db.add(
+                    PirRejection(
+                        smartpal_invoice_id=smartpal_id,
+                        invoice_no=invoice_no,
+                        rejected_by=(rejected_entry or {}).get("actionBy"),
+                        rejected_date=_parse_datetime((rejected_entry or {}).get("actionDate")),
+                        remarks=(rejected_entry or {}).get("remarks"),
+                        raw_json=history,
+                    )
+                )
+                db.commit()
+                existing_invoice_nos.add(invoice_no)
+                counters["fetched"] += 1
+                if rejected_entry:
+                    counters["found"] += 1
+            except Exception as e:
+                db.rollback()
+                counters["errors"] += 1
+                log.error(f"[REJ]      Failed to fetch audit trail for {invoice_no!r}: {e}")
+
+        if progressed:
+            stagnant_rounds = 0
+        else:
+            stagnant_rounds += 1
+        scroll_top += 1500
+        if not _scroll_grid_further(page, scroll_top):
+            log.info("[REJ]      No scrollbar found — reached the end of the grid.")
+            break
+
+    log.info(f"[REJ]      Rejection scrape complete — {len(seen_invoice_nos)} row(s) seen, {counters}")
+    return counters
+
+
+def _parse_datetime(v: str | None) -> datetime | None:
+    if not v:
+        return None
+    try:
+        return datetime.fromisoformat(v)
+    except ValueError:
+        return None
+
+
 def run() -> None:
     if not MARIAPPS_AUTH_JSON.exists():
         log.info("[AUTH]     No saved session found — running automated login first.")
@@ -147,6 +312,10 @@ def run() -> None:
 
     db = SessionLocal()
     inserted = updated = errors = 0
+    # Queried up front (DB-only, no page needed) so _scrape_rejections can skip already-known
+    # rejections without a second round-trip once we're inside the browser session below.
+    existing_rejection_invoice_nos = {r[0] for r in db.query(PirRejection.invoice_no).all()}
+    rejection_counters = {"fetched": 0, "found": 0, "errors": 0}
 
     try:
         # Each attempt gets its OWN `with sync_playwright()` block — Playwright's sync API
@@ -162,6 +331,7 @@ def run() -> None:
                 context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 rows = _fetch_rows(page)
+                rejection_counters = _scrape_rejections(page, db, existing_rejection_invoice_nos)
                 browser.close()
         except RuntimeError as e:
             if "expired" not in str(e).lower() and "not authenticated" not in str(e).lower():
@@ -173,6 +343,7 @@ def run() -> None:
                 context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 rows = _fetch_rows(page)
+                rejection_counters = _scrape_rejections(page, db, existing_rejection_invoice_nos)
                 browser.close()
 
         log.info(f"[API]      {len(rows)} PIR row(s) returned.")
@@ -250,6 +421,10 @@ def run() -> None:
 
     log.info("=" * 60)
     log.info(f"  PIR scrape complete — inserted={inserted} updated={updated} resolved={resolved} errors={errors}")
+    log.info(
+        f"  Rejection scrape complete — fetched={rejection_counters['fetched']} "
+        f"found_rejected_row={rejection_counters['found']} errors={rejection_counters['errors']}"
+    )
     log.info("=" * 60)
 
 
