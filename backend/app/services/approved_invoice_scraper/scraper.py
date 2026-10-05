@@ -161,13 +161,13 @@ def _click_history_icon_and_capture(page) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
-def _jump_to_page(page, page_num: int) -> bool:
+def _jump_to_page(page, page_num: int, ingest=None) -> bool:
     """Clicks the pager's own numbered button for `page_num` directly — an O(1) way back to a
     specific page, needed because `a.back-btn` always resets the grid to page 1 regardless of
     where we came from (confirmed live 2026-09-30 — NOT the "same tab/page" restore it looks like
     at a glance). Confirmed live that the target page number is always visible in Kendo's pager
-    number window immediately after we've just arrived there via _click_next_page, so this doesn't
-    need to handle the "..." overflow a truly random jump would require.
+    number window immediately after we've just arrived there via _advance_and_capture, so this
+    doesn't need to handle the "..." overflow a truly random jump would require.
 
     Waits for the button rather than an instant `.count()` check — confirmed live 2026-09-30 that
     right after the back-arrow's page-1 reset, the pager sometimes hasn't finished re-rendering
@@ -175,7 +175,11 @@ def _jump_to_page(page, page_num: int) -> bool:
     false-negative was cascading into every remaining row on the page also failing, since nothing
     ever got the grid back to the right page. Returns False (after genuinely waiting) if the
     button really isn't there, so the caller can log rather than silently continue on the wrong
-    page."""
+    page.
+
+    `ingest(rows, page_num)`, when given, is called for EVERY intermediate page captured while
+    fast-forwarding to `page_num` in the fallback below — see the PRODUCTION INCIDENT note there
+    for why this is not optional."""
     btn = page.locator(f".k-pager-numbers a:text-is('{page_num}')").first
     try:
         btn.wait_for(state="visible", timeout=8000)
@@ -185,19 +189,44 @@ def _jump_to_page(page, page_num: int) -> bool:
         # resets to showing 1-10 after the page-1 reset (the assumption in this function's main
         # docstring only holds close to the start of the grid). Fall back to walking there one
         # page at a time via the ordinary Next button, which works regardless of window position.
+        #
+        # PRODUCTION INCIDENT (2026-10-05): the previous version of this fallback read the
+        # "current" page from `.k-state-selected`'s text and, if that read came back implausible
+        # (observed live: 0), computed `page_num - start_page` as the number of catch-up Next
+        # clicks to fire — e.g. 50, from a page-1 reset it mistook for page 0. It then DISCARDED
+        # every row it captured along that walk (`_capture_next_grid_response(page, lambda: None)`
+        # with the result thrown away) and never ran registration-fetching for those pages. When
+        # a few of these catch-up bursts failed partway (hitting a stuck loading overlay) in a
+        # row, the grid's real pager position drifted far from what the outer loop's bookkeeping
+        # assumed — eventually looking like "Next is disabled, we must be done" to the outer loop
+        # at 1,250 of 1,973 total rows, silently dropping the remaining ~720 rows with no error
+        # logged for any of them. Fixed here two ways: (1) every page captured during this walk is
+        # now handed to `ingest`, which both records it in the overall row set AND runs
+        # registration-fetching for it — so a catch-up walk can never again make rows vanish,
+        # regardless of where it starts or how far it gets; existing_ids already makes re-ingesting
+        # an already-processed page a cheap no-op. (2) an implausible/unreadable current-page
+        # reading triggers a full reset to a known page 1 (reload + re-select the All tab) instead
+        # of computing a click count from data we don't trust.
         log.warning(f"[REG]      Page-{page_num} button not in the pager's visible window — falling back to repeated Next clicks.")
-        current = page.locator(".k-pager-numbers .k-state-selected").first
-        try:
-            start_page = int(current.inner_text(timeout=2000).strip())
-        except Exception:
-            start_page = 1
-        for _ in range(page_num - start_page):
-            if not _click_next_page(page):
+        current = _current_pager_page(page)
+        if not current or current < 1 or current >= page_num:
+            log.warning(
+                f"[REG]      Pager position unreadable or implausible (read as {current}) — "
+                f"resetting to page 1 before fast-forwarding to page {page_num}."
+            )
+            page.goto(settings.approved_invoice_list_url, wait_until="load", timeout=60000)
+            page.wait_for_timeout(2000)
+            first_rows = _capture_next_grid_response(page, lambda: _select_all_tab(page))
+            if ingest:
+                ingest(first_rows, 1)
+            current = 1
+        for p in range(current + 1, page_num + 1):
+            rows = _advance_and_capture(page)
+            if rows is None:
+                log.warning(f"[REG]      Fast-forward stalled at page {p - 1} while trying to reach page {page_num}.")
                 return False
-            try:
-                _capture_next_grid_response(page, lambda: None)
-            except PlaywrightTimeoutError:
-                return False
+            if ingest:
+                ingest(rows, p)
         return True
     with page.expect_response(
         lambda resp: resp.request.method == "POST"
@@ -222,7 +251,7 @@ def _current_pager_page(page) -> int | None:
         return None
 
 
-def _recover_to_grid_page(page, page_num: int) -> None:
+def _recover_to_grid_page(page, page_num: int, ingest=None) -> None:
     """Best-effort recovery to `page_num` of the Invoice List grid, run from
     _fetch_registration_for_row's finally block UNCONDITIONALLY — regardless of whether the
     attempt got as far as opening the popup, only as far as the detail page, or failed before even
@@ -255,18 +284,19 @@ def _recover_to_grid_page(page, page_num: int) -> None:
             current = _current_pager_page(page)
             if current != page_num:
                 log.warning(f"[REG]      After recovery, pager shows page {current}, expected {page_num} — falling back to _jump_to_page.")
-                if not _jump_to_page(page, page_num):
+                if not _jump_to_page(page, page_num, ingest=ingest):
                     log.warning(f"[REG]      Could not find page-{page_num} button to jump back to — next lookups on this page may fail to find their row.")
     except Exception as e:
         log.warning(f"[REG]      Recovery to grid page {page_num} hit an error of its own: {e}")
 
 
-def _fetch_registration_for_row(page, invoice_no: str, page_num: int) -> list[dict]:
+def _fetch_registration_for_row(page, invoice_no: str, page_num: int, ingest=None) -> list[dict]:
     """Clicks the given invoice's row link — which must already be visible on the CURRENTLY
     DISPLAYED grid page, see _process_page_registrations — opens its detail page, captures its
     Pending List via a real history-icon click, then returns to `page_num` of the grid (even on
     failure — see _recover_to_grid_page) so the caller can continue with the rest of the current
-    page or advance the pager."""
+    page or advance the pager. `ingest` is threaded through to _recover_to_grid_page/_jump_to_page
+    so a recovery fast-forward can never silently drop the pages it walks through."""
     try:
         link = page.locator(f"a:text-is('{invoice_no}')").first
         link.wait_for(state="visible", timeout=8000)
@@ -285,22 +315,31 @@ def _fetch_registration_for_row(page, invoice_no: str, page_num: int) -> list[di
             raise RuntimeError(f"Click on {invoice_no!r} did not navigate to InvoiceDetail (still on {page.url})")
         return _click_history_icon_and_capture(page)
     finally:
-        _recover_to_grid_page(page, page_num)
+        _recover_to_grid_page(page, page_num, ingest=ingest)
 
 
 def _process_page_registrations(
-    page, db, page_rows: list[dict], existing_ids: set[int], counters: dict, page_num: int
+    page, db, page_rows: list[dict], existing_ids: set[int], counters: dict, page_num: int, ingest=None
 ) -> None:
     """For each row on the currently-displayed grid page that doesn't already have a stored
     registration event, fetches and stores it — see module docstring for why this walks the pager
-    instead of using the grid's search box."""
+    instead of using the grid's search box. `ingest` is forwarded to _fetch_registration_for_row so
+    a mid-row pager recovery can feed any pages it's forced to walk through back into the overall
+    row set instead of discarding them (see _jump_to_page's PRODUCTION INCIDENT note)."""
     for row in page_rows:
         smartpal_id = row.get("id")
         invoice_no = row.get("invoiceNo")
         if smartpal_id is None or smartpal_id in existing_ids or not invoice_no:
             continue
+        # Marked BEFORE the attempt, not after — a recovery fast-forward triggered by THIS row's
+        # own cleanup can walk back through this same page (see _jump_to_page) and would otherwise
+        # try to re-process this row while it's still mid-flight, before the success path below
+        # ever adds it. A failed attempt stays "existing" for the rest of this run (no infinite
+        # retry loop within one run) but is absent from the DB, so a future run's fresh
+        # existing_ids (reloaded from the table) will naturally retry it.
+        existing_ids.add(smartpal_id)
         try:
-            chain = _fetch_registration_for_row(page, invoice_no, page_num)
+            chain = _fetch_registration_for_row(page, invoice_no, page_num, ingest=ingest)
             registered_row = next((r for r in chain if r.get("status") == _REGISTERED_STATUS), None)
             db.add(
                 InvoiceRegistration(
@@ -312,7 +351,6 @@ def _process_page_registrations(
                 )
             )
             db.commit()
-            existing_ids.add(smartpal_id)
             counters["fetched"] += 1
             if registered_row:
                 counters["found"] += 1
@@ -345,35 +383,47 @@ def _capture_next_grid_response(page, trigger) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
-def _click_next_page(page) -> bool:
-    """[SELECTOR] Kendo grid pager 'next page' control — first-pass guess based on Kendo UI's
-    standard markup (confirmed elsewhere in this codebase's other MariApps/SmartPAL scrapers use
-    the same `.k-i-arrow-e`/'next page' pattern). Returns False (nothing to click) once the
-    button is disabled, i.e. the last page has been reached."""
+def _advance_and_capture(page) -> list[dict] | None:
+    """Clicks the pager's 'next page' control and captures the resulting grid response as ONE
+    atomic operation: the response listener (inside _capture_next_grid_response) is registered
+    BEFORE the click fires, by passing the click itself in as the trigger — this replaces the
+    previous pattern of clicking first and only THEN starting a separate listener
+    (`_capture_next_grid_response(page, lambda: None)`), which raced against a server response
+    fast enough to complete before the listener was even set up. That race mostly went unnoticed
+    during the normal one-page-at-a-time walk (paced by the per-row registration fetches in
+    between), but firing many of these back-to-back during a pager-recovery fast-forward (see
+    _jump_to_page) makes it far more likely to lose a response — contributing to the 2026-10-05
+    production incident documented there. Returns None once the Next button is genuinely disabled
+    (last page reached) or the click/capture failed outright; the caller decides what "nothing
+    more" vs. "something broke" means for it."""
     next_btn = page.locator("a.k-pager-nav[title='Go to the next page'], .k-pager-nav .k-i-arrow-e").first
     if next_btn.count() == 0:
-        return False
+        return None
     classes = next_btn.evaluate("el => (el.closest('a') || el).className") or ""
     if "k-state-disabled" in classes:
-        return False
+        return None
     # Confirmed live 2026-10-01: a persistent #loading-container overlay (the same one that
     # sometimes blocks the per-invoice history-icon click) can also block this click — and unlike
     # that per-row click, this one wasn't wrapped in error handling, so a stuck overlay here
     # crashed the entire run after a 30s timeout. Wait for it to clear first, with a short overall
-    # retry budget, and raise only if it never does — the caller already handles exceptions from
-    # the registration-fetch side, but this crashed BEFORE reaching any per-row try/except, so this
-    # function now owns its own resilience instead of assuming the overlay is always gone.
+    # retry budget, and raise only if it never does.
     try:
         page.locator("#loading-container").wait_for(state="hidden", timeout=10000)
     except PlaywrightTimeoutError:
         log.warning("[GRID]     #loading-container still visible after 10s — attempting the Next click anyway.")
+
+    def _click() -> None:
+        try:
+            next_btn.click(timeout=15000)
+        except PlaywrightTimeoutError:
+            log.warning("[GRID]     Next-page click timed out (likely the same stuck loading overlay) — retrying once more.")
+            page.wait_for_timeout(2000)
+            next_btn.click(timeout=15000)
+
     try:
-        next_btn.click(timeout=15000)
+        return _capture_next_grid_response(page, _click)
     except PlaywrightTimeoutError:
-        log.warning("[GRID]     Next-page click timed out (likely the same stuck loading overlay) — retrying once more.")
-        page.wait_for_timeout(2000)
-        next_btn.click(timeout=15000)
-    return True
+        return None
 
 
 def _extract_rows_and_fetch_registrations(page, db, existing_ids: set[int], counters: dict) -> list[dict]:
@@ -384,8 +434,20 @@ def _extract_rows_and_fetch_registrations(page, db, existing_ids: set[int], coun
     Also fetches invoice_registrations for each page's rows (see _process_page_registrations)
     before advancing to the next page, rather than in a separate second pass — this walks the
     pager exactly once instead of twice, and avoids the grid's search box entirely (see module
-    docstring for why that's not reliable at scale)."""
+    docstring for why that's not reliable at scale).
+
+    Every page's rows flow through the single `ingest` closure below — both the normal forward
+    walk AND any pager-recovery fast-forward triggered mid-row (see _jump_to_page) call it, so a
+    page can never be captured and then silently thrown away. This is the fix for the 2026-10-05
+    production incident where a recovery fast-forward discarded ~720 rows without logging a single
+    error for them."""
     all_rows: list[dict] = []
+
+    def ingest(rows: list[dict], page_num: int) -> None:
+        if not rows:
+            return
+        all_rows.extend(rows)
+        _process_page_registrations(page, db, rows, existing_ids, counters, page_num=page_num, ingest=ingest)
 
     # Confirmed live 2026-09-30/2026-10-01: the very first capture after selecting the All tab
     # sometimes races against the default tab's own already-in-flight response (landing page is
@@ -400,44 +462,23 @@ def _extract_rows_and_fetch_registrations(page, db, existing_ids: set[int], coun
         log.warning(f"[GRID]     Page 1 came back empty (attempt {attempt}/3) — reloading and retrying.")
         page.goto(settings.approved_invoice_list_url, wait_until="load", timeout=60000)
         page.wait_for_timeout(3000)
-    all_rows.extend(first_page_rows)
     total_count = first_page_rows[0]["totalCount"] if first_page_rows else 0
     log.info(f"[GRID]     All: {total_count} total invoice(s), page 1 → {len(first_page_rows)} row(s).")
-    _process_page_registrations(page, db, first_page_rows, existing_ids, counters, page_num=1)
+    ingest(first_page_rows, page_num=1)
     log.info(f"[REG]      After page 1: fetched={counters['fetched']} found={counters['found']} errors={counters['errors']}")
 
     page_num = 1
     while len(all_rows) < total_count:
-        try:
-            advanced = _click_next_page(page)
-        except PlaywrightTimeoutError:
-            # Confirmed live 2026-10-01: a persistent loading overlay can make even
-            # _click_next_page's own retry fail — this crashed the entire run previously (nothing
-            # caught it between here and the top-level script). Stop pagination gracefully instead
-            # of losing everything fetched so far; the next run picks up any remaining pages fresh
-            # since it always starts from page 1 again.
-            log.error(f"[GRID]     Next-page click failed twice in a row after {len(all_rows)}/{total_count} rows — stopping here rather than crashing.")
-            break
-        if not advanced:
+        page_rows = _advance_and_capture(page)
+        if page_rows is None:
             log.warning(
                 f"[GRID]     Pager 'next' unavailable/disabled after {len(all_rows)}/{total_count} rows collected — "
                 "stopping here rather than looping forever."
             )
             break
-        try:
-            page_rows = _capture_next_grid_response(page, lambda: None)
-        except PlaywrightTimeoutError:
-            # _click_next_page already clicked — this branch only fires if the expected response
-            # never showed up, so re-try the wait once more against the click that already happened
-            # rather than double-clicking (which would skip a page).
-            log.error(f"[GRID]     Timed out waiting for page {page_num + 1}'s grid response — stopping.")
-            break
-        if not page_rows:
-            break
-        all_rows.extend(page_rows)
         page_num += 1
-        log.info(f"[GRID]     Page {page_num} → {len(page_rows)} row(s) ({len(all_rows)}/{total_count} total so far).")
-        _process_page_registrations(page, db, page_rows, existing_ids, counters, page_num=page_num)
+        log.info(f"[GRID]     Page {page_num} → {len(page_rows)} row(s) ({len(all_rows) + len(page_rows)}/{total_count} total so far).")
+        ingest(page_rows, page_num)
         log.info(
             f"[REG]      After page {page_num}: fetched={counters['fetched']} "
             f"found={counters['found']} errors={counters['errors']}"
