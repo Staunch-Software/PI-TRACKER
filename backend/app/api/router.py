@@ -14,6 +14,7 @@ from app.api.routes import (
     pir_rejections,
     soa_entries,
     table_layout,
+    user_activity,
     users,
     vendor_mapping,
     vendors,
@@ -31,6 +32,7 @@ api_router.include_router(approved_invoices.router)
 api_router.include_router(pir_entries.router)
 api_router.include_router(pir_rejections.router)
 api_router.include_router(invoice_registrations.router)
+api_router.include_router(user_activity.router)
 api_router.include_router(soa_entries.router)
 api_router.include_router(attachments.router)
 api_router.include_router(audit_log.router)

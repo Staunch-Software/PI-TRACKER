@@ -482,6 +482,54 @@
   }
 }
 
+.user-activity-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-activity-email-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(17,20,36,0.1);
+  background: #fff;
+  color: #4a3aa7;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.user-activity-email-btn:hover:not(:disabled) {
+  background: #F5F3FF;
+}
+
+.user-activity-email-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.user-activity-report-status {
+  margin: 0;
+  padding: 10px 24px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.user-activity-report-status-ok {
+  background: #ECFDF5;
+  color: #047857;
+}
+
+.user-activity-report-status-error {
+  background: #FEF2F2;
+  color: #B91C1C;
+}
+
 /* =========================================================
    KPI STRIP (Monochrome Premium)
    ========================================================= */

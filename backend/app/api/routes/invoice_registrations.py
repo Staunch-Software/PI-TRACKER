@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_user_activity_access
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.invoice_registration import InvoiceRegistrationDailyEntry, InvoiceRegistrationSummaryEntry
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/invoice-registrations", tags=["invoice-registrations
 @router.get("/summary", response_model=list[InvoiceRegistrationSummaryEntry])
 def get_registration_summary(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_user_activity_access),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> list[dict]:
@@ -50,7 +50,7 @@ def get_registration_summary(
 @router.get("/daily", response_model=list[InvoiceRegistrationDailyEntry])
 def get_registration_daily(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_user_activity_access),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> list[dict]:

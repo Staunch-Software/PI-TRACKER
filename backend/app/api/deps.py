@@ -36,6 +36,20 @@ def require_roles(*allowed_roles: UserRole) -> Callable[[User], User]:
     return dependency
 
 
+# Hardcoded allowlist, not a role/module flag — the "User Activity" (Registered by / Rejected by)
+# feature surfaces per-person productivity data scraped from SmartPAL and is deliberately
+# restricted to these two people regardless of their app role, rather than gated by ADMIN/EDITOR
+# like everything else in this file. Lowercased for a case-insensitive match against User.email
+# (CITEXT in the DB already, but this dependency doesn't touch the DB for the comparison).
+USER_ACTIVITY_ALLOWED_EMAILS = {"techdevops@ozellar.com", "karunya.pius@ozellar.com"}
+
+
+def require_user_activity_access(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.email.lower() not in USER_ACTIVITY_ALLOWED_EMAILS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this data")
+    return current_user
+
+
 def require_module_access(module: str) -> Callable[[User], User]:
     """Gates a module's routes on the per-user can_access_pi/can_access_pir flags (independent
     of role) — ADMIN always passes regardless of the flags, same stance the frontend takes (see

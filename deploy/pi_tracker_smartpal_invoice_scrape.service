@@ -1,0 +1,22 @@
+# Already installed on production as of 2026-10 — documented here for reference/reproducibility
+# (was previously only on the VM's /etc/systemd/system, not version-controlled). Runs
+# smartpal_invoice_scraper (all vessels/all statuses — feeds SOA reconciliation matching), then a
+# SOA rematch pass.
+#
+# Install:
+#   sudo cp deploy/pi_tracker_smartpal_invoice_scrape.service /etc/systemd/system/
+#   sudo cp deploy/pi_tracker_smartpal_invoice_scrape.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
+
+[Unit]
+Description=PI Follow-up Tracker - SmartPAL invoice scrape (all statuses)
+After=network.target
+
+[Service]
+Type=oneshot
+User=Deployer
+Group=www-data
+WorkingDirectory=/opt/pi_tracker/PI-TRACKER/backend
+EnvironmentFile=/opt/pi_tracker/PI-TRACKER/backend/.env
+ExecStart=/opt/pi_tracker/PI-TRACKER/backend/venv/bin/python -m app.services.smartpal_invoice_scraper.scraper

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_user_activity_access
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.pir_rejection import PirRejectionDailyEntry, PirRejectionSummaryEntry
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/pir-rejections", tags=["pir-rejections"])
 @router.get("/summary", response_model=list[PirRejectionSummaryEntry])
 def get_rejection_summary(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_user_activity_access),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> list[dict]:
@@ -50,7 +50,7 @@ def get_rejection_summary(
 @router.get("/daily", response_model=list[PirRejectionDailyEntry])
 def get_rejection_daily(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_user_activity_access),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> list[dict]:

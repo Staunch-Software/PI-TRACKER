@@ -1,0 +1,17 @@
+# Staggered 30 minutes after pi_tracker_smartpal_invoice_scrape.timer (06:30/18:30) — all three
+# SmartPAL scrapers (PIR at 06:00/18:00, SmartPAL invoice at 06:30/18:30, this one at 07:00/19:00)
+# share one SmartPAL account login; confirmed live that running two of these concurrently can
+# kick out each other's session, so each gets its own slot with enough buffer for the previous
+# one to finish (the SmartPAL invoice scrape normally completes in well under a minute once
+# past its first cold run).
+
+[Unit]
+Description=Run PI Follow-up Tracker invoice registration scrape twice daily
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+OnCalendar=*-*-* 19:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

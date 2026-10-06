@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api } from '../../lib/api';
 import type {
@@ -148,15 +148,46 @@ export function UserActivityModal({ onClose }: { onClose: () => void }) {
   const sortedSummary = useMemo(() => [...summary].sort((a, b) => b.count - a.count), [summary]);
   const isLoading = summaryQuery.isLoading || dailyQuery.isLoading || allTimeSummaryQuery.isLoading;
 
+  // Fixed last-7-days range, independent of the modal's own date filter above — this is meant to
+  // be a quick weekly snapshot email, not a re-send of whatever's currently on screen (see
+  // backend/app/api/routes/user_activity.py).
+  const sendReportMutation = useMutation({
+    mutationFn: () => api.post<{ sent: boolean; dateFrom: string; dateTo: string }>('/user-activity/report'),
+  });
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel user-activity-modal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>User Activity</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
+          <div className="user-activity-header-actions">
+            <button
+              type="button"
+              className="user-activity-email-btn"
+              onClick={() => sendReportMutation.mutate()}
+              disabled={sendReportMutation.isPending}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 6-10 7L2 6" />
+              </svg>
+              {sendReportMutation.isPending ? 'Sending…' : 'Email Report (last 7 days)'}
+            </button>
+            <button className="modal-close" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          </div>
         </div>
+        {sendReportMutation.isSuccess && (
+          <p className="user-activity-report-status user-activity-report-status-ok">
+            Report sent for {sendReportMutation.data.dateFrom} to {sendReportMutation.data.dateTo}.
+          </p>
+        )}
+        {sendReportMutation.isError && (
+          <p className="user-activity-report-status user-activity-report-status-error">
+            Failed to send report: {(sendReportMutation.error as Error).message}
+          </p>
+        )}
         <div className="modal-body">
           <div className="user-activity-toolbar">
             <div className="pir-tabs-premium user-activity-toggle">

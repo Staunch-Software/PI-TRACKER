@@ -1,0 +1,24 @@
+# systemd unit for the "Registered By" invoice-registration scraper (approved_invoice_scraper
+# module — also maintains approved_invoice_entries for the 4 AMNS-fleet vessels).
+#
+# Mirrors the naming/paths of the two scrapers already running on production
+# (pi_tracker_pir_scrape.service, pi_tracker_smartpal_invoice_scrape.service) — adjust
+# User/WorkingDirectory/paths below if your deployment differs.
+#
+# Install:
+#   sudo cp deploy/pi_tracker_invoice_registration_scrape.service /etc/systemd/system/
+#   sudo cp deploy/pi_tracker_invoice_registration_scrape.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
+
+[Unit]
+Description=PI Follow-up Tracker - Invoice registration scrape (SmartPAL)
+After=network.target
+
+[Service]
+Type=oneshot
+User=Deployer
+Group=www-data
+WorkingDirectory=/opt/pi_tracker/PI-TRACKER/backend
+EnvironmentFile=/opt/pi_tracker/PI-TRACKER/backend/.env
+ExecStart=/opt/pi_tracker/PI-TRACKER/backend/venv/bin/python -m app.services.approved_invoice_scraper.scraper

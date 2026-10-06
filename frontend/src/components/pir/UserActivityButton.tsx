@@ -1,8 +1,13 @@
 import { useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
+import { canAccessUserActivity } from '../../auth/userActivityAccess';
 import { UserActivityModal } from './UserActivityModal';
 
 export function UserActivityButton() {
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+
+  if (!canAccessUserActivity(user?.email)) return null;
 
   return (
     <>

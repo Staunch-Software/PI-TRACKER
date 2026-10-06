@@ -148,6 +148,50 @@ sudo nginx -t && sudo systemctl reload nginx
 - `curl http://localhost/api/health` on the VM should return `{"status":"ok","db":"connected"}`.
 - Visit `http://<vm-public-ip>/` in a browser — you should see the login page.
 
+## 11. Scheduled SmartPAL scrapers
+
+Three standalone scripts run on their own schedule via systemd timers, independent of the
+`pi-tracker-backend` web service — none of them are imported by the running API, so updating
+their code only needs a `git pull`, never a service restart:
+
+| Timer | Runs | Schedule | What it does |
+|---|---|---|---|
+| `pi_tracker_pir_scrape` | `app.services.pir_scraper.scraper` | 06:00 / 18:00 | PIR entries sweep + `pir_rejections` ("Rejected By") |
+| `pi_tracker_smartpal_invoice_scrape` | `app.services.smartpal_invoice_scraper.scraper` | 06:30 / 18:30 | All-vessel/all-status invoice sweep for SOA reconciliation |
+| `pi_tracker_invoice_registration_scrape` | `app.services.approved_invoice_scraper.scraper` | 07:00 / 19:00 | AMNS-fleet approved invoices + `invoice_registrations` ("Registered By") |
+
+All three log into the same SmartPAL account (just different modules — `AccountsPALApp` for the
+first, `PurchasePALApp` for the other two), and a second concurrent login can kick out the first
+one's session — confirmed live. The 30-minute stagger above is deliberate; don't schedule any of
+these back-to-back or overlapping.
+
+Install (adjust `User`/paths in each `.service` file first if your deployment differs from the
+documented `/opt/pi-tracker`/`pitracker` convention above — the actual production VM as of
+2026-10 uses `/opt/pi_tracker/PI-TRACKER`, user `Deployer`, venv at `backend/venv`):
+
+```bash
+sudo cp deploy/pi_tracker_pir_scrape.service deploy/pi_tracker_pir_scrape.timer /etc/systemd/system/
+sudo cp deploy/pi_tracker_smartpal_invoice_scrape.service deploy/pi_tracker_smartpal_invoice_scrape.timer /etc/systemd/system/
+sudo cp deploy/pi_tracker_invoice_registration_scrape.service deploy/pi_tracker_invoice_registration_scrape.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pi_tracker_pir_scrape.timer
+sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
+sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
+```
+
+Check status/logs for any of them:
+
+```bash
+systemctl list-timers --all | grep pi_tracker
+sudo journalctl -u pi_tracker_invoice_registration_scrape.service -n 60 --no-pager
+```
+
+To run one immediately instead of waiting for its next scheduled fire:
+
+```bash
+sudo systemctl start pi_tracker_invoice_registration_scrape.service
+```
+
 ## Redeploying after code changes
 
 ```bash
