@@ -69,7 +69,7 @@ def send_user_activity_report(
     )
 
     try:
-        send_mail(sorted(USER_ACTIVITY_ALLOWED_EMAILS), subject, body)
+        send_mail(sorted(USER_ACTIVITY_ALLOWED_EMAILS), subject, body, from_mailbox="data@ozellar.com", cc_emails=[])
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
 

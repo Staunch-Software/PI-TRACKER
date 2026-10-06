@@ -59,24 +59,38 @@ def _get_token() -> str:
     return resp.json()["access_token"]
 
 
-def send_mail(to_emails: list[str], subject: str, html_body: str, from_mailbox: str | None = None) -> None:
+def send_mail(
+    to_emails: list[str],
+    subject: str,
+    html_body: str,
+    from_mailbox: str | None = None,
+    cc_emails: list[str] | None = None,
+) -> None:
     """Raises requests.HTTPError on failure — callers surface this as a 502 to the frontend
     rather than silently swallowing a failed send (the user needs to know the email did NOT go
     out, since this isn't retried automatically).
 
     from_mailbox: the vessel's assigned TA's email, or DEFAULT_FROM_MAILBOX when the vessel has
-    no TA assigned yet."""
+    no TA assigned yet.
+
+    cc_emails: overrides ALWAYS_CC when given (including an empty list, meaning no CC at all) —
+    the PI reminder callers (vendor-notice/owner-reminder) leave this unset and keep the
+    purchase@ozellar.com CC; the User Activity report (api/routes/user_activity.py) passes [] to
+    suppress it, since that CC is specific to the Purchase team's PI follow-up workflow, not this
+    unrelated report."""
     if not to_emails:
         raise ValueError("send_mail called with no recipients")
 
     send_from = from_mailbox or DEFAULT_FROM_MAILBOX
+    cc_list = ALWAYS_CC if cc_emails is None else cc_emails
 
     message: dict = {
         "subject": subject,
         "body": {"contentType": "HTML", "content": html_body},
         "toRecipients": [{"emailAddress": {"address": e}} for e in to_emails],
-        "ccRecipients": [{"emailAddress": {"address": e}} for e in ALWAYS_CC],
     }
+    if cc_list:
+        message["ccRecipients"] = [{"emailAddress": {"address": e}} for e in cc_list]
 
     token = _get_token()
     resp = requests.post(
