@@ -16,7 +16,7 @@
 #
 # Shares the login session/auth.json with approved_invoice_scraper (same URL, same account —
 # see APPROVED_INVOICE_AUTH_JSON) and reuses its generic Kendo-grid-paging helpers
-# (_capture_next_grid_response/_click_next_page are pure functions with no AMNS-specific
+# (_capture_next_grid_response/_advance_and_capture are pure functions with no AMNS-specific
 # behavior) rather than duplicating ~40 lines of pagination logic that would otherwise drift.
 # ===========================================================================
 import logging
@@ -30,7 +30,7 @@ from app.db.session import SessionLocal
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.vessel import Vessel
 from app.services.approved_invoice_scraper.generate_auth import run_automated_login
-from app.services.approved_invoice_scraper.scraper import _capture_next_grid_response, _click_next_page
+from app.services.approved_invoice_scraper.scraper import _advance_and_capture, _capture_next_grid_response
 from app.services.pir_vessel_matcher import normalize_vessel_name
 from app.services.soa_scraper.normalize import normalize_invoice_number
 
@@ -81,18 +81,12 @@ def _extract_rows(page) -> list[dict]:
 
     page_num = 1
     while len(all_rows) < total_count:
-        if not _click_next_page(page):
+        page_rows = _advance_and_capture(page)
+        if page_rows is None:
             log.warning(
                 f"[GRID]     Pager 'next' unavailable/disabled after {len(all_rows)}/{total_count} rows collected — "
                 "stopping here rather than looping forever."
             )
-            break
-        try:
-            page_rows = _capture_next_grid_response(page, lambda: None)
-        except PlaywrightTimeoutError:
-            log.error(f"[GRID]     Timed out waiting for page {page_num + 1}'s grid response — stopping.")
-            break
-        if not page_rows:
             break
         all_rows.extend(page_rows)
         page_num += 1
