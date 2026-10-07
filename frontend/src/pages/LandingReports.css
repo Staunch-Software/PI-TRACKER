@@ -1,0 +1,89 @@
+/*
+  LandingReports.css
+  Landing Reports-specific styles. The page layout, toolbar, buttons, table and pagination reuse
+  the Tracker's classes (Tracker.css / global.css); only what is unique to this module lives here.
+*/
+
+/* S.No only ever holds a short number, so it is much narrower than the Tracker's 150px DPR No.
+   column this pinned slot reuses; the pinned Vessel Name column's left offset is shifted to
+   match (Actions 110px + S.No 80px, or just S.No 80px when there is no Actions column). */
+.landing-reports-page table.data-table td.col-dpr,
+.landing-reports-page table.data-table th.col-dpr {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+}
+.landing-reports-page table.data-table td.col-status,
+.landing-reports-page table.data-table th.col-status {
+  left: 190px;
+}
+.landing-reports-page table.data-table td.col-status-noactions,
+.landing-reports-page table.data-table th.col-status-noactions {
+  left: 80px;
+}
+
+/* Vessel Name is pinned (col-status) with a filter icon pinned to its right edge, so it needs the
+   same right padding the Tracker gives its filterable headers. */
+.landing-reports-page table.data-table thead th.landing-vessel-col {
+  padding-right: 26px;
+}
+
+/* ── Add / edit modal ── */
+.landing-reports-form-grid {
+  grid-template-columns: 1fr;
+}
+
+.landing-reports-form-error {
+  margin-top: 14px;
+}
+
+/* ── Responsiveness ──
+   Layout, toolbar, pagination and the pinned-column behavior come from the Tracker's own media
+   queries (the page reuses its classes). These cover what is unique to Landing Reports. */
+
+/* The Tracker unpins the 3rd pinned column (here Vessel Name) at <=1023px by making it
+   position:static, which would leave its absolutely-positioned header filter icon anchored to the
+   wrong ancestor — keep it a positioning context. */
+@media (max-width: 1023px) {
+  .landing-reports-page .tracker-table-shell table.data-table thead th.landing-vessel-col {
+    position: relative;
+  }
+}
+
+/* "Add Landing Report" is the longest toolbar label; on narrow phones let toolbar buttons shrink
+   and wrap their text instead of overflowing their half-width cell. */
+@media (max-width: 767px) {
+  .landing-reports-page .tracker-toolbar .btn-tracker-action {
+    min-width: 0;
+    height: auto;
+    min-height: 38px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* ── More filters: offlanded date range ──
+   The Tracker's date fields put the label and the date input side by side, which only fits its
+   shorter labels ("DPR From"). "Offlanded From/To" is longer, so the native date input's calendar
+   icon pushed out of the field. Stack the label above the input instead, and let the grid columns
+   shrink (minmax(0, 1fr)) so the fields always stay inside the panel. */
+.landing-reports-page .more-filters-dates {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+}
+
+.landing-reports-page .more-filters-dates .date-range-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  height: auto;
+  min-width: 0;
+  padding: 8px 12px;
+}
+
+.landing-reports-page .more-filters-dates .date-range-field input[type='date'] {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+}

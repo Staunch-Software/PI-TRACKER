@@ -17,6 +17,7 @@ export function UserModal({ user, onClose }: Props) {
   const [canAccessPi, setCanAccessPi] = useState(user?.canAccessPi ?? true);
   const [canAccessPir, setCanAccessPir] = useState(user?.canAccessPir ?? true);
   const [canAccessSoa, setCanAccessSoa] = useState(user?.canAccessSoa ?? true);
+  const [canAccessLanding, setCanAccessLanding] = useState(user?.canAccessLanding ?? true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -31,9 +32,10 @@ export function UserModal({ user, onClose }: Props) {
             canAccessPi,
             canAccessPir,
             canAccessSoa,
+            canAccessLanding,
             ...(password ? { password } : {}),
           })
-        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa }),
+        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
@@ -126,6 +128,15 @@ export function UserModal({ user, onClose }: Props) {
                       onChange={(e) => setCanAccessSoa(e.target.checked)}
                     />
                     SOA
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessLanding}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessLanding(e.target.checked)}
+                    />
+                    Landing Reports
                   </label>
                 </div>
                 {role === UserRole.ADMIN && (

@@ -1,4 +1,4 @@
-import { AuditAction, AuditEntityType, Currency, Department, FollowUpStatus, SoaMatchSource, UserRole } from './enums';
+import { AuditAction, AuditEntityType, Currency, Department, FollowUpStatus, OilType, SoaMatchSource, UserRole } from './enums';
 
 export interface User {
   id: string;
@@ -11,6 +11,7 @@ export interface User {
   canAccessPi: boolean;
   canAccessPir: boolean;
   canAccessSoa: boolean;
+  canAccessLanding: boolean;
   createdAt: string;
 }
 
@@ -410,4 +411,31 @@ export interface SoaKpis {
 
 export interface SoaRematchResult {
   matchedCount: number;
+}
+
+// ── Landing Reports ──────────────────────────────────────────────────────────────
+
+// Mirrors backend/app/schemas/landing_report.py LandingReportOut.
+export interface LandingReport {
+  id: string;
+  seqNo: number;
+  vesselId: string;
+  vesselName: string;
+  port: string | null;
+  oilType: OilType;
+  offlandedDate: string | null;
+  shipmentStatus: string | null;
+  reportStatus: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Request body for create/edit — seqNo is system-generated and never sent.
+export interface LandingReportInput {
+  vesselId: string;
+  port: string | null;
+  oilType: OilType;
+  offlandedDate: string | null;
+  shipmentStatus: string | null;
+  reportStatus: string | null;
 }

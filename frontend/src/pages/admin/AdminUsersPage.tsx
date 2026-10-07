@@ -78,8 +78,8 @@ export function AdminUsersPage() {
                   <td>
                     <span className="admin-badge access">
                       {u.role === 'ADMIN'
-                        ? 'PI · PIR · SOA'
-                        : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA']
+                        ? 'PI · PIR · SOA · Landing Reports'
+                        : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA', u.canAccessLanding && 'Landing Reports']
                             .filter(Boolean).join(' · ') || '—'}
                     </span>
                   </td>

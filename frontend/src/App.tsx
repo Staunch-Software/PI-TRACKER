@@ -9,6 +9,7 @@ import { TrackerPage } from './pages/TrackerPage';
 import { FeedPage } from './pages/FeedPage';
 import { PIRPage } from './pages/PIRPage';
 import { SOAPage } from './pages/SOAPage';
+import { LandingReportsPage } from './components/landingreport/LandingReportsPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminVesselsPage } from './pages/admin/AdminVesselsPage';
@@ -35,6 +36,9 @@ export function App() {
               </Route>
               <Route element={<ModuleGate module="soa" />}>
                 <Route path="/soa" element={<SOAPage />} />
+              </Route>
+              <Route element={<ModuleGate module="landing" />}>
+                <Route path="/landing-reports" element={<LandingReportsPage />} />
               </Route>
             </Route>
             <Route path="/admin" element={<AdminLayout />}>

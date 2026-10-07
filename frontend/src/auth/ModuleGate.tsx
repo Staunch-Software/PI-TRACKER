@@ -2,7 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useRole } from './useRole';
 
 interface Props {
-  module: 'pi' | 'pir' | 'soa';
+  module: 'pi' | 'pir' | 'soa' | 'landing';
 }
 
 // Route-level guard for the module-access flags — defense in depth alongside the backend's
@@ -11,13 +11,18 @@ interface Props {
 // link. Redirects to whichever module they DO have access to; if none, falls through to a plain
 // message rather than looping between denied routes.
 export function ModuleGate({ module }: Props) {
-  const { canAccessPi, canAccessPir, canAccessSoa } = useRole();
-  const hasAccess = module === 'pi' ? canAccessPi : module === 'pir' ? canAccessPir : canAccessSoa;
+  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding } = useRole();
+  const hasAccess =
+    module === 'pi' ? canAccessPi
+    : module === 'pir' ? canAccessPir
+    : module === 'soa' ? canAccessSoa
+    : canAccessLanding;
 
   if (hasAccess) return <Outlet />;
   if (module !== 'pi' && canAccessPi) return <Navigate to="/dashboard" replace />;
   if (module !== 'pir' && canAccessPir) return <Navigate to="/pir" replace />;
   if (module !== 'soa' && canAccessSoa) return <Navigate to="/soa" replace />;
+  if (module !== 'landing' && canAccessLanding) return <Navigate to="/landing-reports" replace />;
 
   return (
     <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>

@@ -100,3 +100,9 @@ SOA_MATCH_SOURCE_LABELS: dict[SoaMatchSource, str] = {
     SoaMatchSource.INVOICE_MAIL: "Invoice Mail Only",
     SoaMatchSource.NONE: "No Match",
 }
+
+
+# Landing Reports oil type — fixed two-value dropdown; stored as the display string.
+class OilType(str, enum.Enum):
+    LUBE_OIL = "Lube Oil"
+    FUEL_OIL = "Fuel Oil"

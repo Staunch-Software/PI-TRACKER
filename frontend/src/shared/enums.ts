@@ -93,6 +93,12 @@ export enum AuditEntityType {
   OWNER_RECIPIENT = 'owner_recipient',
 }
 
+// Landing Reports oil type — mirrors backend/app/core/enums.py OilType (value is the display string).
+export enum OilType {
+  LUBE_OIL = 'Lube Oil',
+  FUEL_OIL = 'Fuel Oil',
+}
+
 // Where a SOA line item's invoice currently lives, in priority order.
 export enum SoaMatchSource {
   SMARTPAL = 'SMARTPAL',

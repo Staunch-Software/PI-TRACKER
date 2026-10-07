@@ -8,6 +8,7 @@ from app.api.routes import (
     dashboard,
     import_export,
     invoice_registrations,
+    landing_reports,
     owner_recipients,
     pi_entries,
     pir_entries,
@@ -34,6 +35,7 @@ api_router.include_router(pir_rejections.router)
 api_router.include_router(invoice_registrations.router)
 api_router.include_router(user_activity.router)
 api_router.include_router(soa_entries.router)
+api_router.include_router(landing_reports.router)
 api_router.include_router(attachments.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(import_export.router)

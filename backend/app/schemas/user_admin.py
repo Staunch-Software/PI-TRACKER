@@ -15,6 +15,7 @@ class UserCreateRequest(CamelModel):
     can_access_pi: bool = True
     can_access_pir: bool = True
     can_access_soa: bool = True
+    can_access_landing: bool = True
 
 
 class UserUpdateRequest(CamelModel):
@@ -24,4 +25,5 @@ class UserUpdateRequest(CamelModel):
     can_access_pi: bool | None = None
     can_access_pir: bool | None = None
     can_access_soa: bool | None = None
+    can_access_landing: bool | None = None
     password: str | None = None
