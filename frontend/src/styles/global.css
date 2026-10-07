@@ -407,7 +407,7 @@ table.data-table th,
 table.data-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
-  text-align: left;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: background-color 0.2s ease;
