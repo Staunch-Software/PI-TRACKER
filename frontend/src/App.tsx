@@ -2,6 +2,7 @@ import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { ModuleGate } from './auth/ModuleGate';
+import { useFirstAvailableModulePath } from './auth/firstAvailableModulePath';
 import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -17,6 +18,19 @@ import { AdminVendorMappingPage } from './pages/admin/AdminVendorMappingPage';
 import { AdminVendorsPage } from './pages/admin/AdminVendorsPage';
 import { AdminOwnerRecipientsPage } from './pages/admin/AdminOwnerRecipientsPage';
 
+// "/" lands the user on their actual first-available module directly (pi -> pir -> soa ->
+// landing, same priority ModuleGate uses) instead of always navigating to /dashboard first and
+// relying on ModuleGate to redirect a second time when the user lacks PI access.
+function HomeRedirect() {
+  const path = useFirstAvailableModulePath();
+  if (path) return <Navigate to={path} replace />;
+  return (
+    <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>
+      You don't have access to any module. Contact your administrator.
+    </div>
+  );
+}
+
 export function App() {
   return (
     <BrowserRouter>
@@ -25,7 +39,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<HomeRedirect />} />
               <Route element={<ModuleGate module="pi" />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/tracker" element={<TrackerPage />} />
