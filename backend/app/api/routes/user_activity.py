@@ -12,6 +12,11 @@ from app.services.user_activity_report_template import user_activity_report_emai
 
 router = APIRouter(prefix="/user-activity", tags=["user-activity"])
 
+# CC'd on the weekly report in addition to the allowlisted To recipients — not an access grant
+# (Kunal isn't in USER_ACTIVITY_ALLOWED_EMAILS, so they still can't see the "User Activity" modal
+# itself), just an extra recipient for this one email.
+USER_ACTIVITY_REPORT_CC = ["kunalchandra@ozellar.com"]
+
 
 @router.post("/report")
 def send_user_activity_report(
@@ -69,7 +74,13 @@ def send_user_activity_report(
     )
 
     try:
-        send_mail(sorted(USER_ACTIVITY_ALLOWED_EMAILS), subject, body, from_mailbox="data@ozellar.com", cc_emails=[])
+        send_mail(
+            sorted(USER_ACTIVITY_ALLOWED_EMAILS),
+            subject,
+            body,
+            from_mailbox="data@ozellar.com",
+            cc_emails=USER_ACTIVITY_REPORT_CC,
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
 
