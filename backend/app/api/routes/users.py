@@ -36,6 +36,10 @@ def create_user(
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         role=payload.role,
+        can_access_pi=payload.can_access_pi,
+        can_access_pir=payload.can_access_pir,
+        can_access_soa=payload.can_access_soa,
+        can_access_landing=payload.can_access_landing,
     )
     db.add(user)
     db.flush()
