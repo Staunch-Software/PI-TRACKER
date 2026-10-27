@@ -33,9 +33,11 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 from playwright.sync_api import sync_playwright
+from sqlalchemy.orm import Session
 
 from app.core.config import MARIAPPS_AUTH_JSON, settings
 from app.db.session import SessionLocal
+from app.models.dd_tracker_entry import DdTrackerEntry
 from app.models.po_entry import PoEntry
 from app.models.pr_entry import PrEntry
 from app.services.pir_scraper.generate_auth import run_automated_login
@@ -317,13 +319,94 @@ def _run_po(page, db) -> dict:
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "errors": errors}
 
 
+def _is_dd_category(category: str | None) -> bool:
+    """True for any req_category under the "DD" umbrella (e.g. "DD - SPARE", "DD - DECK STORE",
+    "DD- CARGO HOLD..." before normalization) — the user's own instruction: every DD-category
+    PR/PO should show up in the DD Tracker automatically, not just a manually hand-picked subset.
+    The crew-category DD variants (DD - CREW WAGES / DD - CREW EXPENSES) never reach this check at
+    all — they're dropped at scrape time in _run_pr/_run_po, see _EXCLUDED_CATEGORIES above."""
+    norm = _normalize_category(category)
+    return bool(norm) and norm.startswith("DD")
+
+
+def _sync_dd_tracker_entries(db: Session) -> dict:
+    """Auto-populates dd_tracker_entries for every DD-category PR/PO the scraper just saw —
+    confirmed with the user 2026-10-28: DD Tracker rows must appear automatically based on
+    category, not be hand-created one at a time. Runs after _run_pr/_run_po on every scrape.
+
+    PR-driven: any pr_entries row whose category is DD-flavored and not already tracked (matched
+    by requisition_no) gets a new dd_tracker_entries row, pulling in its matching PO (by
+    po_entries.requisition_no) if one already exists.
+
+    PO-driven (orphan Direct POs): a DD-category PO with no requisition_no (SmartPAL's own
+    "Direct PO" case, see po_entry.py docstring) is tracked by po_no instead, since there's no PR
+    to key off of.
+
+    Existing dd_tracker_entries rows are NEVER overwritten here — this only fills in po_no on an
+    already-tracked PR row when it was previously missing (a PO created after the PR was first
+    synced), and only when that field is still null, so it can never clobber a manual edit."""
+    inserted = linked = 0
+
+    tracked_req_nos = {r[0] for r in db.query(DdTrackerEntry.requisition_no).filter(DdTrackerEntry.requisition_no.isnot(None)).all()}
+    tracked_po_nos = {r[0] for r in db.query(DdTrackerEntry.po_no).filter(DdTrackerEntry.po_no.isnot(None)).all()}
+
+    dd_prs = db.query(PrEntry).filter(PrEntry.req_category.isnot(None)).all()
+    for pr in dd_prs:
+        if not _is_dd_category(pr.req_category):
+            continue
+        if pr.requisition_no in tracked_req_nos:
+            continue
+        matching_po = db.query(PoEntry).filter(PoEntry.requisition_no == pr.requisition_no).first()
+        db.add(
+            DdTrackerEntry(
+                entry_type="DD",
+                requisition_no=pr.requisition_no,
+                po_no=matching_po.po_no if matching_po else None,
+                vessel_name=pr.vessel_name,
+                title=pr.title,
+            )
+        )
+        tracked_req_nos.add(pr.requisition_no)
+        inserted += 1
+
+    dd_direct_pos = db.query(PoEntry).filter(PoEntry.req_category.isnot(None), PoEntry.requisition_no.is_(None)).all()
+    for po in dd_direct_pos:
+        if not _is_dd_category(po.req_category):
+            continue
+        if po.po_no in tracked_po_nos:
+            continue
+        db.add(
+            DdTrackerEntry(
+                entry_type="DD",
+                requisition_no=None,
+                po_no=po.po_no,
+                vessel_name=po.vessel_name,
+                title=po.title,
+            )
+        )
+        tracked_po_nos.add(po.po_no)
+        inserted += 1
+
+    # Backfill po_no on already-tracked PR rows that didn't have a matching PO yet last time —
+    # only when still null, never overwriting a manual edit.
+    unlinked = db.query(DdTrackerEntry).filter(DdTrackerEntry.requisition_no.isnot(None), DdTrackerEntry.po_no.is_(None)).all()
+    for entry in unlinked:
+        matching_po = db.query(PoEntry).filter(PoEntry.requisition_no == entry.requisition_no).first()
+        if matching_po:
+            entry.po_no = matching_po.po_no
+            linked += 1
+
+    db.commit()
+    return {"inserted": inserted, "linked": linked}
+
+
 def run() -> None:
     if not MARIAPPS_AUTH_JSON.exists():
         log.info("[AUTH]     No saved session found — running automated login first.")
         run_automated_login()
 
     db = SessionLocal()
-    pr_counters = po_counters = None
+    pr_counters = po_counters = dd_sync_counters = None
     try:
         try:
             with sync_playwright() as p:
@@ -343,12 +426,15 @@ def run() -> None:
                 pr_counters = _run_pr(context.new_page(), db)
                 po_counters = _run_po(context.new_page(), db)
                 browser.close()
+
+        dd_sync_counters = _sync_dd_tracker_entries(db)
     finally:
         db.close()
 
     log.info("=" * 60)
     log.info(f"  PR scrape complete — {pr_counters}")
     log.info(f"  PO scrape complete — {po_counters}")
+    log.info(f"  DD Tracker auto-sync complete — {dd_sync_counters}")
     log.info("=" * 60)
 
 

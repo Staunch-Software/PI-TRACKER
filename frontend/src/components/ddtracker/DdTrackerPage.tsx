@@ -65,6 +65,10 @@ export function DdTrackerPage() {
           <span className="count-label">Entries</span>
         </div>
       </div>
+      <p className="dd-tracker-auto-note">
+        Entries for every "DD" category PR/PO are added automatically from the SmartPAL scrape (twice daily). Use
+        "Add Entry" only for items that need tracking here but aren't DD-categorized in SmartPAL (e.g. OPEX).
+      </p>
       <div className="tracker-toolbar">
         <div className="tracker-search-wrap">
           <SearchIcon />
