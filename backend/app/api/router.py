@@ -6,6 +6,7 @@ from app.api.routes import (
     audit_log,
     auth,
     dashboard,
+    dd_tracker,
     import_export,
     invoice_registrations,
     landing_reports,
@@ -36,6 +37,7 @@ api_router.include_router(invoice_registrations.router)
 api_router.include_router(user_activity.router)
 api_router.include_router(soa_entries.router)
 api_router.include_router(landing_reports.router)
+api_router.include_router(dd_tracker.router)
 api_router.include_router(attachments.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(import_export.router)

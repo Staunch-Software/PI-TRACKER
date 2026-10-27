@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # mints a session cookie valid for the whole SmartPAL suite.
     approved_invoice_list_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/InvoiceList"
     pir_url: str = "https://smartpal.ozellar.com/AccountsPALApp/Accounts/ProblematicInvoiceOverview"
+    requisition_approval_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/RequisitionApproval"
+    po_overview_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/POOverview"
     mariapps_headless: bool = True
 
     # ── Microsoft Graph API (SOA reconciliation module) ─────────────────────────

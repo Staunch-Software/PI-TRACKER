@@ -13,7 +13,7 @@ const AnchorIcon = () => (
 );
 
 export function TopNav() {
-  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding } = useRole();
+  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd } = useRole();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -94,6 +94,9 @@ export function TopNav() {
           )}
           {canAccessLanding && (
             <NavLink to="/landing-reports" className={linkClass} onClick={closeMenu}>Landing Reports</NavLink>
+          )}
+          {canAccessDd && (
+            <NavLink to="/dd-tracker" className={linkClass} onClick={closeMenu}>DD Tracker</NavLink>
           )}
         </nav>
 

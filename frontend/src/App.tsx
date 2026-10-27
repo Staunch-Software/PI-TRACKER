@@ -11,6 +11,7 @@ import { FeedPage } from './pages/FeedPage';
 import { PIRPage } from './pages/PIRPage';
 import { SOAPage } from './pages/SOAPage';
 import { LandingReportsPage } from './components/landingreport/LandingReportsPage';
+import { DdTrackerPage } from './components/ddtracker/DdTrackerPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminVesselsPage } from './pages/admin/AdminVesselsPage';
@@ -53,6 +54,9 @@ export function App() {
               </Route>
               <Route element={<ModuleGate module="landing" />}>
                 <Route path="/landing-reports" element={<LandingReportsPage />} />
+              </Route>
+              <Route element={<ModuleGate module="dd" />}>
+                <Route path="/dd-tracker" element={<DdTrackerPage />} />
               </Route>
             </Route>
             <Route path="/admin" element={<AdminLayout />}>

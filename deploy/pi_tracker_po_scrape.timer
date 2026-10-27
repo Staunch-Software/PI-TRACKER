@@ -1,0 +1,15 @@
+# Staggered 30 minutes after pi_tracker_invoice_registration_scrape.timer (07:00/19:00) — all
+# SmartPAL scrapers share one SmartPAL account login, and running two concurrently can kick out
+# each other's session (see that timer's own comment), so each gets its own slot. This scraper is
+# fast (~30-50s for ~1400 PRs + ~3600 POs in a local test run), so a 30-minute buffer is generous.
+
+[Unit]
+Description=Run PI Follow-up Tracker PR/PO scrape twice daily
+
+[Timer]
+OnCalendar=*-*-* 07:30:00
+OnCalendar=*-*-* 19:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

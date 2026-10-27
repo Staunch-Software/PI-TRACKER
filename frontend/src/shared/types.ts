@@ -12,6 +12,7 @@ export interface User {
   canAccessPir: boolean;
   canAccessSoa: boolean;
   canAccessLanding: boolean;
+  canAccessDd: boolean;
   createdAt: string;
 }
 
@@ -438,4 +439,96 @@ export interface LandingReportInput {
   offlandedDate: string | null;
   shipmentStatus: string | null;
   reportStatus: string | null;
+}
+
+// ── DD Tracker ───────────────────────────────────────────────────────────────────
+
+// Mirrors backend/app/schemas/dd_tracker.py DdTrackerEntryOut. Manual fields are team-entered;
+// pr*/po* fields are live-joined from pr_entries/po_entries at read time (see
+// backend/app/api/routes/dd_tracker.py) — null when the linked requisitionNo/poNo has no match.
+export interface DdTrackerEntry {
+  id: string;
+  seqNo: number;
+
+  entryType: string | null;
+  requisitionNo: string | null;
+  poNo: string | null;
+  vesselName: string | null;
+  title: string | null;
+
+  prStatus: string | null;
+  orderStatus: string | null;
+  leadDays: number | null;
+  readinessDate: string | null;
+  exStock: string | null;
+  supplyConfirmation: string | null;
+  remarks1: string | null;
+  remarks2: string | null;
+  invoiceNumber: string | null;
+  invoiceType: string | null;
+  invoiceAmount: number | string | null;
+  invoiceCurrency: string | null;
+  paymentStatus: string | null;
+
+  createdAt: string;
+  updatedAt: string;
+
+  prTitle: string | null;
+  prStatusLive: string | null;
+  prDepartment: string | null;
+  prReqCategory: string | null;
+
+  poTitle: string | null;
+  poVendor: string | null;
+  poReqCategory: string | null;
+  poApprovedStatus: string | null;
+  poInvoiceStatus: string | null;
+  poBaseAmount: number | string | null;
+  poBaseCurrency: string | null;
+  poConfirmedDate: string | null;
+  poSchdDelPort: string | null;
+  poAgentName: string | null;
+  poWarehouseName: string | null;
+  poGrnNos: string | null;
+  poDoNos: string | null;
+}
+
+// Request body for create/edit — everything optional, same "blank = clear" convention as the
+// backend's strip-to-null validators.
+export interface DdTrackerEntryInput {
+  entryType?: string | null;
+  requisitionNo?: string | null;
+  poNo?: string | null;
+  vesselName?: string | null;
+  title?: string | null;
+  prStatus?: string | null;
+  orderStatus?: string | null;
+  leadDays?: number | null;
+  readinessDate?: string | null;
+  exStock?: string | null;
+  supplyConfirmation?: string | null;
+  remarks1?: string | null;
+  remarks2?: string | null;
+  invoiceNumber?: string | null;
+  invoiceType?: string | null;
+  invoiceAmount?: number | null;
+  invoiceCurrency?: string | null;
+  paymentStatus?: string | null;
+}
+
+export interface PrLookupResult {
+  requisitionNo: string;
+  title: string | null;
+  vesselName: string | null;
+  reqCategory: string | null;
+  status: string | null;
+}
+
+export interface PoLookupResult {
+  poNo: string;
+  title: string | null;
+  vesselName: string | null;
+  vendor: string | null;
+  reqCategory: string | null;
+  approvedStatus: string | null;
 }

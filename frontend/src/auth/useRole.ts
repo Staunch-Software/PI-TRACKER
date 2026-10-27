@@ -16,5 +16,6 @@ export function useRole() {
     canAccessPir: isAdmin || (user?.canAccessPir ?? false),
     canAccessSoa: isAdmin || (user?.canAccessSoa ?? false),
     canAccessLanding: isAdmin || (user?.canAccessLanding ?? false),
+    canAccessDd: isAdmin || (user?.canAccessDd ?? false),
   };
 }

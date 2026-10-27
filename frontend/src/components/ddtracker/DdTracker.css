@@ -1,0 +1,115 @@
+/*
+  DdTracker.css
+  DD Tracker-specific styles. Page layout/toolbar/pagination reuse the Tracker's classes
+  (Tracker.css / global.css); the table here is a plain table (no drag/resize), so it gets its
+  own minimal styling rather than reusing .data-table.
+*/
+
+.dd-tracker-table-shell {
+  overflow-x: auto;
+}
+
+table.dd-tracker-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+table.dd-tracker-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface, #fff);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+}
+
+table.dd-tracker-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border, #eef1f5);
+  vertical-align: top;
+}
+
+table.dd-tracker-table tbody tr:hover {
+  background: var(--color-surface-hover, #f8fafc);
+}
+
+.dd-tracker-live-note {
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+  white-space: normal;
+}
+
+.dd-tracker-empty {
+  text-align: center;
+  color: var(--color-text-muted, #64748b);
+  padding: 24px !important;
+}
+
+.dd-tracker-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dd-tracker-actions .btn-icon-danger {
+  color: #dc2626;
+}
+
+/* ── PR/PO lookup autocomplete ── */
+.dd-lookup-field {
+  position: relative;
+}
+
+.dd-lookup-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dd-lookup-suggestions li {
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dd-lookup-suggestions li:hover {
+  background: var(--color-surface-hover, #f1f5f9);
+}
+
+.dd-lookup-main {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.dd-lookup-sub {
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+  white-space: normal;
+}
+
+.dd-tracker-modal .form-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 16px;
+}
+
+@media (max-width: 720px) {
+  .dd-tracker-modal .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

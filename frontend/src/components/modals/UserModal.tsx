@@ -18,6 +18,7 @@ export function UserModal({ user, onClose }: Props) {
   const [canAccessPir, setCanAccessPir] = useState(user?.canAccessPir ?? true);
   const [canAccessSoa, setCanAccessSoa] = useState(user?.canAccessSoa ?? true);
   const [canAccessLanding, setCanAccessLanding] = useState(user?.canAccessLanding ?? true);
+  const [canAccessDd, setCanAccessDd] = useState(user?.canAccessDd ?? true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -33,9 +34,10 @@ export function UserModal({ user, onClose }: Props) {
             canAccessPir,
             canAccessSoa,
             canAccessLanding,
+            canAccessDd,
             ...(password ? { password } : {}),
           })
-        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding }),
+        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
@@ -137,6 +139,15 @@ export function UserModal({ user, onClose }: Props) {
                       onChange={(e) => setCanAccessLanding(e.target.checked)}
                     />
                     Landing Reports
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessDd}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessDd(e.target.checked)}
+                    />
+                    DD Tracker
                   </label>
                 </div>
                 {role === UserRole.ADMIN && (
