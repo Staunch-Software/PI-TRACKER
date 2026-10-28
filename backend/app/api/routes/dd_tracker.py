@@ -156,6 +156,21 @@ def list_dd_tracker_entries(
     )
 
 
+@router.get("/vessel-options", response_model=list[str])
+def list_vessel_options(db: Session = Depends(get_db)) -> list[str]:
+    """Distinct vessel names currently tracked, for the toolbar's vessel filter dropdown — these
+    are free-text SmartPAL vessel names (see dd_tracker_entry.py), not a join to the `vessels`
+    table, since DD Tracker rows aren't FK'd to it."""
+    rows = (
+        db.query(DdTrackerEntry.vessel_name)
+        .filter(DdTrackerEntry.vessel_name.isnot(None))
+        .distinct()
+        .order_by(DdTrackerEntry.vessel_name)
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
 @router.get("/pr-lookup", response_model=list[PrLookupResult])
 def lookup_pr_entries(
     q: str = Query(min_length=2),

@@ -1,59 +1,205 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '../../auth/useRole';
 import { api, ApiError } from '../../lib/api';
 import type { DdTrackerEntry, PaginatedResult } from '../../shared';
-import { DdTrackerModal } from './DdTrackerModal';
-import { ConfirmDialog } from '../modals/ConfirmDialog';
+import {
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_COL_WIDTHS,
+  DdTrackerTable,
+  type ReorderableColumnKey,
+  type SortColumn,
+} from './DdTrackerTable';
+import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 
 import '../../pages/Tracker.css';
 import './DdTracker.css';
 
+const TABLE_KEY = 'dd_tracker';
 const PAGE_SIZE = 50;
+const DEFAULT_VESSEL_FILTER = ['GCL NARMADA'];
+const VESSEL_COL_DEFAULT_WIDTH = 190;
 
-function formatAmount(amount: number | string | null, currency: string | null): string {
-  if (amount === null || amount === undefined) return '—';
-  const n = typeof amount === 'string' ? Number(amount) : amount;
-  if (Number.isNaN(n)) return '—';
-  return `${currency ?? ''} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+interface TableLayoutPreference {
+  tableKey: string;
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+}
+
+function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableColumnKey[] {
+  const known = new Set<string>(DEFAULT_COLUMN_ORDER);
+  const filtered = (saved ?? []).filter((k): k is ReorderableColumnKey => known.has(k));
+  const missing = DEFAULT_COLUMN_ORDER.filter((k) => !filtered.includes(k));
+  return [...filtered, ...missing];
+}
+
+function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
+  const result: Record<string, number> = { vessel: VESSEL_COL_DEFAULT_WIDTH };
+  const w = saved?.vessel;
+  if (typeof w === 'number' && w >= 60 && w <= 1000) result.vessel = w;
+  for (const key of Object.keys(DEFAULT_COL_WIDTHS) as ReorderableColumnKey[]) {
+    const sw = saved?.[key];
+    result[key] = typeof sw === 'number' && sw >= 60 && sw <= 1000 ? sw : DEFAULT_COL_WIDTHS[key];
+  }
+  return result;
+}
+
+function buildQueryParams(
+  search: string,
+  vesselFilter: string[],
+  sortBy: SortColumn | null,
+  sortDir: 'asc' | 'desc',
+  page: number
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  vesselFilter.forEach((v) => params.append('vessel_name', v));
+  if (sortBy) {
+    params.set('sort_by', sortBy);
+    params.set('sort_dir', sortDir);
+  }
+  params.set('page', String(page));
+  params.set('page_size', String(PAGE_SIZE));
+  return params;
 }
 
 export function DdTrackerPage() {
   const { canEdit } = useRole();
   const [search, setSearch] = useState('');
+  const [vesselFilter, setVesselFilter] = useState<string[]>(DEFAULT_VESSEL_FILTER);
   const [page, setPage] = useState(1);
-  const [editing, setEditing] = useState<DdTrackerEntry | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [deleting, setDeleting] = useState<DdTrackerEntry | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortColumn | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const [layoutEditable, setLayoutEditable] = useState(false);
+  const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
+  const [savedColumnWidths, setSavedColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS, vessel: VESSEL_COL_DEFAULT_WIDTH });
+  const [columnOrder, setColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS, vessel: VESSEL_COL_DEFAULT_WIDTH });
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<DdTrackerFormState | null>(null);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newRowForm, setNewRowForm] = useState<DdTrackerFormState>(blankDdTrackerForm());
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
+  const initializedRef = useRef(false);
+
+  const tableLayoutQuery = useQuery({
+    queryKey: ['table-layout', TABLE_KEY],
+    queryFn: () => api.get<TableLayoutPreference | null>(`/table-layout/${TABLE_KEY}`),
+  });
+
+  useEffect(() => {
+    if (tableLayoutQuery.data === undefined) return;
+    const order = sanitizeColumnOrder(tableLayoutQuery.data?.columnOrder);
+    const widths = sanitizeColumnWidths(tableLayoutQuery.data?.columnWidths);
+    setSavedColumnOrder(order);
+    setSavedColumnWidths(widths);
+    setColumnOrder(order);
+    setColumnWidths(widths);
+    initializedRef.current = true;
+  }, [tableLayoutQuery.data]);
+
+  const saveLayoutMutation = useMutation({
+    mutationFn: () => api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths }),
+    onSuccess: () => {
+      setSavedColumnOrder(columnOrder);
+      setSavedColumnWidths(columnWidths);
+      setLayoutEditable(false);
+    },
+  });
+
+  function startLayoutEdit() {
+    setLayoutEditable(true);
+  }
+  function cancelLayoutEdit() {
+    setColumnOrder(savedColumnOrder);
+    setColumnWidths(savedColumnWidths);
+    setLayoutEditable(false);
+  }
+
+  const vesselOptionsQuery = useQuery({
+    queryKey: ['dd-tracker-vessel-options'],
+    queryFn: () => api.get<string[]>('/dd-tracker/vessel-options'),
+  });
 
   const entriesQuery = useQuery({
-    queryKey: ['dd-tracker', search, page],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      params.set('page', String(page));
-      params.set('page_size', String(PAGE_SIZE));
-      return api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${params.toString()}`);
-    },
+    queryKey: ['dd-tracker', search, vesselFilter, sortBy, sortDir, page],
+    queryFn: () =>
+      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, vesselFilter, sortBy, sortDir, page).toString()}`),
     placeholderData: keepPreviousData,
   });
 
   const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / PAGE_SIZE)) : 1;
 
-  const deleteMutation = useMutation({
-    mutationFn: (entry: DdTrackerEntry) => api.delete(`/dd-tracker/${entry.id}`),
+  function handleSort(column: SortColumn) {
+    if (sortBy === column) {
+      if (sortDir === 'asc') {
+        setSortDir('desc');
+      } else {
+        setSortBy(null);
+        setSortDir('asc');
+      }
+    } else {
+      setSortBy(column);
+      setSortDir('asc');
+    }
+    setPage(1);
+  }
+
+  function updateVesselFilter(values: string[]) {
+    setPage(1);
+    setVesselFilter(values);
+  }
+
+  function startEdit(entry: DdTrackerEntry) {
+    setSaveError(null);
+    setEditingId(entry.id);
+    setEditForm(ddTrackerFormFromEntry(entry));
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm(null);
+  }
+  function handleEditFormChange(field: keyof DdTrackerFormState, value: string) {
+    setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  const saveEditMutation = useMutation({
+    mutationFn: () => api.patch<DdTrackerEntry>(`/dd-tracker/${editingId}`, toDdTrackerPayload(editForm!)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
-      setDeleting(null);
+      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      setEditingId(null);
+      setEditForm(null);
     },
-    onError: (err) => {
-      setDeleting(null);
-      setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete DD Tracker entry.');
+    onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to save DD Tracker entry.'),
+  });
+
+  function startAdd() {
+    setSaveError(null);
+    setNewRowForm(blankDdTrackerForm());
+    setIsAddingNew(true);
+  }
+  function cancelAdd() {
+    setIsAddingNew(false);
+  }
+  function handleNewRowChange(field: keyof DdTrackerFormState, value: string) {
+    setNewRowForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  const saveNewMutation = useMutation({
+    mutationFn: () => api.post<DdTrackerEntry>('/dd-tracker', toDdTrackerPayload(newRowForm)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
+      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      setIsAddingNew(false);
     },
+    onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to add DD Tracker entry.'),
   });
 
   return (
@@ -84,10 +230,35 @@ export function DdTrackerPage() {
         </div>
         <div className="tracker-toolbar-spacer" />
         {canEdit && (
-          <button className="btn-tracker-action btn-tracker-primary" onClick={() => setIsAdding(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Entry
-          </button>
+          <>
+            <button
+              className="btn-tracker-action btn-tracker-primary"
+              onClick={startAdd}
+              disabled={isAddingNew || editingId !== null || layoutEditable}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Entry
+            </button>
+            {layoutEditable ? (
+              <div className="tracker-layout-edit-group">
+                <button className="btn-tracker-action btn-tracker-success" onClick={() => saveLayoutMutation.mutate()} disabled={saveLayoutMutation.isPending}>
+                  {saveLayoutMutation.isPending ? 'Saving…' : 'Save Layout'}
+                </button>
+                <button className="btn-tracker-action btn-tracker-secondary" onClick={cancelLayoutEdit}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-tracker-action btn-tracker-secondary"
+                onClick={startLayoutEdit}
+                disabled={isAddingNew || editingId !== null}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Edit Layout
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -104,78 +275,35 @@ export function DdTrackerPage() {
         </div>
       ) : (
         <>
-          <div className="tracker-table-shell dd-tracker-table-shell">
-            <table className="dd-tracker-table">
-              <thead>
-                <tr>
-                  <th>S.No</th>
-                  <th>Type</th>
-                  <th>PR Number</th>
-                  <th>PO Number</th>
-                  <th>Title</th>
-                  <th>Vessel</th>
-                  <th>Vendor</th>
-                  <th>PO Status</th>
-                  <th>PO Amount</th>
-                  <th>Supply Port</th>
-                  <th>PO Acknowledged</th>
-                  <th>Order Status</th>
-                  <th>Readiness Date</th>
-                  <th>Remarks</th>
-                  {canEdit && <th>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {(entriesQuery.data?.items ?? []).map((entry) => (
-                  <tr key={entry.id}>
-                    <td>{entry.seqNo}</td>
-                    <td>{entry.entryType ?? '—'}</td>
-                    <td>
-                      <div>{entry.requisitionNo ?? '—'}</div>
-                      {entry.prStatusLive && <div className="dd-tracker-live-note">{entry.prStatusLive}</div>}
-                    </td>
-                    <td>
-                      <div>{entry.poNo ?? '—'}</div>
-                      {entry.poApprovedStatus && <div className="dd-tracker-live-note">{entry.poApprovedStatus}</div>}
-                    </td>
-                    <td>{entry.title ?? entry.poTitle ?? entry.prTitle ?? '—'}</td>
-                    <td>{entry.vesselName ?? '—'}</td>
-                    <td>{entry.poVendor ?? '—'}</td>
-                    <td>{entry.poApprovedStatus ?? '—'}</td>
-                    <td>{formatAmount(entry.poBaseAmount, entry.poBaseCurrency)}</td>
-                    <td>{entry.poSchdDelPort ?? '—'}</td>
-                    <td>{entry.poConfirmedDate ?? '—'}</td>
-                    <td>{entry.orderStatus ?? '—'}</td>
-                    <td>{entry.readinessDate ?? '—'}</td>
-                    <td>{entry.remarks1 ?? entry.remarks2 ?? '—'}</td>
-                    {canEdit && (
-                      <td className="dd-tracker-actions">
-                        <button className="btn-icon" onClick={() => setEditing(entry)} title="Edit">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button
-                          className="btn-icon btn-icon-danger"
-                          onClick={() => {
-                            setDeleteError(null);
-                            setDeleting(entry);
-                          }}
-                          title="Delete"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-                {(entriesQuery.data?.items ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={canEdit ? 15 : 14} className="dd-tracker-empty">
-                      No DD Tracker entries yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="tracker-table-shell">
+            <DdTrackerTable
+              entries={entriesQuery.data?.items ?? []}
+              canEdit={canEdit}
+              vesselOptions={vesselOptionsQuery.data ?? []}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={handleSort}
+              editingId={editingId}
+              editForm={editForm}
+              isSavingEdit={saveEditMutation.isPending}
+              onStartEdit={startEdit}
+              onEditFormChange={handleEditFormChange}
+              onSaveEdit={() => saveEditMutation.mutate()}
+              onCancelEdit={cancelEdit}
+              isAddingNew={isAddingNew}
+              newRowForm={newRowForm}
+              isSavingNew={saveNewMutation.isPending}
+              onNewRowChange={handleNewRowChange}
+              onSaveNew={() => saveNewMutation.mutate()}
+              onCancelNew={cancelAdd}
+              columnOrder={columnOrder}
+              columnWidths={columnWidths}
+              layoutEditable={layoutEditable}
+              onReorderColumn={setColumnOrder}
+              onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
+              vesselFilter={vesselFilter}
+              onVesselFilterChange={updateVesselFilter}
+            />
           </div>
           <div className="tracker-pagination">
             <div className="pagination-center">
@@ -202,27 +330,7 @@ export function DdTrackerPage() {
         </>
       )}
 
-      {deleting && (
-        <ConfirmDialog
-          title="Delete DD Tracker Entry"
-          message={`Delete entry S.No ${deleting.seqNo} (${deleting.requisitionNo ?? deleting.poNo ?? 'no PR/PO'})? This cannot be undone.`}
-          isConfirming={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleting)}
-          onCancel={() => setDeleting(null)}
-        />
-      )}
-
-      {(isAdding || editing) && (
-        <DdTrackerModal
-          entry={editing}
-          onClose={() => {
-            setIsAdding(false);
-            setEditing(null);
-          }}
-        />
-      )}
-
-      {deleteError && <Toast type="error" message={deleteError} onClose={() => setDeleteError(null)} duration={5000} />}
+      {saveError && <Toast type="error" message={saveError} onClose={() => setSaveError(null)} duration={5000} />}
     </div>
   );
 }
