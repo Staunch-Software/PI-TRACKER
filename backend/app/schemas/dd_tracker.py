@@ -18,11 +18,8 @@ _MANUAL_TEXT_FIELDS = (
     "order_status",
     "ex_stock",
     "supply_confirmation",
-    "remarks_1",
-    "remarks_2",
-    "invoice_number",
+    "remarks",
     "invoice_type",
-    "invoice_currency",
     "payment_status",
 )
 
@@ -49,12 +46,8 @@ class DdTrackerEntryCreate(_TextFieldsMixin):
     readiness_date: date | None = None
     ex_stock: str | None = Field(default=None, max_length=_TEXT_MAX)
     supply_confirmation: str | None = Field(default=None, max_length=_TEXT_MAX)
-    remarks_1: str | None = Field(default=None, max_length=_TEXT_MAX)
-    remarks_2: str | None = Field(default=None, max_length=_TEXT_MAX)
-    invoice_number: str | None = Field(default=None, max_length=_TEXT_MAX)
+    remarks: str | None = Field(default=None, max_length=_TEXT_MAX)
     invoice_type: str | None = Field(default=None, max_length=_TEXT_MAX)
-    invoice_amount: Decimal | None = None
-    invoice_currency: str | None = Field(default=None, max_length=_TEXT_MAX)
     payment_status: str | None = Field(default=None, max_length=_TEXT_MAX)
 
 
@@ -78,12 +71,8 @@ class DdTrackerEntryOut(CamelModel):
     readiness_date: date | None
     ex_stock: str | None
     supply_confirmation: str | None
-    remarks_1: str | None
-    remarks_2: str | None
-    invoice_number: str | None
+    remarks: str | None
     invoice_type: str | None
-    invoice_amount: Decimal | None
-    invoice_currency: str | None
     payment_status: str | None
 
     created_at: datetime
@@ -110,6 +99,15 @@ class DdTrackerEntryOut(CamelModel):
     po_warehouse_name: str | None = None
     po_grn_nos: str | None = None
     po_do_nos: str | None = None
+
+    # ── Live-joined from smartpal_invoice_entries (matched by its po_nos field against this
+    # row's po_no) — see api/routes/dd_tracker.py and dd_tracker_entry.py docstring. None when no
+    # invoice has been raised against this PO yet. A PO with more than one invoice (partial
+    # invoicing) surfaces the most recently scraped one.
+    invoice_number: str | None = None
+    invoice_amount: Decimal | None = None
+    invoice_currency: str | None = None
+    invoice_status: str | None = None
 
 
 class PrLookupResult(CamelModel):

@@ -21,7 +21,8 @@ export const DEFAULT_COL_WIDTHS = {
   poStatus: 150,
   title: 320,
   vendor: 220,
-  poAmount: 150,
+  poAmount: 130,
+  poCurrency: 100,
   supplyPort: 160,
   poAcknowledged: 150,
   prNotes: 220,
@@ -30,12 +31,12 @@ export const DEFAULT_COL_WIDTHS = {
   readinessDate: 150,
   exStock: 130,
   supplyConfirmation: 180,
-  remarks1: 220,
-  remarks2: 220,
+  remarks: 260,
   invoiceNumber: 160,
   invoiceType: 140,
   invoiceAmount: 140,
-  invoiceCurrency: 120,
+  invoiceCurrency: 110,
+  invoiceStatus: 150,
   paymentStatus: 160,
 } as const;
 
@@ -43,9 +44,9 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 
 export const DEFAULT_COLUMN_ORDER = [
   'entryType', 'prNumber', 'prStatus', 'poNumber', 'poStatus', 'title', 'vendor', 'poAmount',
-  'supplyPort', 'poAcknowledged', 'prNotes', 'orderStatus', 'leadDays', 'readinessDate', 'exStock',
-  'supplyConfirmation', 'remarks1', 'remarks2', 'invoiceNumber', 'invoiceType', 'invoiceAmount',
-  'invoiceCurrency', 'paymentStatus',
+  'poCurrency', 'supplyPort', 'poAcknowledged', 'prNotes', 'orderStatus', 'leadDays',
+  'readinessDate', 'exStock', 'supplyConfirmation', 'remarks', 'invoiceNumber', 'invoiceType',
+  'invoiceAmount', 'invoiceCurrency', 'invoiceStatus', 'paymentStatus',
 ] as const satisfies readonly ReorderableColumnKey[];
 
 const MIN_COL_WIDTH = 60;
@@ -118,7 +119,11 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'PO Amount',
     headerClassName: 'col-right',
     cellClassName: 'col-right',
-    renderCell: (e) => (e.poBaseAmount === null ? '—' : `${e.poBaseCurrency ?? ''} ${formatAmount(e.poBaseAmount)}`.trim()),
+    renderCell: (e) => formatAmount(e.poBaseAmount),
+  },
+  poCurrency: {
+    label: 'PO Currency',
+    renderCell: (e) => e.poBaseCurrency ?? '—',
   },
   supplyPort: {
     label: 'Supply Port',
@@ -176,26 +181,20 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
       <input value={form.supplyConfirmation} onChange={(ev) => onChange('supplyConfirmation', ev.target.value)} />
     ),
   },
-  remarks1: {
-    label: 'Remarks 1',
-    renderCell: (e) => e.remarks1 ?? '—',
+  remarks: {
+    label: 'Remarks',
+    renderCell: (e) => e.remarks ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.remarks1} onChange={(ev) => onChange('remarks1', ev.target.value)} />
+      <input value={form.remarks} onChange={(ev) => onChange('remarks', ev.target.value)} />
     ),
   },
-  remarks2: {
-    label: 'Remarks 2',
-    renderCell: (e) => e.remarks2 ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input value={form.remarks2} onChange={(ev) => onChange('remarks2', ev.target.value)} />
-    ),
-  },
+  // Invoice Number/Amount/Currency/Status are live-joined from smartpal_invoice_entries by PO
+  // number (see backend/app/api/routes/dd_tracker.py) — never editable here, same stance as
+  // Vendor/PO Amount/Supply Port. Only Invoice Type stays manual (no equivalent live field — see
+  // dd_tracker_entry.py docstring).
   invoiceNumber: {
     label: 'Invoice Number',
     renderCell: (e) => e.invoiceNumber ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input value={form.invoiceNumber} onChange={(ev) => onChange('invoiceNumber', ev.target.value)} />
-    ),
   },
   invoiceType: {
     label: 'Invoice Type',
@@ -209,16 +208,14 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     headerClassName: 'col-right',
     cellClassName: 'col-right',
     renderCell: (e) => formatAmount(e.invoiceAmount),
-    renderEditCell: ({ form, onChange }) => (
-      <input type="number" step="0.01" value={form.invoiceAmount} onChange={(ev) => onChange('invoiceAmount', ev.target.value)} style={{ width: 110 }} />
-    ),
   },
   invoiceCurrency: {
     label: 'Invoice Currency',
     renderCell: (e) => e.invoiceCurrency ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input value={form.invoiceCurrency} onChange={(ev) => onChange('invoiceCurrency', ev.target.value)} style={{ width: 90 }} maxLength={10} />
-    ),
+  },
+  invoiceStatus: {
+    label: 'Invoice Status',
+    renderCell: (e) => e.invoiceStatus ?? '—',
   },
   paymentStatus: {
     label: 'Payment Status',

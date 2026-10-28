@@ -1,8 +1,7 @@
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, FetchedValue, ForeignKey, Numeric, Text
+from sqlalchemy import Date, DateTime, FetchedValue, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -28,14 +27,20 @@ class DdTrackerEntry(Base):
     po_entries.po_no at read time to surface live status/vendor/amount/etc. alongside these manual
     fields, same "join live, don't duplicate" stance as PirEntry's department classification.
 
-    Column provenance (see the live SmartPAL field investigation, 2026-10-27):
+    Column provenance (see the live SmartPAL field investigation, 2026-10-27/28):
       - PR Status / Order status are the TEAM's own free-text follow-up notes — SmartPAL's own PR
         narrative status is a separate field (pr_entries.status) already surfaced via the join,
         not duplicated here.
       - Readiness date is manual by the user's own instruction (the team updates it directly, not
         the various readiness-looking SmartPAL fields — see po_entry.py docstring).
-      - Invoice number/type/amount/currency and payment status are not sourced from any scraper
-        yet, so they stay manual here for now.
+      - Invoice number/amount/currency/status are NOT stored here — same "join live, don't
+        duplicate" stance as PR/PO — they're read live from smartpal_invoice_entries, matched by
+        its po_nos field against this row's po_no (see api/routes/dd_tracker.py). A PO can in
+        principle have more than one invoice (partial invoicing); the join surfaces the most
+        recently scraped one. Invoice Type has no equivalent live field (confirmed live 2026-10-28
+        every SmartPAL invoice row's closest candidate, dspInvoice, was "PO" on 100% of rows
+        sampled — no real variation to key off), so it stays manual.
+      - payment_status is not sourced from any scraper yet, so it stays manual here for now.
     """
 
     __tablename__ = "dd_tracker_entries"
@@ -56,12 +61,8 @@ class DdTrackerEntry(Base):
     readiness_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     ex_stock: Mapped[str | None] = mapped_column(Text, nullable=True)
     supply_confirmation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    remarks_1: Mapped[str | None] = mapped_column(Text, nullable=True)
-    remarks_2: Mapped[str | None] = mapped_column(Text, nullable=True)
-    invoice_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    invoice_amount: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
-    invoice_currency: Mapped[str | None] = mapped_column(Text, nullable=True)
     payment_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)

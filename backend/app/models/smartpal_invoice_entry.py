@@ -50,6 +50,11 @@ class SmartpalInvoiceEntry(Base):
     currency_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    # SmartPAL's own field ("poNos" in raw_json) — confirmed live 2026-10-28, was already present
+    # on every row but never surfaced as its own column until the DD Tracker module needed to join
+    # invoices back to po_entries.po_no by it.
+    po_nos: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+
     # SmartPAL's own status text (e.g. "Pending Approval", "Finally Approved", "Rejected") —
     # surfaced as-is in match_status_label, see SoaLineItem docstring.
     status: Mapped[str | None] = mapped_column(Text, nullable=True)

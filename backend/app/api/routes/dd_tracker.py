@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.dd_tracker_entry import DdTrackerEntry
 from app.models.po_entry import PoEntry
 from app.models.pr_entry import PrEntry
+from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.user import User
 from app.schemas.common import PaginatedResult
 from app.schemas.dd_tracker import (
@@ -42,7 +43,9 @@ _SORTABLE_COLUMNS = {
 }
 
 
-def _to_out(entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None) -> DdTrackerEntryOut:
+def _to_out(
+    entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None, invoice: SmartpalInvoiceEntry | None
+) -> DdTrackerEntryOut:
     return DdTrackerEntryOut(
         id=entry.id,
         seq_no=entry.seq_no,
@@ -57,12 +60,8 @@ def _to_out(entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None) -> Dd
         readiness_date=entry.readiness_date,
         ex_stock=entry.ex_stock,
         supply_confirmation=entry.supply_confirmation,
-        remarks_1=entry.remarks_1,
-        remarks_2=entry.remarks_2,
-        invoice_number=entry.invoice_number,
+        remarks=entry.remarks,
         invoice_type=entry.invoice_type,
-        invoice_amount=entry.invoice_amount,
-        invoice_currency=entry.invoice_currency,
         payment_status=entry.payment_status,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
@@ -83,7 +82,25 @@ def _to_out(entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None) -> Dd
         po_warehouse_name=po.warehouse_name if po else None,
         po_grn_nos=po.grn_nos if po else None,
         po_do_nos=po.do_nos if po else None,
+        invoice_number=invoice.invoice_no if invoice else None,
+        invoice_amount=invoice.amount if invoice else None,
+        invoice_currency=invoice.currency_code if invoice else None,
+        invoice_status=invoice.status if invoice else None,
     )
+
+
+def _fetch_live(db: Session, entry: DdTrackerEntry) -> tuple[PrEntry | None, PoEntry | None, SmartpalInvoiceEntry | None]:
+    pr = db.query(PrEntry).filter(PrEntry.requisition_no == entry.requisition_no).first() if entry.requisition_no else None
+    po = db.query(PoEntry).filter(PoEntry.po_no == entry.po_no).first() if entry.po_no else None
+    invoice = (
+        db.query(SmartpalInvoiceEntry)
+        .filter(SmartpalInvoiceEntry.po_nos == entry.po_no)
+        .order_by(SmartpalInvoiceEntry.last_scraped_at.desc())
+        .first()
+        if entry.po_no
+        else None
+    )
+    return pr, po, invoice
 
 
 def _filtered_query(
@@ -111,8 +128,7 @@ def _filtered_query(
                         DdTrackerEntry.title,
                         DdTrackerEntry.pr_status,
                         DdTrackerEntry.order_status,
-                        DdTrackerEntry.remarks_1,
-                        DdTrackerEntry.remarks_2,
+                        DdTrackerEntry.remarks,
                     )
                 ]
             )
@@ -134,7 +150,23 @@ def _attach_live_data(db: Session, entries: list[DdTrackerEntry]) -> list[DdTrac
     po_nos = {e.po_no for e in entries if e.po_no}
     prs = {p.requisition_no: p for p in db.query(PrEntry).filter(PrEntry.requisition_no.in_(req_nos)).all()} if req_nos else {}
     pos = {p.po_no: p for p in db.query(PoEntry).filter(PoEntry.po_no.in_(po_nos)).all()} if po_nos else {}
-    return [_to_out(e, prs.get(e.requisition_no), pos.get(e.po_no)) for e in entries]
+
+    # smartpal_invoice_entries.po_nos is an exact-match string (every row sampled live 2026-10-28
+    # carried exactly one PO number, never a real comma-separated list despite the plural SmartPAL
+    # field name) — same assumption po_entries.requisition_no already makes. A PO with more than
+    # one invoice (partial invoicing) keeps whichever was scraped most recently.
+    invoices: dict[str, SmartpalInvoiceEntry] = {}
+    if po_nos:
+        rows = (
+            db.query(SmartpalInvoiceEntry)
+            .filter(SmartpalInvoiceEntry.po_nos.in_(po_nos))
+            .order_by(SmartpalInvoiceEntry.last_scraped_at.desc())
+            .all()
+        )
+        for inv in rows:
+            invoices.setdefault(inv.po_nos, inv)
+
+    return [_to_out(e, prs.get(e.requisition_no), pos.get(e.po_no), invoices.get(e.po_no)) for e in entries]
 
 
 @router.get("", response_model=PaginatedResult[DdTrackerEntryOut])
@@ -229,9 +261,8 @@ def create_dd_tracker_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    pr = db.query(PrEntry).filter(PrEntry.requisition_no == entry.requisition_no).first() if entry.requisition_no else None
-    po = db.query(PoEntry).filter(PoEntry.po_no == entry.po_no).first() if entry.po_no else None
-    return _to_out(entry, pr, po)
+    pr, po, invoice = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice)
 
 
 @router.patch("/{entry_id}", response_model=DdTrackerEntryOut)
@@ -251,9 +282,8 @@ def update_dd_tracker_entry(
     entry.updated_at = datetime.now()
     db.commit()
     db.refresh(entry)
-    pr = db.query(PrEntry).filter(PrEntry.requisition_no == entry.requisition_no).first() if entry.requisition_no else None
-    po = db.query(PoEntry).filter(PoEntry.po_no == entry.po_no).first() if entry.po_no else None
-    return _to_out(entry, pr, po)
+    pr, po, invoice = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice)
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -462,12 +462,8 @@ export interface DdTrackerEntry {
   readinessDate: string | null;
   exStock: string | null;
   supplyConfirmation: string | null;
-  remarks1: string | null;
-  remarks2: string | null;
-  invoiceNumber: string | null;
+  remarks: string | null;
   invoiceType: string | null;
-  invoiceAmount: number | string | null;
-  invoiceCurrency: string | null;
   paymentStatus: string | null;
 
   createdAt: string;
@@ -491,6 +487,12 @@ export interface DdTrackerEntry {
   poWarehouseName: string | null;
   poGrnNos: string | null;
   poDoNos: string | null;
+
+  // Live-joined from smartpal_invoice_entries by po_nos — see backend/app/api/routes/dd_tracker.py.
+  invoiceNumber: string | null;
+  invoiceAmount: number | string | null;
+  invoiceCurrency: string | null;
+  invoiceStatus: string | null;
 }
 
 // Request body for create/edit — everything optional, same "blank = clear" convention as the
@@ -507,12 +509,8 @@ export interface DdTrackerEntryInput {
   readinessDate?: string | null;
   exStock?: string | null;
   supplyConfirmation?: string | null;
-  remarks1?: string | null;
-  remarks2?: string | null;
-  invoiceNumber?: string | null;
+  remarks?: string | null;
   invoiceType?: string | null;
-  invoiceAmount?: number | null;
-  invoiceCurrency?: string | null;
   paymentStatus?: string | null;
 }
 

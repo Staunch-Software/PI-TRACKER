@@ -15,12 +15,8 @@ export interface DdTrackerFormState {
   readinessDate: string;
   exStock: string;
   supplyConfirmation: string;
-  remarks1: string;
-  remarks2: string;
-  invoiceNumber: string;
+  remarks: string;
   invoiceType: string;
-  invoiceAmount: string;
-  invoiceCurrency: string;
   paymentStatus: string;
 }
 
@@ -37,12 +33,8 @@ export function blankDdTrackerForm(): DdTrackerFormState {
     readinessDate: '',
     exStock: '',
     supplyConfirmation: '',
-    remarks1: '',
-    remarks2: '',
-    invoiceNumber: '',
+    remarks: '',
     invoiceType: '',
-    invoiceAmount: '',
-    invoiceCurrency: '',
     paymentStatus: '',
   };
 }
@@ -60,12 +52,8 @@ export function ddTrackerFormFromEntry(entry: DdTrackerEntry): DdTrackerFormStat
     readinessDate: entry.readinessDate ?? '',
     exStock: entry.exStock ?? '',
     supplyConfirmation: entry.supplyConfirmation ?? '',
-    remarks1: entry.remarks1 ?? '',
-    remarks2: entry.remarks2 ?? '',
-    invoiceNumber: entry.invoiceNumber ?? '',
+    remarks: entry.remarks ?? '',
     invoiceType: entry.invoiceType ?? '',
-    invoiceAmount: entry.invoiceAmount?.toString() ?? '',
-    invoiceCurrency: entry.invoiceCurrency ?? '',
     paymentStatus: entry.paymentStatus ?? '',
   };
 }
@@ -83,12 +71,8 @@ export function toDdTrackerPayload(form: DdTrackerFormState): DdTrackerEntryInpu
     readinessDate: form.readinessDate || null,
     exStock: form.exStock.trim() || null,
     supplyConfirmation: form.supplyConfirmation.trim() || null,
-    remarks1: form.remarks1.trim() || null,
-    remarks2: form.remarks2.trim() || null,
-    invoiceNumber: form.invoiceNumber.trim() || null,
+    remarks: form.remarks.trim() || null,
     invoiceType: form.invoiceType.trim() || null,
-    invoiceAmount: form.invoiceAmount.trim() ? Number(form.invoiceAmount) : null,
-    invoiceCurrency: form.invoiceCurrency.trim() || null,
     paymentStatus: form.paymentStatus.trim() || null,
   };
 }
