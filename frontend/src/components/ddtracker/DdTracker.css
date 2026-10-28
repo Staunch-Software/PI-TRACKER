@@ -4,9 +4,13 @@
   Tracker's classes (Tracker.css / global.css); only what is unique to this module lives here.
 */
 
+/* Matches .tracker-page-header's own 28px side gutter (Tracker.css) so this line lines up with
+   the title/toolbar above and below it instead of running edge-to-edge under them. */
 .dd-tracker-auto-note {
   margin: -8px 0 12px;
+  padding: 0 28px;
   font-size: 12.5px;
+  line-height: 1.5;
   color: var(--color-text-muted);
 }
 
