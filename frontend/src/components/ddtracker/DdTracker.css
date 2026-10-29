@@ -74,6 +74,14 @@
   box-shadow: inset 0 0 0 1px var(--color-info, #2563eb);
 }
 
+/* The cell being edited isn't inside a tr.row-editing anymore (that styling is per-row, see
+   global.css — this is per-cell), so its own input/select needs the same look applied directly
+   here instead of inheriting it. */
+td:has(> .dd-tracker-cell-edit) {
+  background: #f0f9ff;
+  box-shadow: inset 0 0 0 1px #0f4c81;
+}
+
 .dd-tracker-cell-edit {
   display: flex;
   align-items: center;
@@ -82,7 +90,22 @@
 .dd-tracker-cell-edit input,
 .dd-tracker-cell-edit select {
   flex: 1;
-  min-width: 0;
+  min-width: 90px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #0f4c81;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-sizing: border-box;
+  background: #fff;
+  color: #111424;
+}
+.dd-tracker-cell-edit input:focus,
+.dd-tracker-cell-edit select:focus {
+  outline: none;
+  border-color: #0f4c81;
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15);
 }
 .dd-tracker-cell-edit .icon-btn {
   flex-shrink: 0;
