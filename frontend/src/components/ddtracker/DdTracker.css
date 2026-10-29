@@ -62,3 +62,28 @@
   border-color: #0f172a;
   color: #fff;
 }
+
+/* ── Cell-level editing ───────────────────────────────────────────────────────────────
+   No row Actions column: double-clicking an editable cell turns just that cell into an input
+   with its own inline Save/Cancel, instead of the whole row. */
+.dd-tracker-editable-cell {
+  cursor: pointer;
+}
+.dd-tracker-editable-cell:hover {
+  background: #f0f9ff;
+  box-shadow: inset 0 0 0 1px var(--color-info, #2563eb);
+}
+
+.dd-tracker-cell-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dd-tracker-cell-edit input,
+.dd-tracker-cell-edit select {
+  flex: 1;
+  min-width: 0;
+}
+.dd-tracker-cell-edit .icon-btn {
+  flex-shrink: 0;
+}

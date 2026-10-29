@@ -77,6 +77,7 @@ export function DdTrackerPage() {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS });
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<ReorderableColumnKey | null>(null);
   const [editForm, setEditForm] = useState<DdTrackerFormState | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newRowForm, setNewRowForm] = useState<DdTrackerFormState>(blankDdTrackerForm());
@@ -153,13 +154,20 @@ export function DdTrackerPage() {
     setSelectedVessel(vessel);
   }
 
-  function startEdit(entry: DdTrackerEntry) {
+  // Cell-level edit: double-clicking a different field within the SAME row just switches which
+  // one shows an input (editForm already holds the whole row, so anything typed into a previous
+  // field in this session isn't lost); double-clicking a field in a DIFFERENT row starts fresh.
+  function startCellEdit(entry: DdTrackerEntry, field: ReorderableColumnKey) {
     setSaveError(null);
-    setEditingId(entry.id);
-    setEditForm(ddTrackerFormFromEntry(entry));
+    if (editingId !== entry.id) {
+      setEditingId(entry.id);
+      setEditForm(ddTrackerFormFromEntry(entry));
+    }
+    setEditingField(field);
   }
   function cancelEdit() {
     setEditingId(null);
+    setEditingField(null);
     setEditForm(null);
   }
   function handleEditFormChange(field: keyof DdTrackerFormState, value: string) {
@@ -172,6 +180,7 @@ export function DdTrackerPage() {
       queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
       queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
       setEditingId(null);
+      setEditingField(null);
       setEditForm(null);
     },
     onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to save DD Tracker entry.'),
@@ -292,9 +301,10 @@ export function DdTrackerPage() {
               sortDir={sortDir}
               onSort={handleSort}
               editingId={editingId}
+              editingField={editingField}
               editForm={editForm}
               isSavingEdit={saveEditMutation.isPending}
-              onStartEdit={startEdit}
+              onStartCellEdit={startCellEdit}
               onEditFormChange={handleEditFormChange}
               onSaveEdit={() => saveEditMutation.mutate()}
               onCancelEdit={cancelEdit}

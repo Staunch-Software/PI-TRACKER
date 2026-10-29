@@ -1,14 +1,13 @@
-import { useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
+import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
-// Same split as PiEntriesTable/LandingReportsTable: Actions + S.No are fixed, non-reorderable
-// sticky columns. Vessel is NOT a column here — it's filtered via the capsule row above the table
-// (see DdTrackerPage), since a vessel is picked before looking at the table at all, not filtered
-// from within it.
+// Same sticky-column split as PiEntriesTable/LandingReportsTable, minus an Actions column — there
+// is no row-level edit button here; double-clicking an editable cell edits just that cell, with
+// its own inline Save/Cancel (see DdTrackerPage). Vessel is also not a column — it's filtered via
+// the capsule row above the table instead.
 const STICKY_COL_WIDTHS = {
-  actions: 110,
   sno: 80,
 } as const;
 
@@ -64,7 +63,7 @@ interface ColumnDef {
   cellClassName?: string;
   renderCell: (entry: DdTrackerEntry) => ReactNode;
   // Omitted for columns sourced live from the SmartPAL scrape (PR/PO status, vendor, amount,
-  // supply port) or computed (Lead Days) — those are never editable here.
+  // supply port) or computed (Lead Days) — those are never editable, double-click does nothing.
   renderEditCell?: (ctx: EditCellCtx) => ReactNode;
 }
 
@@ -139,7 +138,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Lead Days',
     headerClassName: 'col-center',
     cellClassName: 'col-center',
-    // Computed server-side as (readinessDate - poConfirmedDate) — never editable, see
+    // Computed server-side as (readinessDate - poApprovedDate) — never editable, see
     // backend/app/api/routes/dd_tracker.py.
     renderCell: (e) => e.leadDays ?? '—',
   },
@@ -223,10 +222,15 @@ interface Props {
   sortDir: 'asc' | 'desc';
   onSort: (column: SortColumn) => void;
 
+  // Cell-level editing: editingId identifies the row, editingField identifies which single cell
+  // in it is showing an input right now. editForm holds the whole row's current values (prefilled
+  // when editing starts) so switching which field is active within the same row never loses an
+  // edit already made to another field — Save commits all of it in one PATCH.
   editingId: string | null;
+  editingField: ReorderableColumnKey | null;
   editForm: DdTrackerFormState | null;
   isSavingEdit: boolean;
-  onStartEdit: (entry: DdTrackerEntry) => void;
+  onStartCellEdit: (entry: DdTrackerEntry, field: ReorderableColumnKey) => void;
   onEditFormChange: (field: keyof DdTrackerFormState, value: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -252,9 +256,10 @@ export function DdTrackerTable({
   sortDir,
   onSort,
   editingId,
+  editingField,
   editForm,
   isSavingEdit,
-  onStartEdit,
+  onStartCellEdit,
   onEditFormChange,
   onSaveEdit,
   onCancelEdit,
@@ -322,18 +327,19 @@ export function DdTrackerTable({
     window.addEventListener('mouseup', onUp);
   }
 
-  // Double-click anywhere in a row starts editing it — no separate Edit button (see
-  // DdTrackerPage's "easier to use" instruction). Ignored while another row is already being
-  // edited/added, or while reordering/resizing columns, same guard the old Edit button had.
-  function handleRowDoubleClick(entry: DdTrackerEntry) {
-    if (!canEdit || editingId !== null || isAddingNew || layoutEditable) return;
-    onStartEdit(entry);
+  function handleCellKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onSaveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancelEdit();
+    }
   }
 
   const colgroup = (
     <colgroup>
-      {canEdit && <col className="col-actions" style={{ width: STICKY_COL_WIDTHS.actions }} />}
-      <col className={`col-dpr${canEdit ? '' : ' col-dpr-noactions'}`} style={{ width: STICKY_COL_WIDTHS.sno }} />
+      <col className="col-dpr col-dpr-noactions" style={{ width: STICKY_COL_WIDTHS.sno }} />
       {columnOrder.map((key) => (
         <col key={key} style={{ width: columnWidths[key] ?? DEFAULT_COL_WIDTHS[key] }} />
       ))}
@@ -367,7 +373,7 @@ export function DdTrackerTable({
     );
   }
 
-  const totalCols = columnOrder.length + 1 + (canEdit ? 1 : 0);
+  const totalCols = columnOrder.length + 1;
 
   return (
     <>
@@ -376,11 +382,7 @@ export function DdTrackerTable({
           {colgroup}
           <thead>
             <tr>
-              {canEdit && <th className="sticky-col col-actions">Actions</th>}
-              <th
-                className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'} sortable-col`}
-                onClick={() => onSort('seqNo')}
-              >
+              <th className="sticky-col col-dpr col-dpr-noactions sortable-col" onClick={() => onSort('seqNo')}>
                 S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
               </th>
               {columnOrder.map((key) => renderHeaderCell(key))}
@@ -394,17 +396,14 @@ export function DdTrackerTable({
           <tbody>
             {isAddingNew && (
               <tr className="row-editing">
-                {canEdit && (
-                  <td className="sticky-col col-actions">
-                    <div className="row-actions">
-                      <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
-                        {isSavingNew ? '…' : '✓'}
-                      </button>
-                      <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>×</button>
-                    </div>
-                  </td>
-                )}
-                <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>New</td>
+                <td className="sticky-col col-dpr col-dpr-noactions">
+                  <div className="row-actions">
+                    <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
+                      {isSavingNew ? '…' : '✓'}
+                    </button>
+                    <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>×</button>
+                  </div>
+                </td>
                 {columnOrder.map((key) => {
                   const def = COLUMNS[key];
                   return (
@@ -423,32 +422,36 @@ export function DdTrackerTable({
               </tr>
             )}
             {entries.map((entry) => {
-              const isEditing = editingId === entry.id;
-              const editCtx: EditCellCtx | null = isEditing && editForm ? { form: editForm, onChange: onEditFormChange } : null;
+              const isEditingRow = editingId === entry.id;
+              const editCtx: EditCellCtx | null = isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange } : null;
               return (
-                <tr
-                  key={entry.id}
-                  className={isEditing ? 'row-editing' : undefined}
-                  onDoubleClick={() => handleRowDoubleClick(entry)}
-                >
-                  {canEdit && (
-                    <td className="sticky-col col-actions">
-                      {isEditing && (
-                        <div className="row-actions">
-                          <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
-                            {isSavingEdit ? '…' : '✓'}
-                          </button>
-                          <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelEdit}>×</button>
-                        </div>
-                      )}
-                    </td>
-                  )}
-                  <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{entry.seqNo}</td>
+                <tr key={entry.id}>
+                  <td className="sticky-col col-dpr col-dpr-noactions">{entry.seqNo}</td>
                   {columnOrder.map((key) => {
                     const def = COLUMNS[key];
+                    const isEditingThisCell = isEditingRow && editingField === key;
+                    const isEditable = canEdit && !!def.renderEditCell;
+                    if (isEditingThisCell && editCtx) {
+                      return (
+                        <td key={key} className={def.cellClassName}>
+                          <div className="dd-tracker-cell-edit" onKeyDown={handleCellKeyDown}>
+                            {def.renderEditCell!(editCtx)}
+                            <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
+                              {isSavingEdit ? '…' : '✓'}
+                            </button>
+                            <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelEdit}>×</button>
+                          </div>
+                        </td>
+                      );
+                    }
                     return (
-                      <td key={key} className={def.cellClassName}>
-                        {editCtx && def.renderEditCell ? def.renderEditCell(editCtx) : def.renderCell(entry)}
+                      <td
+                        key={key}
+                        className={[def.cellClassName, isEditable ? 'dd-tracker-editable-cell' : undefined].filter(Boolean).join(' ') || undefined}
+                        onDoubleClick={isEditable && !layoutEditable ? () => onStartCellEdit(entry, key) : undefined}
+                        title={isEditable ? 'Double-click to edit' : undefined}
+                      >
+                        {def.renderCell(entry)}
                       </td>
                     );
                   })}
