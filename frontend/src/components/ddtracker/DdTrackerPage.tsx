@@ -19,8 +19,7 @@ import './DdTracker.css';
 
 const TABLE_KEY = 'dd_tracker';
 const PAGE_SIZE = 50;
-const DEFAULT_VESSEL_FILTER = ['GCL NARMADA'];
-const VESSEL_COL_DEFAULT_WIDTH = 190;
+const DEFAULT_VESSEL = 'GCL NARMADA';
 
 interface TableLayoutPreference {
   tableKey: string;
@@ -36,9 +35,7 @@ function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableCol
 }
 
 function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
-  const result: Record<string, number> = { vessel: VESSEL_COL_DEFAULT_WIDTH };
-  const w = saved?.vessel;
-  if (typeof w === 'number' && w >= 60 && w <= 1000) result.vessel = w;
+  const result: Record<string, number> = {};
   for (const key of Object.keys(DEFAULT_COL_WIDTHS) as ReorderableColumnKey[]) {
     const sw = saved?.[key];
     result[key] = typeof sw === 'number' && sw >= 60 && sw <= 1000 ? sw : DEFAULT_COL_WIDTHS[key];
@@ -48,14 +45,14 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
 
 function buildQueryParams(
   search: string,
-  vesselFilter: string[],
+  selectedVessel: string,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
   page: number
 ): URLSearchParams {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
-  vesselFilter.forEach((v) => params.append('vessel_name', v));
+  if (selectedVessel) params.append('vessel_name', selectedVessel);
   if (sortBy) {
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
@@ -68,16 +65,16 @@ function buildQueryParams(
 export function DdTrackerPage() {
   const { canEdit } = useRole();
   const [search, setSearch] = useState('');
-  const [vesselFilter, setVesselFilter] = useState<string[]>(DEFAULT_VESSEL_FILTER);
+  const [selectedVessel, setSelectedVessel] = useState<string>(DEFAULT_VESSEL);
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [layoutEditable, setLayoutEditable] = useState(false);
   const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
-  const [savedColumnWidths, setSavedColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS, vessel: VESSEL_COL_DEFAULT_WIDTH });
+  const [savedColumnWidths, setSavedColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS });
   const [columnOrder, setColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS, vessel: VESSEL_COL_DEFAULT_WIDTH });
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({ ...DEFAULT_COL_WIDTHS });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<DdTrackerFormState | null>(null);
@@ -128,9 +125,9 @@ export function DdTrackerPage() {
   });
 
   const entriesQuery = useQuery({
-    queryKey: ['dd-tracker', search, vesselFilter, sortBy, sortDir, page],
+    queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page],
     queryFn: () =>
-      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, vesselFilter, sortBy, sortDir, page).toString()}`),
+      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, selectedVessel, sortBy, sortDir, page).toString()}`),
     placeholderData: keepPreviousData,
   });
 
@@ -151,9 +148,9 @@ export function DdTrackerPage() {
     setPage(1);
   }
 
-  function updateVesselFilter(values: string[]) {
+  function selectVessel(vessel: string) {
     setPage(1);
-    setVesselFilter(values);
+    setSelectedVessel(vessel);
   }
 
   function startEdit(entry: DdTrackerEntry) {
@@ -215,6 +212,18 @@ export function DdTrackerPage() {
         Entries for every "DD" category PR/PO are added automatically from the SmartPAL scrape (twice daily). Use
         "Add Entry" only for items that need tracking here but aren't DD-categorized in SmartPAL (e.g. OPEX).
       </p>
+      <div className="dd-tracker-vessel-capsules">
+        {(vesselOptionsQuery.data ?? []).map((vessel) => (
+          <button
+            key={vessel}
+            type="button"
+            className={`dd-tracker-vessel-capsule${vessel === selectedVessel ? ' active' : ''}`}
+            onClick={() => selectVessel(vessel)}
+          >
+            {vessel}
+          </button>
+        ))}
+      </div>
       <div className="tracker-toolbar">
         <div className="tracker-search-wrap">
           <SearchIcon />
@@ -279,7 +288,6 @@ export function DdTrackerPage() {
             <DdTrackerTable
               entries={entriesQuery.data?.items ?? []}
               canEdit={canEdit}
-              vesselOptions={vesselOptionsQuery.data ?? []}
               sortBy={sortBy}
               sortDir={sortDir}
               onSort={handleSort}
@@ -301,8 +309,6 @@ export function DdTrackerPage() {
               layoutEditable={layoutEditable}
               onReorderColumn={setColumnOrder}
               onResizeColumn={(key, width) => setColumnWidths((prev) => ({ ...prev, [key]: width }))}
-              vesselFilter={vesselFilter}
-              onVesselFilterChange={updateVesselFilter}
             />
           </div>
           <div className="tracker-pagination">

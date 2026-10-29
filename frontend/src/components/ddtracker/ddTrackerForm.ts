@@ -11,7 +11,6 @@ export interface DdTrackerFormState {
   title: string;
   prStatus: string;
   orderStatus: string;
-  leadDays: string;
   readinessDate: string;
   exStock: string;
   supplyConfirmation: string;
@@ -29,7 +28,6 @@ export function blankDdTrackerForm(): DdTrackerFormState {
     title: '',
     prStatus: '',
     orderStatus: '',
-    leadDays: '',
     readinessDate: '',
     exStock: '',
     supplyConfirmation: '',
@@ -48,7 +46,6 @@ export function ddTrackerFormFromEntry(entry: DdTrackerEntry): DdTrackerFormStat
     title: entry.title ?? '',
     prStatus: entry.prStatus ?? '',
     orderStatus: entry.orderStatus ?? '',
-    leadDays: entry.leadDays?.toString() ?? '',
     readinessDate: entry.readinessDate ?? '',
     exStock: entry.exStock ?? '',
     supplyConfirmation: entry.supplyConfirmation ?? '',
@@ -67,7 +64,6 @@ export function toDdTrackerPayload(form: DdTrackerFormState): DdTrackerEntryInpu
     title: form.title.trim() || null,
     prStatus: form.prStatus.trim() || null,
     orderStatus: form.orderStatus.trim() || null,
-    leadDays: form.leadDays.trim() ? Number(form.leadDays) : null,
     readinessDate: form.readinessDate || null,
     exStock: form.exStock.trim() || null,
     supplyConfirmation: form.supplyConfirmation.trim() || null,

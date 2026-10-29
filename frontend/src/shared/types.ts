@@ -458,7 +458,6 @@ export interface DdTrackerEntry {
 
   prStatus: string | null;
   orderStatus: string | null;
-  leadDays: number | null;
   readinessDate: string | null;
   exStock: string | null;
   supplyConfirmation: string | null;
@@ -493,6 +492,10 @@ export interface DdTrackerEntry {
   invoiceAmount: number | string | null;
   invoiceCurrency: string | null;
   invoiceStatus: string | null;
+
+  // Computed, never stored — (readinessDate - poConfirmedDate), the vendor's actual lead time.
+  // Null whenever either date is missing.
+  leadDays: number | null;
 }
 
 // Request body for create/edit — everything optional, same "blank = clear" convention as the
@@ -505,7 +508,6 @@ export interface DdTrackerEntryInput {
   title?: string | null;
   prStatus?: string | null;
   orderStatus?: string | null;
-  leadDays?: number | null;
   readinessDate?: string | null;
   exStock?: string | null;
   supplyConfirmation?: string | null;

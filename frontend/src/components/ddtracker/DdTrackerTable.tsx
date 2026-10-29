@@ -1,17 +1,18 @@
 import { useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
-import { EditIcon } from '../common/EditIcon';
-import { ColumnFilterMenu, type ColumnFilterOption } from '../table/ColumnFilterMenu';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
 // Same split as PiEntriesTable/LandingReportsTable: Actions + S.No are fixed, non-reorderable
-// sticky columns; Vessel is a 3rd pinned sticky column (with its own column-header filter, see
-// DdTrackerPage's vessel filter requirement) but stays user-resizable.
+// sticky columns. Vessel is NOT a column here — it's filtered via the capsule row above the table
+// (see DdTrackerPage), since a vessel is picked before looking at the table at all, not filtered
+// from within it.
 const STICKY_COL_WIDTHS = {
   actions: 110,
   sno: 80,
 } as const;
+
+const INVOICE_TYPE_OPTIONS = ['Tax Invoice', 'Proforma Invoice'];
 
 export const DEFAULT_COL_WIDTHS = {
   entryType: 90,
@@ -24,8 +25,6 @@ export const DEFAULT_COL_WIDTHS = {
   poAmount: 130,
   poCurrency: 100,
   supplyPort: 160,
-  poAcknowledged: 150,
-  prNotes: 220,
   orderStatus: 220,
   leadDays: 110,
   readinessDate: 150,
@@ -44,9 +43,9 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 
 export const DEFAULT_COLUMN_ORDER = [
   'entryType', 'prNumber', 'prStatus', 'poNumber', 'poStatus', 'title', 'vendor', 'poAmount',
-  'poCurrency', 'supplyPort', 'poAcknowledged', 'prNotes', 'orderStatus', 'leadDays',
-  'readinessDate', 'exStock', 'supplyConfirmation', 'remarks', 'invoiceNumber', 'invoiceType',
-  'invoiceAmount', 'invoiceCurrency', 'invoiceStatus', 'paymentStatus',
+  'poCurrency', 'supplyPort', 'orderStatus', 'leadDays', 'readinessDate', 'exStock',
+  'supplyConfirmation', 'remarks', 'invoiceNumber', 'invoiceType', 'invoiceAmount',
+  'invoiceCurrency', 'invoiceStatus', 'paymentStatus',
 ] as const satisfies readonly ReorderableColumnKey[];
 
 const MIN_COL_WIDTH = 60;
@@ -65,7 +64,7 @@ interface ColumnDef {
   cellClassName?: string;
   renderCell: (entry: DdTrackerEntry) => ReactNode;
   // Omitted for columns sourced live from the SmartPAL scrape (PR/PO status, vendor, amount,
-  // supply port, acknowledged date) — those are never editable here, only via the next scrape.
+  // supply port) or computed (Lead Days) — those are never editable here.
   renderEditCell?: (ctx: EditCellCtx) => ReactNode;
 }
 
@@ -129,19 +128,6 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Supply Port',
     renderCell: (e) => e.poSchdDelPort ?? '—',
   },
-  poAcknowledged: {
-    label: 'PO Acknowledged',
-    headerClassName: 'col-center',
-    cellClassName: 'col-center',
-    renderCell: (e) => formatDate(e.poConfirmedDate),
-  },
-  prNotes: {
-    label: 'PR Notes',
-    renderCell: (e) => e.prStatus ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input value={form.prStatus} onChange={(ev) => onChange('prStatus', ev.target.value)} />
-    ),
-  },
   orderStatus: {
     label: 'Order Status',
     renderCell: (e) => e.orderStatus ?? '—',
@@ -153,10 +139,9 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Lead Days',
     headerClassName: 'col-center',
     cellClassName: 'col-center',
+    // Computed server-side as (readinessDate - poConfirmedDate) — never editable, see
+    // backend/app/api/routes/dd_tracker.py.
     renderCell: (e) => e.leadDays ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input type="number" value={form.leadDays} onChange={(ev) => onChange('leadDays', ev.target.value)} style={{ width: 80 }} />
-    ),
   },
   readinessDate: {
     label: 'Readiness Date',
@@ -200,7 +185,12 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Invoice Type',
     renderCell: (e) => e.invoiceType ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.invoiceType} onChange={(ev) => onChange('invoiceType', ev.target.value)} />
+      <select value={form.invoiceType} onChange={(ev) => onChange('invoiceType', ev.target.value)}>
+        <option value="">—</option>
+        {INVOICE_TYPE_OPTIONS.map((t) => (
+          <option key={t} value={t}>{t}</option>
+        ))}
+      </select>
     ),
   },
   invoiceAmount: {
@@ -229,7 +219,6 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
 interface Props {
   entries: DdTrackerEntry[];
   canEdit: boolean;
-  vesselOptions: string[];
   sortBy: SortColumn | null;
   sortDir: 'asc' | 'desc';
   onSort: (column: SortColumn) => void;
@@ -254,15 +243,11 @@ interface Props {
   layoutEditable: boolean;
   onReorderColumn: (newOrder: ReorderableColumnKey[]) => void;
   onResizeColumn: (key: ReorderableColumnKey, width: number) => void;
-
-  vesselFilter: string[];
-  onVesselFilterChange: (values: string[]) => void;
 }
 
 export function DdTrackerTable({
   entries,
   canEdit,
-  vesselOptions,
   sortBy,
   sortDir,
   onSort,
@@ -284,11 +269,7 @@ export function DdTrackerTable({
   layoutEditable,
   onReorderColumn,
   onResizeColumn,
-  vesselFilter,
-  onVesselFilterChange,
 }: Props) {
-  const vesselFilterOptions: ColumnFilterOption[] = vesselOptions.map((v) => ({ value: v, label: v }));
-
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const draggedKeyRef = useRef<ReorderableColumnKey | null>(null);
   const resizeStateRef = useRef<{ key: ReorderableColumnKey; startX: number; startWidth: number } | null>(null);
@@ -341,11 +322,18 @@ export function DdTrackerTable({
     window.addEventListener('mouseup', onUp);
   }
 
+  // Double-click anywhere in a row starts editing it — no separate Edit button (see
+  // DdTrackerPage's "easier to use" instruction). Ignored while another row is already being
+  // edited/added, or while reordering/resizing columns, same guard the old Edit button had.
+  function handleRowDoubleClick(entry: DdTrackerEntry) {
+    if (!canEdit || editingId !== null || isAddingNew || layoutEditable) return;
+    onStartEdit(entry);
+  }
+
   const colgroup = (
     <colgroup>
       {canEdit && <col className="col-actions" style={{ width: STICKY_COL_WIDTHS.actions }} />}
-      <col className="col-dpr" style={{ width: STICKY_COL_WIDTHS.sno }} />
-      <col className="col-status" style={{ width: columnWidths.vessel ?? 190 }} />
+      <col className={`col-dpr${canEdit ? '' : ' col-dpr-noactions'}`} style={{ width: STICKY_COL_WIDTHS.sno }} />
       {columnOrder.map((key) => (
         <col key={key} style={{ width: columnWidths[key] ?? DEFAULT_COL_WIDTHS[key] }} />
       ))}
@@ -379,7 +367,7 @@ export function DdTrackerTable({
     );
   }
 
-  const totalCols = columnOrder.length + 2 + (canEdit ? 1 : 0);
+  const totalCols = columnOrder.length + 1 + (canEdit ? 1 : 0);
 
   return (
     <>
@@ -394,18 +382,6 @@ export function DdTrackerTable({
                 onClick={() => onSort('seqNo')}
               >
                 S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
-              </th>
-              <th className={`sticky-col col-status dd-vessel-col${canEdit ? '' : ' col-status-noactions'} sortable-col`} onClick={() => onSort('vesselName')}>
-                Vessel{' '}
-                <span className="sort-arrow">{sortBy === 'vesselName' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
-                {!layoutEditable && (
-                  <span onClick={(e) => e.stopPropagation()}>
-                    <ColumnFilterMenu options={vesselFilterOptions} selected={vesselFilter} onChange={onVesselFilterChange} />
-                  </span>
-                )}
-                {layoutEditable && (
-                  <span className="col-resize-handle" onMouseDown={(e) => handleResizeStart('vessel' as ReorderableColumnKey, e)} title="Drag to resize" />
-                )}
               </th>
               {columnOrder.map((key) => renderHeaderCell(key))}
             </tr>
@@ -429,9 +405,6 @@ export function DdTrackerTable({
                   </td>
                 )}
                 <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>New</td>
-                <td className={`sticky-col col-status${canEdit ? '' : ' col-status-noactions'}`}>
-                  <input value={newRowForm.vesselName} onChange={(e) => onNewRowChange('vesselName', e.target.value)} />
-                </td>
                 {columnOrder.map((key) => {
                   const def = COLUMNS[key];
                   return (
@@ -453,38 +426,24 @@ export function DdTrackerTable({
               const isEditing = editingId === entry.id;
               const editCtx: EditCellCtx | null = isEditing && editForm ? { form: editForm, onChange: onEditFormChange } : null;
               return (
-                <tr key={entry.id} className={isEditing ? 'row-editing' : undefined}>
+                <tr
+                  key={entry.id}
+                  className={isEditing ? 'row-editing' : undefined}
+                  onDoubleClick={() => handleRowDoubleClick(entry)}
+                >
                   {canEdit && (
                     <td className="sticky-col col-actions">
-                      {isEditing ? (
+                      {isEditing && (
                         <div className="row-actions">
                           <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
                             {isSavingEdit ? '…' : '✓'}
                           </button>
                           <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelEdit}>×</button>
                         </div>
-                      ) : (
-                        <div className="row-actions">
-                          <button
-                            className="icon-btn"
-                            title="Edit"
-                            onClick={() => onStartEdit(entry)}
-                            disabled={editingId !== null || isAddingNew || layoutEditable}
-                          >
-                            <EditIcon />
-                          </button>
-                        </div>
                       )}
                     </td>
                   )}
                   <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{entry.seqNo}</td>
-                  <td className={`sticky-col col-status${canEdit ? '' : ' col-status-noactions'}`}>
-                    {editCtx ? (
-                      <input value={editCtx.form.vesselName} onChange={(e) => onEditFormChange('vesselName', e.target.value)} />
-                    ) : (
-                      entry.vesselName ?? '—'
-                    )}
-                  </td>
                   {columnOrder.map((key) => {
                     const def = COLUMNS[key];
                     return (

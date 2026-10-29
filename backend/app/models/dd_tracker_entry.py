@@ -41,6 +41,9 @@ class DdTrackerEntry(Base):
         every SmartPAL invoice row's closest candidate, dspInvoice, was "PO" on 100% of rows
         sampled — no real variation to key off), so it stays manual.
       - payment_status is not sourced from any scraper yet, so it stays manual here for now.
+      - lead_days is NOT stored (dropped 2026-10-29) — it's computed live as
+        (readiness_date - po_entries.approved_date), the vendor's actual lead time, rather than a
+        number the team typed in by hand. See api/routes/dd_tracker.py.
     """
 
     __tablename__ = "dd_tracker_entries"
@@ -57,7 +60,6 @@ class DdTrackerEntry(Base):
     # ── Manual follow-up fields (team-entered, never touched by any scraper) ──────────────
     pr_status: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_status: Mapped[str | None] = mapped_column(Text, nullable=True)
-    lead_days: Mapped[int | None] = mapped_column(nullable=True)
     readiness_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     ex_stock: Mapped[str | None] = mapped_column(Text, nullable=True)
     supply_confirmation: Mapped[str | None] = mapped_column(Text, nullable=True)

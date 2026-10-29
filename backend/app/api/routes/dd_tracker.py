@@ -56,7 +56,6 @@ def _to_out(
         title=entry.title,
         pr_status=entry.pr_status,
         order_status=entry.order_status,
-        lead_days=entry.lead_days,
         readiness_date=entry.readiness_date,
         ex_stock=entry.ex_stock,
         supply_confirmation=entry.supply_confirmation,
@@ -76,7 +75,7 @@ def _to_out(
         po_invoice_status=po.invoice_status if po else None,
         po_base_amount=po.base_amount if po else None,
         po_base_currency=po.base_currency if po else None,
-        po_confirmed_date=po.confirmed_date if po else None,
+        po_confirmed_date=po.approved_date if po else None,
         po_schd_del_port=po.schd_del_port if po else None,
         po_agent_name=po.agent_name if po else None,
         po_warehouse_name=po.warehouse_name if po else None,
@@ -86,7 +85,23 @@ def _to_out(
         invoice_amount=invoice.amount if invoice else None,
         invoice_currency=invoice.currency_code if invoice else None,
         invoice_status=invoice.status if invoice else None,
+        lead_days=_compute_lead_days(entry, po),
     )
+
+
+def _compute_lead_days(entry: DdTrackerEntry, po: PoEntry | None) -> int | None:
+    """Vendor's actual lead time — days between the PO being acknowledged and the item being
+    ready — confirmed with the user 2026-10-29 as the intended meaning of "Lead Days" (previously
+    a manual number). Uses po.approved_date, NOT po.confirmed_date: confirmed live 2026-10-29 that
+    SmartPAL's confirmedDate field is null on every single PO scraped so far (0 of 2378) — it
+    looked like the obvious "acknowledged" field name-wise, but carries no real data, whereas
+    approvedDate is populated on 100% of rows and genuinely differs from createdDate/effectiveDate
+    on ~88% of them (not just a rubber-stamped duplicate). po_confirmed_date in the API response
+    (the wire field "PO Acknowledged date" already used) was repointed at po.approved_date to
+    match, rather than introducing a new field name. None whenever either date is missing."""
+    if not entry.readiness_date or not po or not po.approved_date:
+        return None
+    return (entry.readiness_date - po.approved_date).days
 
 
 def _fetch_live(db: Session, entry: DdTrackerEntry) -> tuple[PrEntry | None, PoEntry | None, SmartpalInvoiceEntry | None]:

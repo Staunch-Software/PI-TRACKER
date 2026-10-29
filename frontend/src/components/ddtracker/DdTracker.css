@@ -15,29 +15,50 @@
 }
 
 /* S.No only ever holds a short number, so it is much narrower than the Tracker's 150px DPR No.
-   column this pinned slot reuses; the pinned Vessel column's left offset is shifted to match
-   (Actions 110px + S.No 80px, or just S.No 80px when there is no Actions column) — same
-   convention as LandingReports.css. */
+   column this pinned slot reuses — same convention as LandingReports.css. No 3rd pinned column
+   here (Vessel is filtered via the capsule row above the table, not a table column at all). */
 .dd-tracker-page table.data-table td.col-dpr,
 .dd-tracker-page table.data-table th.col-dpr {
   width: 80px;
   min-width: 80px;
   max-width: 80px;
 }
-.dd-tracker-page table.data-table td.col-status,
-.dd-tracker-page table.data-table th.col-status {
-  left: 190px;
-}
-.dd-tracker-page table.data-table td.col-status-noactions,
-.dd-tracker-page table.data-table th.col-status-noactions {
-  left: 80px;
-}
-
-.dd-tracker-page table.data-table thead th.dd-vessel-col {
-  padding-right: 26px;
-}
 
 .dd-tracker-page table.data-table th.col-right,
 .dd-tracker-page table.data-table td.col-right {
   text-align: right;
+}
+
+/* ── Vessel capsules ──────────────────────────────────────────────────────────────────
+   Replaces the old per-column vessel filter: picking a vessel here is how the table is scoped
+   at all, not a filter applied on top of an already-visible "every vessel" table. */
+.dd-tracker-vessel-capsules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 28px 14px;
+}
+
+.dd-tracker-vessel-capsule {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: #fff;
+  color: var(--color-text-muted, #64748b);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.dd-tracker-vessel-capsule:hover {
+  border-color: var(--color-info, #2563eb);
+  color: var(--color-info, #2563eb);
+}
+
+.dd-tracker-vessel-capsule.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
 }

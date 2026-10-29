@@ -27,10 +27,14 @@ class PoEntry(Base):
     LIVE-SNAPSHOT / upsert-by-po_no — a PO's approval/invoice/readiness status changes constantly
     after creation, so every scrape run upserts.
 
-    confirmed_date is used as "PO Acknowledged date" in the DD tracker UI — SmartPAL has no field
-    literally named "acknowledged"; this was the closest semantic match of the 3 date-like
-    candidates (confirmedDate / issueDate / effectiveDate) the user looked at, confirmed live
-    2026-10-27. Swap this mapping if a live comparison later shows it's wrong.
+    confirmed_date (SmartPAL's "confirmedDate") is scraped and stored but NEVER actually used for
+    display — confirmed live 2026-10-29 that it's null on every single PO (0 of 2378), despite
+    being the name-wise obvious pick for "PO Acknowledged date" back when that mapping was first
+    guessed (2026-10-27, before real volume existed to check against). The DD Tracker's "PO
+    Acknowledged date" and its Lead Days calculation both read approved_date instead (100%
+    populated, and genuinely distinct from created_date/effective_date on ~88% of rows — not a
+    rubber-stamped duplicate) — see api/routes/dd_tracker.py. confirmed_date is kept here in case
+    a future SmartPAL change starts populating it for real.
 
     requisition_no is a denormalized copy of this PO's own "reqNos" field (plural in SmartPAL,
     but observed single-valued on every row checked) — the link back to pr_entries.requisition_no.

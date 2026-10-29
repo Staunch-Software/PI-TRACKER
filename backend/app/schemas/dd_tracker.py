@@ -42,7 +42,6 @@ class DdTrackerEntryCreate(_TextFieldsMixin):
     title: str | None = Field(default=None, max_length=_TEXT_MAX)
     pr_status: str | None = Field(default=None, max_length=_TEXT_MAX)
     order_status: str | None = Field(default=None, max_length=_TEXT_MAX)
-    lead_days: int | None = None
     readiness_date: date | None = None
     ex_stock: str | None = Field(default=None, max_length=_TEXT_MAX)
     supply_confirmation: str | None = Field(default=None, max_length=_TEXT_MAX)
@@ -67,7 +66,6 @@ class DdTrackerEntryOut(CamelModel):
 
     pr_status: str | None
     order_status: str | None
-    lead_days: int | None
     readiness_date: date | None
     ex_stock: str | None
     supply_confirmation: str | None
@@ -93,7 +91,7 @@ class DdTrackerEntryOut(CamelModel):
     po_invoice_status: str | None = None
     po_base_amount: Decimal | None = None
     po_base_currency: str | None = None
-    po_confirmed_date: date | None = None  # "PO Acknowledged date"
+    po_confirmed_date: date | None = None  # "PO Acknowledged date" — sourced from po.approved_date, see dd_tracker.py
     po_schd_del_port: str | None = None  # "Supply Port"
     po_agent_name: str | None = None
     po_warehouse_name: str | None = None
@@ -108,6 +106,11 @@ class DdTrackerEntryOut(CamelModel):
     invoice_amount: Decimal | None = None
     invoice_currency: str | None = None
     invoice_status: str | None = None
+
+    # Computed, never stored — (readiness_date - po_confirmed_date), the vendor's actual lead
+    # time. None whenever either date is missing (readiness not yet set, or PO not yet
+    # acknowledged) — see api/routes/dd_tracker.py.
+    lead_days: int | None = None
 
 
 class PrLookupResult(CamelModel):
