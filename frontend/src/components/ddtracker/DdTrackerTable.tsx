@@ -408,6 +408,16 @@ export function DdTrackerTable({
     }
   }
 
+  // Alternating white/grey per group span, reusing the table's own existing header grey
+  // (#E2E8F0, same as the individual-column header row below it) instead of inventing a new
+  // color — so each group reads as its own block without a palette mismatch. S.No has no group
+  // span of its own (it's a separate sticky column spanning both header rows), but the user
+  // considers it part of General, so it borrows General's own span color rather than a fixed one
+  // — if General ever gets dragged apart into two spans, S.No just follows the first of them.
+  const GROUP_BG = ['#ffffff', '#E2E8F0'];
+  const generalSpanIndex = groupSpans.findIndex((g) => g.group === 'General');
+  const snoBg = GROUP_BG[(generalSpanIndex === -1 ? 0 : generalSpanIndex) % 2];
+
   function renderHeaderCell(key: ReorderableColumnKey) {
     const def = COLUMNS[key];
     const classNames = [
@@ -444,11 +454,16 @@ export function DdTrackerTable({
           {colgroup}
           <thead>
             <tr className="dd-tracker-group-row">
-              <th className="sticky-col col-dpr col-dpr-noactions sortable-col" rowSpan={2} onClick={() => onSort('seqNo')}>
+              <th
+                className="sticky-col col-dpr col-dpr-noactions sortable-col dd-tracker-group-header"
+                rowSpan={2}
+                style={{ background: snoBg }}
+                onClick={() => onSort('seqNo')}
+              >
                 S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
               </th>
               {groupSpans.map((g, i) => (
-                <th key={i} colSpan={g.span} className="dd-tracker-group-header">
+                <th key={i} colSpan={g.span} className="dd-tracker-group-header" style={{ background: GROUP_BG[i % 2] }}>
                   {g.group}
                 </th>
               ))}
