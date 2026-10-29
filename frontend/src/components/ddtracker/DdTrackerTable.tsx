@@ -160,7 +160,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     ),
   },
   supplyConfirmation: {
-    label: 'Supply Confirmation',
+    label: 'Delivery Status',
     renderCell: (e) => e.supplyConfirmation ?? '—',
     renderEditCell: ({ form, onChange }) => (
       <input value={form.supplyConfirmation} onChange={(ev) => onChange('supplyConfirmation', ev.target.value)} />
