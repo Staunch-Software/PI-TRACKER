@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
+import { SearchableSelect } from '../common/SearchableSelect';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
 // Same sticky-column split as PiEntriesTable/LandingReportsTable, minus an Actions column — there
@@ -11,10 +12,22 @@ const STICKY_COL_WIDTHS = {
   sno: 80,
 } as const;
 
-const INVOICE_TYPE_OPTIONS = ['Tax Invoice', 'Proforma Invoice'];
+// '' maps to the "—" clear-the-field option on both dropdowns.
+const ENTRY_TYPE_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'DD', label: 'DD' },
+  { value: 'OPEX', label: 'OPEX' },
+  { value: 'NB', label: 'NB' },
+  { value: 'PD', label: 'PD' },
+];
+const INVOICE_TYPE_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'Tax Invoice', label: 'Tax Invoice' },
+  { value: 'Proforma Invoice', label: 'Proforma Invoice' },
+];
 
 export const DEFAULT_COL_WIDTHS = {
-  entryType: 90,
+  entryType: 110,
   prNumber: 170,
   prStatus: 180,
   poNumber: 170,
@@ -31,7 +44,7 @@ export const DEFAULT_COL_WIDTHS = {
   supplyConfirmation: 180,
   remarks: 260,
   invoiceNumber: 160,
-  invoiceType: 140,
+  invoiceType: 160,
   invoiceAmount: 140,
   invoiceCurrency: 110,
   invoiceStatus: 150,
@@ -55,6 +68,10 @@ export type SortColumn = 'seqNo' | 'vesselName';
 interface EditCellCtx {
   form: DdTrackerFormState;
   onChange: (field: keyof DdTrackerFormState, value: string) => void;
+  // Only meaningful for immediateCommit columns (see ColumnDef) — picking a dropdown value saves
+  // it right away instead of waiting for a separate Save click, since choosing from a short fixed
+  // list is already the complete action (unlike a text field, where you might still be typing).
+  onSelectAndSave: (field: keyof DdTrackerFormState, value: string) => void;
 }
 
 interface ColumnDef {
@@ -65,19 +82,18 @@ interface ColumnDef {
   // Omitted for columns sourced live from the SmartPAL scrape (PR/PO status, vendor, amount,
   // supply port) or computed (Lead Days) — those are never editable, double-click does nothing.
   renderEditCell?: (ctx: EditCellCtx) => ReactNode;
+  // Dropdown columns (Type, Invoice Type): no inline Save/Cancel at all — selecting an option
+  // commits immediately via onSelectAndSave.
+  immediateCommit?: boolean;
 }
 
 const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
   entryType: {
     label: 'Type',
     renderCell: (e) => e.entryType ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <select value={form.entryType} onChange={(ev) => onChange('entryType', ev.target.value)}>
-        <option value="">—</option>
-        {['DD', 'OPEX', 'NB', 'PD'].map((t) => (
-          <option key={t} value={t}>{t}</option>
-        ))}
-      </select>
+    immediateCommit: true,
+    renderEditCell: ({ form, onSelectAndSave }) => (
+      <SearchableSelect options={ENTRY_TYPE_OPTIONS} value={form.entryType} onChange={(v) => onSelectAndSave('entryType', v)} />
     ),
   },
   prNumber: {
@@ -183,13 +199,9 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
   invoiceType: {
     label: 'Invoice Type',
     renderCell: (e) => e.invoiceType ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <select value={form.invoiceType} onChange={(ev) => onChange('invoiceType', ev.target.value)}>
-        <option value="">—</option>
-        {INVOICE_TYPE_OPTIONS.map((t) => (
-          <option key={t} value={t}>{t}</option>
-        ))}
-      </select>
+    immediateCommit: true,
+    renderEditCell: ({ form, onSelectAndSave }) => (
+      <SearchableSelect options={INVOICE_TYPE_OPTIONS} value={form.invoiceType} onChange={(v) => onSelectAndSave('invoiceType', v)} />
     ),
   },
   invoiceAmount: {
@@ -234,6 +246,7 @@ interface Props {
   onEditFormChange: (field: keyof DdTrackerFormState, value: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
+  onSelectAndSave: (field: keyof DdTrackerFormState, value: string) => void;
 
   isAddingNew: boolean;
   newRowForm: DdTrackerFormState;
@@ -263,6 +276,7 @@ export function DdTrackerTable({
   onEditFormChange,
   onSaveEdit,
   onCancelEdit,
+  onSelectAndSave,
   isAddingNew,
   newRowForm,
   isSavingNew,
@@ -408,7 +422,9 @@ export function DdTrackerTable({
                   const def = COLUMNS[key];
                   return (
                     <td key={key} className={def.cellClassName}>
-                      {def.renderEditCell ? def.renderEditCell({ form: newRowForm, onChange: onNewRowChange }) : '—'}
+                      {def.renderEditCell
+                        ? def.renderEditCell({ form: newRowForm, onChange: onNewRowChange, onSelectAndSave: onNewRowChange })
+                        : '—'}
                     </td>
                   );
                 })}
@@ -423,7 +439,8 @@ export function DdTrackerTable({
             )}
             {entries.map((entry) => {
               const isEditingRow = editingId === entry.id;
-              const editCtx: EditCellCtx | null = isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange } : null;
+              const editCtx: EditCellCtx | null =
+                isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave } : null;
               return (
                 <tr key={entry.id}>
                   <td className="sticky-col col-dpr col-dpr-noactions">{entry.seqNo}</td>
@@ -432,6 +449,16 @@ export function DdTrackerTable({
                     const isEditingThisCell = isEditingRow && editingField === key;
                     const isEditable = canEdit && !!def.renderEditCell;
                     if (isEditingThisCell && editCtx) {
+                      // Dropdown columns commit on selection — no Save/Cancel, just the control.
+                      if (def.immediateCommit) {
+                        return (
+                          <td key={key} className={def.cellClassName}>
+                            <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate">
+                              {def.renderEditCell!(editCtx)}
+                            </div>
+                          </td>
+                        );
+                      }
                       return (
                         <td key={key} className={def.cellClassName}>
                           <div className="dd-tracker-cell-edit" onKeyDown={handleCellKeyDown}>

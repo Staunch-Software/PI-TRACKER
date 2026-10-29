@@ -174,8 +174,11 @@ export function DdTrackerPage() {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
+  // Takes the form explicitly (rather than reading editForm from closure) so a dropdown's
+  // "pick a value and save immediately" path (see onSelectAndSave) can save the field it just
+  // changed without waiting a render for setEditForm to land first.
   const saveEditMutation = useMutation({
-    mutationFn: () => api.patch<DdTrackerEntry>(`/dd-tracker/${editingId}`, toDdTrackerPayload(editForm!)),
+    mutationFn: (form: DdTrackerFormState) => api.patch<DdTrackerEntry>(`/dd-tracker/${editingId}`, toDdTrackerPayload(form)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
       queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
@@ -185,6 +188,15 @@ export function DdTrackerPage() {
     },
     onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to save DD Tracker entry.'),
   });
+
+  // A dropdown field (Type, Invoice Type) doesn't need a separate Save click — picking a value is
+  // already the complete action, unlike a text field where you might still be typing.
+  function selectAndSave(field: keyof DdTrackerFormState, value: string) {
+    if (!editForm) return;
+    const updated = { ...editForm, [field]: value };
+    setEditForm(updated);
+    saveEditMutation.mutate(updated);
+  }
 
   function startAdd() {
     setSaveError(null);
@@ -306,7 +318,8 @@ export function DdTrackerPage() {
               isSavingEdit={saveEditMutation.isPending}
               onStartCellEdit={startCellEdit}
               onEditFormChange={handleEditFormChange}
-              onSaveEdit={() => saveEditMutation.mutate()}
+              onSaveEdit={() => editForm && saveEditMutation.mutate(editForm)}
+              onSelectAndSave={selectAndSave}
               onCancelEdit={cancelEdit}
               isAddingNew={isAddingNew}
               newRowForm={newRowForm}

@@ -85,12 +85,15 @@ td:has(> .dd-tracker-cell-edit) {
 .dd-tracker-cell-edit {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
-.dd-tracker-cell-edit input,
-.dd-tracker-cell-edit select {
+/* Plain text/date/number inputs. The Type and Invoice Type dropdowns use SearchableSelect
+   instead of a native <select> (see entryType/invoiceType columns below) so the open dropdown's
+   option list can actually be styled — a native <select>'s popup is rendered by the OS/browser
+   chrome, outside any page CSS, which is what made it look broken before. */
+.dd-tracker-cell-edit input {
   flex: 1;
-  min-width: 90px;
+  min-width: 60px;
   height: 32px;
   padding: 0 8px;
   border: 1px solid #0f4c81;
@@ -101,12 +104,25 @@ td:has(> .dd-tracker-cell-edit) {
   background: #fff;
   color: #111424;
 }
-.dd-tracker-cell-edit input:focus,
-.dd-tracker-cell-edit select:focus {
+.dd-tracker-cell-edit input:focus {
   outline: none;
   border-color: #0f4c81;
   box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15);
 }
+.dd-tracker-cell-edit .searchable-select-trigger {
+  flex: 1;
+  width: auto; /* overrides its own width:100%, which otherwise fills the whole cell and pushes
+                  the Save/Cancel buttons that follow it in this flex row out of view */
+  min-width: 70px;
+  height: 32px;
+  border-color: #0f4c81;
+}
+/* Smaller than the default 32px icon-btn (global.css) — these two always share a narrow cell
+   with a text/date input or a SearchableSelect trigger, confirmed live that the default size
+   pushed them past the cell's own width and off-screen/clipped entirely. */
 .dd-tracker-cell-edit .icon-btn {
   flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
 }
