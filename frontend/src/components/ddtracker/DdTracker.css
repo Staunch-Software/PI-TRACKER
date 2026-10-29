@@ -126,3 +126,18 @@ td:has(> .dd-tracker-cell-edit) {
   height: 24px;
   font-size: 11px;
 }
+
+/* ── Grouped column headers ───────────────────────────────────────────────────────────
+   A 2nd header row (Requisition / Purchase Order / Tracking / Invoice / General) above the
+   individual column labels — purely a visual label row, recomputed from the live columnOrder
+   (see groupSpans in DdTrackerTable.tsx) so dragging a column during Edit Layout never shows a
+   stale or wrong group for it. */
+.dd-tracker-page table.data-table thead tr.dd-tracker-group-row th:not(.sticky-col) {
+  padding: 6px 10px;
+}
+.dd-tracker-page table.data-table th.dd-tracker-group-header {
+  background: #0f172a;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
