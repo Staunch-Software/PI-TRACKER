@@ -454,13 +454,8 @@ export function DdTrackerTable({
           {colgroup}
           <thead>
             <tr className="dd-tracker-group-row">
-              <th
-                className="sticky-col col-dpr col-dpr-noactions sortable-col dd-tracker-group-header"
-                rowSpan={2}
-                style={{ background: snoBg }}
-                onClick={() => onSort('seqNo')}
-              >
-                S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+              <th className="sticky-col col-dpr col-dpr-noactions dd-tracker-group-header" style={{ background: snoBg }}>
+                General
               </th>
               {groupSpans.map((g, i) => (
                 <th key={i} colSpan={g.span} className="dd-tracker-group-header" style={{ background: GROUP_BG[i % 2] }}>
@@ -469,6 +464,9 @@ export function DdTrackerTable({
               ))}
             </tr>
             <tr>
+              <th className="sticky-col col-dpr col-dpr-noactions sortable-col" onClick={() => onSort('seqNo')}>
+                S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+              </th>
               {columnOrder.map((key) => renderHeaderCell(key))}
             </tr>
           </thead>
