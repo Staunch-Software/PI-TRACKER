@@ -114,12 +114,20 @@ def _fetch_all_rows(page, url: str) -> list[dict]:
         result = page.evaluate(_FETCH_JS, [body, hdrs])
         if result["status"] != 200:
             raise RuntimeError(f"Grid fetch failed (page {page_num}, status {result['status']}): {result['text'][:300]}")
-        batch = _json.loads(result["text"])
+        parsed = _json.loads(result["text"])
+        # Confirmed live 2026-10-30: unlike PR/PO's grids (a bare JSON array per page), the Vendor
+        # Master grid wraps its rows in an envelope — {"version", "statusCode", "result": [...]}.
+        # Fall back to treating the body itself as the row list if some future response doesn't
+        # have this wrapper.
+        batch = parsed.get("result") if isinstance(parsed, dict) else parsed
         if not isinstance(batch, list):
             raise RuntimeError(f"Unexpected grid response shape (page {page_num}): {result['text'][:300]}")
         rows.extend(batch)
-        total_count = batch[0]["totalCount"] if batch else 0
-        if len(batch) < _PAGE_SIZE or len(rows) >= total_count:
+        # totalCount isn't present in this envelope the way it is on PR/PO's per-row totalCount —
+        # rely on page-size short-circuiting instead (a page with fewer rows than pageSize is the
+        # last one), same safety net PR/PO's own loop already falls back to when totalCount is 0.
+        total_count = batch[0].get("totalCount", 0) if batch else 0
+        if len(batch) < _PAGE_SIZE or (total_count and len(rows) >= total_count):
             break
         page_num += 1
 
