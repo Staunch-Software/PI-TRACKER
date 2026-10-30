@@ -20,7 +20,6 @@ _MANUAL_TEXT_FIELDS = (
     "supply_confirmation",
     "remarks",
     "invoice_type",
-    "payment_status",
 )
 
 
@@ -47,7 +46,6 @@ class DdTrackerEntryCreate(_TextFieldsMixin):
     supply_confirmation: str | None = Field(default=None, max_length=_TEXT_MAX)
     remarks: str | None = Field(default=None, max_length=_TEXT_MAX)
     invoice_type: str | None = Field(default=None, max_length=_TEXT_MAX)
-    payment_status: str | None = Field(default=None, max_length=_TEXT_MAX)
 
 
 class DdTrackerEntryUpdate(DdTrackerEntryCreate):
@@ -71,7 +69,6 @@ class DdTrackerEntryOut(CamelModel):
     supply_confirmation: str | None
     remarks: str | None
     invoice_type: str | None
-    payment_status: str | None
 
     created_at: datetime
     updated_at: datetime
@@ -106,6 +103,9 @@ class DdTrackerEntryOut(CamelModel):
     invoice_amount: Decimal | None = None
     invoice_currency: str | None = None
     invoice_status: str | None = None
+    # "PAID" or "Not Paid" — derived from smartpal_invoice_entries.paid_status (see
+    # api/routes/dd_tracker.py); None when no invoice has been raised against this PO yet.
+    payment_status: str | None = None
 
     # Computed, never stored — (readiness_date - po_confirmed_date), the vendor's actual lead
     # time. None whenever either date is missing (readiness not yet set, or PO not yet

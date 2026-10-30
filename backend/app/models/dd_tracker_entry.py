@@ -40,7 +40,9 @@ class DdTrackerEntry(Base):
         recently scraped one. Invoice Type has no equivalent live field (confirmed live 2026-10-28
         every SmartPAL invoice row's closest candidate, dspInvoice, was "PO" on 100% of rows
         sampled — no real variation to key off), so it stays manual.
-      - payment_status is not sourced from any scraper yet, so it stays manual here for now.
+      - payment_status is NOT stored (dropped 2026-10-30) — it's read live from
+        smartpal_invoice_entries.paid_status (SmartPAL's own "PAID"/null flag, same join as the
+        other invoice_* fields above), now that a real live source for it was confirmed to exist.
       - lead_days is NOT stored (dropped 2026-10-29) — it's computed live as
         (readiness_date - po_entries.approved_date), the vendor's actual lead time, rather than a
         number the team typed in by hand. See api/routes/dd_tracker.py.
@@ -65,7 +67,6 @@ class DdTrackerEntry(Base):
     supply_confirmation: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    payment_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)

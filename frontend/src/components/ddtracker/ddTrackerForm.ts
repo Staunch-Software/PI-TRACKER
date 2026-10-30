@@ -16,7 +16,6 @@ export interface DdTrackerFormState {
   supplyConfirmation: string;
   remarks: string;
   invoiceType: string;
-  paymentStatus: string;
 }
 
 export function blankDdTrackerForm(): DdTrackerFormState {
@@ -33,7 +32,6 @@ export function blankDdTrackerForm(): DdTrackerFormState {
     supplyConfirmation: '',
     remarks: '',
     invoiceType: '',
-    paymentStatus: '',
   };
 }
 
@@ -51,7 +49,6 @@ export function ddTrackerFormFromEntry(entry: DdTrackerEntry): DdTrackerFormStat
     supplyConfirmation: entry.supplyConfirmation ?? '',
     remarks: entry.remarks ?? '',
     invoiceType: entry.invoiceType ?? '',
-    paymentStatus: entry.paymentStatus ?? '',
   };
 }
 
@@ -69,6 +66,5 @@ export function toDdTrackerPayload(form: DdTrackerFormState): DdTrackerEntryInpu
     supplyConfirmation: form.supplyConfirmation.trim() || null,
     remarks: form.remarks.trim() || null,
     invoiceType: form.invoiceType.trim() || null,
-    paymentStatus: form.paymentStatus.trim() || null,
   };
 }

@@ -463,7 +463,6 @@ export interface DdTrackerEntry {
   supplyConfirmation: string | null;
   remarks: string | null;
   invoiceType: string | null;
-  paymentStatus: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -492,6 +491,9 @@ export interface DdTrackerEntry {
   invoiceAmount: number | string | null;
   invoiceCurrency: string | null;
   invoiceStatus: string | null;
+  // "Paid" / "Not Paid" — derived from smartpal_invoice_entries.paidStatus. Null when no invoice
+  // has been raised against this PO yet.
+  paymentStatus: string | null;
 
   // Computed, never stored — (readinessDate - poConfirmedDate), the vendor's actual lead time.
   // Null whenever either date is missing.
@@ -513,7 +515,6 @@ export interface DdTrackerEntryInput {
   supplyConfirmation?: string | null;
   remarks?: string | null;
   invoiceType?: string | null;
-  paymentStatus?: string | null;
 }
 
 export interface PrLookupResult {

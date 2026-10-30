@@ -61,7 +61,6 @@ def _to_out(
         supply_confirmation=entry.supply_confirmation,
         remarks=entry.remarks,
         invoice_type=entry.invoice_type,
-        payment_status=entry.payment_status,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         pr_title=pr.title if pr else None,
@@ -85,8 +84,19 @@ def _to_out(
         invoice_amount=invoice.amount if invoice else None,
         invoice_currency=invoice.currency_code if invoice else None,
         invoice_status=invoice.status if invoice else None,
+        payment_status=_compute_payment_status(invoice),
         lead_days=_compute_lead_days(entry, po),
     )
+
+
+def _compute_payment_status(invoice: SmartpalInvoiceEntry | None) -> str | None:
+    """Live from smartpal_invoice_entries.paid_status (SmartPAL's own "paidStatus" field —
+    confirmed live 2026-10-30 it only ever carries 'PAID' or null/not-set, no other values) rather
+    than the manual field this column used to be — see dd_tracker_entry.py docstring. None when no
+    invoice has been raised against this PO yet (distinct from "raised but not paid")."""
+    if invoice is None:
+        return None
+    return "Paid" if invoice.paid_status == "PAID" else "Not Paid"
 
 
 def _compute_lead_days(entry: DdTrackerEntry, po: PoEntry | None) -> int | None:

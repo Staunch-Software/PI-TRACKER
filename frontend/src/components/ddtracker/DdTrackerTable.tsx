@@ -250,13 +250,12 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Invoice',
     renderCell: (e) => e.invoiceStatus ?? '—',
   },
+  // Live-joined from smartpal_invoice_entries.paid_status (see backend/app/api/routes/dd_tracker.py)
+  // — never editable here, same stance as Invoice Number/Amount/Currency/Status.
   paymentStatus: {
     label: 'Payment Status',
     group: 'Invoice',
     renderCell: (e) => e.paymentStatus ?? '—',
-    renderEditCell: ({ form, onChange }) => (
-      <input value={form.paymentStatus} onChange={(ev) => onChange('paymentStatus', ev.target.value)} />
-    ),
   },
 };
 

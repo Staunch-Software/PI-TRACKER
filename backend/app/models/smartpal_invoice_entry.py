@@ -59,6 +59,12 @@ class SmartpalInvoiceEntry(Base):
     # surfaced as-is in match_status_label, see SoaLineItem docstring.
     status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # SmartPAL's own "paidStatus" field — was already present in raw_json but had no column until
+    # DD Tracker's Payment Status needed it (confirmed live 2026-10-30: 'PAID' on ~33% of rows
+    # sampled, null otherwise — a simple paid/not-yet-paid flag, no other values seen). See
+    # api/routes/dd_tracker.py for how it's surfaced as DD Tracker's Payment Status column.
+    paid_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     raw_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     first_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
