@@ -259,6 +259,53 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
   },
 };
 
+function isLastColumnOfGroup(index: number, order: ReorderableColumnKey[]): boolean {
+  if (index === order.length - 1) return false;
+  return COLUMNS[order[index]].group !== COLUMNS[order[index + 1]].group;
+}
+
+function renderGroupIcon(group: ColumnGroup) {
+  switch (group) {
+    case 'General':
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      );
+    case 'Requisition':
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      );
+    case 'Purchase Order':
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+      );
+    case 'Tracking':
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      );
+    case 'Invoice':
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+          <line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+      );
+  }
+}
+
 interface Props {
   entries: DdTrackerEntry[];
   canEdit: boolean;
@@ -417,12 +464,16 @@ export function DdTrackerTable({
   const generalSpanIndex = groupSpans.findIndex((g) => g.group === 'General');
   const snoBg = GROUP_BG[(generalSpanIndex === -1 ? 0 : generalSpanIndex) % 2];
 
-  function renderHeaderCell(key: ReorderableColumnKey) {
+  function renderHeaderCell(key: ReorderableColumnKey, index: number) {
     const def = COLUMNS[key];
+    const isLastInGroup = isLastColumnOfGroup(index, columnOrder);
+    const isEditable = canEdit && !!def.renderEditCell;
     const classNames = [
       def.headerClassName,
       layoutEditable ? 'col-layout-editable' : undefined,
       dragOverKey === key ? 'col-drag-over' : undefined,
+      isLastInGroup ? 'group-boundary' : undefined,
+      isEditable ? 'col-header-editable' : undefined,
     ]
       .filter(Boolean)
       .join(' ');
@@ -436,7 +487,16 @@ export function DdTrackerTable({
         onDrop={layoutEditable ? () => handleDrop(key) : undefined}
         onDragEnd={layoutEditable ? handleDragEnd : undefined}
       >
-        {def.label}
+        <span className="th-label-wrap">
+          {def.label}
+          {isEditable && (
+            <span className="col-editable-badge" title="Editable column (double-click cell to edit)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </span>
+          )}
+        </span>
         {layoutEditable && (
           <span className="col-resize-handle" onMouseDown={(e) => handleResizeStart(key, e)} title="Drag to resize" />
         )}
@@ -453,20 +513,31 @@ export function DdTrackerTable({
           {colgroup}
           <thead>
             <tr className="dd-tracker-group-row">
-              <th className="sticky-col col-dpr col-dpr-noactions dd-tracker-group-header" style={{ background: snoBg }}>
-                General
-              </th>
-              {groupSpans.map((g, i) => (
-                <th key={i} colSpan={g.span} className="dd-tracker-group-header" style={{ background: GROUP_BG[i % 2] }}>
-                  {g.group}
-                </th>
-              ))}
-            </tr>
-            <tr>
-              <th className="sticky-col col-dpr col-dpr-noactions sortable-col" onClick={() => onSort('seqNo')}>
+              <th
+                className="sticky-col col-dpr col-dpr-noactions sortable-col dd-tracker-sno-header"
+                rowSpan={2}
+                onClick={() => onSort('seqNo')}
+              >
                 S.No <span className="sort-arrow">{sortBy === 'seqNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
               </th>
-              {columnOrder.map((key) => renderHeaderCell(key))}
+              {groupSpans.map((g, i) => {
+                const isLastGroup = i === groupSpans.length - 1;
+                return (
+                  <th
+                    key={i}
+                    colSpan={g.span}
+                    className={`dd-tracker-group-header${!isLastGroup ? ' group-boundary' : ''}`}
+                  >
+                    <span className="dd-tracker-group-title">
+                      {renderGroupIcon(g.group)}
+                      <span>{g.group}</span>
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+            <tr>
+              {columnOrder.map((key, idx) => renderHeaderCell(key, idx))}
             </tr>
           </thead>
         </table>
@@ -485,10 +556,11 @@ export function DdTrackerTable({
                     <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>×</button>
                   </div>
                 </td>
-                {columnOrder.map((key) => {
+                {columnOrder.map((key, idx) => {
                   const def = COLUMNS[key];
+                  const isLastInGroup = isLastColumnOfGroup(idx, columnOrder);
                   return (
-                    <td key={key} className={def.cellClassName}>
+                    <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
                       {def.renderEditCell
                         ? def.renderEditCell({ form: newRowForm, onChange: onNewRowChange, onSelectAndSave: onNewRowChange })
                         : '—'}
@@ -511,15 +583,16 @@ export function DdTrackerTable({
               return (
                 <tr key={entry.id}>
                   <td className="sticky-col col-dpr col-dpr-noactions">{entry.seqNo}</td>
-                  {columnOrder.map((key) => {
+                  {columnOrder.map((key, idx) => {
                     const def = COLUMNS[key];
+                    const isLastInGroup = isLastColumnOfGroup(idx, columnOrder);
                     const isEditingThisCell = isEditingRow && editingField === key;
                     const isEditable = canEdit && !!def.renderEditCell;
                     if (isEditingThisCell && editCtx) {
                       // Dropdown columns commit on selection — no Save/Cancel, just the control.
                       if (def.immediateCommit) {
                         return (
-                          <td key={key} className={def.cellClassName}>
+                          <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
                             <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate">
                               {def.renderEditCell!(editCtx)}
                             </div>
@@ -527,7 +600,7 @@ export function DdTrackerTable({
                         );
                       }
                       return (
-                        <td key={key} className={def.cellClassName}>
+                        <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
                           <div className="dd-tracker-cell-edit" onKeyDown={handleCellKeyDown}>
                             {def.renderEditCell!(editCtx)}
                             <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
@@ -541,7 +614,7 @@ export function DdTrackerTable({
                     return (
                       <td
                         key={key}
-                        className={[def.cellClassName, isEditable ? 'dd-tracker-editable-cell' : undefined].filter(Boolean).join(' ') || undefined}
+                        className={[def.cellClassName, isEditable ? 'dd-tracker-editable-cell' : undefined, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}
                         onDoubleClick={isEditable && !layoutEditable ? () => onStartCellEdit(entry, key) : undefined}
                         title={isEditable ? 'Double-click to edit' : undefined}
                       >

@@ -29,38 +29,182 @@
   text-align: right;
 }
 
-/* ── Vessel capsules ──────────────────────────────────────────────────────────────────
-   Replaces the old per-column vessel filter: picking a vessel here is how the table is scoped
-   at all, not a filter applied on top of an already-visible "every vessel" table. */
+/* ── Vessel capsules (Unique color per vessel) ──────────────────────────────────────────
+   Each vessel has its own distinct color identity across both inactive (soft tint & border)
+   and active (rich saturated gradient + matching glow beacon) states. */
 .dd-tracker-vessel-capsules {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   padding: 0 28px 14px;
 }
 
+.dd-tracker-vessel-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.dd-tracker-vessel-label svg {
+  color: var(--color-primary, #0f4c81);
+}
+
+/* Palette 0: Marine Navy / Sapphire */
+.vessel-color-0 {
+  --v-bg-inactive: #f0f6ff;
+  --v-border-inactive: #bfdbfe;
+  --v-text-inactive: #1d4ed8;
+  --v-bg-active: linear-gradient(135deg, #0f4c81 0%, #1e40af 100%);
+  --v-border-active: #0f4c81;
+  --v-glow-active: rgba(15, 76, 129, 0.35);
+  --v-dot-active: #60a5fa;
+}
+
+/* Palette 1: Emerald Sea */
+.vessel-color-1 {
+  --v-bg-inactive: #ecfdf5;
+  --v-border-inactive: #a7f3d0;
+  --v-text-inactive: #047857;
+  --v-bg-active: linear-gradient(135deg, #065f46 0%, #059669 100%);
+  --v-border-active: #065f46;
+  --v-glow-active: rgba(5, 150, 105, 0.35);
+  --v-dot-active: #34d399;
+}
+
+/* Palette 2: Royal Indigo */
+.vessel-color-2 {
+  --v-bg-inactive: #eef2ff;
+  --v-border-inactive: #c7d2fe;
+  --v-text-inactive: #4338ca;
+  --v-bg-active: linear-gradient(135deg, #3730a3 0%, #4f46e5 100%);
+  --v-border-active: #3730a3;
+  --v-glow-active: rgba(79, 70, 229, 0.35);
+  --v-dot-active: #818cf8;
+}
+
+/* Palette 3: Deep Ocean Teal */
+.vessel-color-3 {
+  --v-bg-inactive: #f0fdfa;
+  --v-border-inactive: #99f6e4;
+  --v-text-inactive: #0f766e;
+  --v-bg-active: linear-gradient(135deg, #115e59 0%, #0d9488 100%);
+  --v-border-active: #115e59;
+  --v-glow-active: rgba(13, 148, 136, 0.35);
+  --v-dot-active: #2dd4bf;
+}
+
+/* Palette 4: Warm Amber / Terracotta */
+.vessel-color-4 {
+  --v-bg-inactive: #fffbeb;
+  --v-border-inactive: #fde68a;
+  --v-text-inactive: #b45309;
+  --v-bg-active: linear-gradient(135deg, #92400e 0%, #d97706 100%);
+  --v-border-active: #92400e;
+  --v-glow-active: rgba(217, 119, 6, 0.35);
+  --v-dot-active: #fbbf24;
+}
+
+/* Palette 5: Amethyst Purple */
+.vessel-color-5 {
+  --v-bg-inactive: #faf5ff;
+  --v-border-inactive: #e9d5ff;
+  --v-text-inactive: #7e22ce;
+  --v-bg-active: linear-gradient(135deg, #6b21a8 0%, #9333ea 100%);
+  --v-border-active: #6b21a8;
+  --v-glow-active: rgba(147, 51, 234, 0.35);
+  --v-dot-active: #c084fc;
+}
+
+/* Palette 6: Cyan / Aquamarine */
+.vessel-color-6 {
+  --v-bg-inactive: #ecfeff;
+  --v-border-inactive: #a5f3fc;
+  --v-text-inactive: #0e7490;
+  --v-bg-active: linear-gradient(135deg, #0e7490 0%, #0891b2 100%);
+  --v-border-active: #0e7490;
+  --v-glow-active: rgba(8, 145, 178, 0.35);
+  --v-dot-active: #22d3ee;
+}
+
+/* Palette 7: Ocean Sky / Cerulean */
+.vessel-color-7 {
+  --v-bg-inactive: #f0f9ff;
+  --v-border-inactive: #bae6fd;
+  --v-text-inactive: #0369a1;
+  --v-bg-active: linear-gradient(135deg, #075985 0%, #0284c7 100%);
+  --v-border-active: #075985;
+  --v-glow-active: rgba(2, 132, 199, 0.35);
+  --v-dot-active: #38bdf8;
+}
+
+/* Palette 8: Golden Ochre */
+.vessel-color-8 {
+  --v-bg-inactive: #fefce8;
+  --v-border-inactive: #fef08a;
+  --v-text-inactive: #a16207;
+  --v-bg-active: linear-gradient(135deg, #854d0e 0%, #ca8a04 100%);
+  --v-border-active: #854d0e;
+  --v-glow-active: rgba(202, 138, 4, 0.35);
+  --v-dot-active: #fde047;
+}
+
+/* Palette 9: Slate Steel */
+.vessel-color-9 {
+  --v-bg-inactive: #f8fafc;
+  --v-border-inactive: #cbd5e1;
+  --v-text-inactive: #334155;
+  --v-bg-active: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+  --v-border-active: #1e293b;
+  --v-glow-active: rgba(71, 85, 105, 0.35);
+  --v-dot-active: #94a3b8;
+}
+
 .dd-tracker-vessel-capsule {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 15px;
   border-radius: 999px;
-  border: 1px solid var(--color-border, #e2e8f0);
-  background: #fff;
-  color: var(--color-text-muted, #64748b);
+  border: 1px solid var(--v-border-inactive, #e2e8f0);
+  background: var(--v-bg-inactive, #ffffff);
+  color: var(--v-text-inactive, #475569);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dd-tracker-vessel-capsule:hover {
-  border-color: var(--color-info, #2563eb);
-  color: var(--color-info, #2563eb);
+  transform: translateY(-1px);
+  filter: brightness(0.96);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .dd-tracker-vessel-capsule.active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #fff;
+  background: var(--v-bg-active, #0f4c81);
+  border-color: var(--v-border-active, #0f4c81);
+  color: #ffffff;
+  box-shadow: 0 3px 12px var(--v-glow-active, rgba(15, 76, 129, 0.35)), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.dd-tracker-vessel-capsule.active::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v-dot-active, #ffffff);
+  box-shadow: 0 0 6px var(--v-dot-active, #ffffff);
+  margin-right: 7px;
 }
 
 /* ── Cell-level editing ───────────────────────────────────────────────────────────────
@@ -127,22 +271,193 @@ td:has(> .dd-tracker-cell-edit) {
   font-size: 11px;
 }
 
-/* ── Grouped column headers ───────────────────────────────────────────────────────────
-   A 2nd header row (Requisition / Purchase Order / Tracking / Invoice / General) above the
-   individual column labels — purely a visual label row, recomputed from the live columnOrder
-   (see groupSpans in DdTrackerTable.tsx) so dragging a column during Edit Layout never shows a
-   stale or wrong group for it. */
-.dd-tracker-page table.data-table thead tr.dd-tracker-group-row th:not(.sticky-col) {
-  padding: 6px 10px;
-}
-/* Background alternates white/grey per group (set inline per span/column in DdTrackerTable.tsx,
-   reusing the table's own existing header grey #E2E8F0) — this class only carries the shared text
-   treatment, distinct from the plain column-label row beneath it (global.css's uppercase #334155)
-   so the two header rows still read as separate things even where they land on the same grey. */
-.dd-tracker-page table.data-table th.dd-tracker-group-header {
-  color: var(--color-primary, #0f4c81);
-  font-size: 11px;
+/* ── Grouped header strip (Unified Executive Marine Theme) ──────────────────────────────
+   A sleek ribbon in the Ozellar Marine brand palette (#0F4C81 -> #0B3A63) organizing columns
+   into structured category groups (General, Requisition, Purchase Order, Tracking, Invoice). */
+.dd-tracker-page table.data-table thead tr.dd-tracker-group-row th.dd-tracker-group-header {
+  background: linear-gradient(180deg, #10528b 0%, #0b3a63 100%) !important;
+  color: #ffffff !important;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px 16px;
+  border-bottom: 2px solid #082947;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+.dd-tracker-group-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #ffffff;
+}
+
+.dd-tracker-group-title svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.dd-tracker-page table.data-table thead th.dd-tracker-sno-header {
+  background: linear-gradient(180deg, #0b3a63 0%, #082847 100%) !important;
+  color: #ffffff !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+  text-align: center;
+  padding: 14px 14px;
+  border-right: 2px solid #cbd5e1 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  cursor: pointer;
+  z-index: 6 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.dd-tracker-page table.data-table thead th.dd-tracker-sno-header:hover {
+  background: #0f4c81 !important;
+}
+
+.dd-tracker-page table.data-table thead th.dd-tracker-sno-header .sort-arrow {
+  color: #38bdf8;
+  margin-left: 5px;
+}
+
+.dd-tracker-page table.data-table thead tr.dd-tracker-group-row th.group-boundary {
+  border-right: 1px solid rgba(255, 255, 255, 0.28) !important;
+}
+
+/* ── Group vertical boundary divider down the table ───────────────────────────────────── */
+.dd-tracker-page table.data-table th.group-boundary,
+.dd-tracker-page table.data-table td.group-boundary {
+  border-right: 2px solid #cbd5e1 !important;
+}
+
+/* ── Column header row (Row 2) ────────────────────────────────────────────────────────── */
+.dd-tracker-page table.data-table thead tr:not(.dd-tracker-group-row) th {
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid #cbd5e1;
+  padding: 10px 12px;
+}
+
+/* ── Editable column header indicator ─────────────────────────────────────────────── */
+.th-label-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+th.col-header-editable {
+  background: #e2eef8 !important;
+  color: #0b3a63 !important;
+}
+
+.col-editable-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: #ffffff;
+  background: #0f4c81;
+  box-shadow: 0 1px 2px rgba(15, 76, 129, 0.2);
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+th:hover .col-editable-badge {
+  background: #0b3a63;
+  transform: scale(1.15);
+}
+
+/* ── Editable cells in normal mode (Clearly visible distinctive tint) ─────────────── */
+.dd-tracker-editable-cell {
+  background: #eaf2f9 !important;
+  color: #0f172a;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+tr:hover .dd-tracker-editable-cell {
+  background: #deecf7 !important;
+}
+
+.dd-tracker-editable-cell:hover {
+  background: #cfe4f5 !important;
+  box-shadow: inset 0 0 0 1.5px #0f4c81 !important;
+}
+
+/* ── Gutter wrapper behind header scroll container ─────────────────────────────────── */
+/* Ensures the Executive Marine ribbon persists behind the vertical scrollbar gutter on the right without exposing page background. */
+.dd-tracker-page .table-header-wrapper {
+  background: linear-gradient(180deg, #10528b 0%, #0b3a63 100%);
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+}
+
+/* S.No pinned data column divider matches header border */
+.dd-tracker-page table.data-table td.col-dpr {
+  border-right: 2px solid #cbd5e1 !important;
+}
+
+/* ── Compact Pagination Bar ────────────────────────────────────────────────────────── */
+.dd-tracker-page .tracker-pagination {
+  padding: 3px 18px;
+  min-height: 38px;
+  margin-bottom: 8px;
+}
+
+.dd-tracker-page .pagination-size-pill {
+  gap: 6px;
+}
+
+.dd-tracker-page .pagination-select {
+  height: 26px;
+  font-size: 12px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+
+.dd-tracker-page .pagination-custom input[type='number'] {
+  height: 26px;
+  width: 62px;
+  font-size: 12px;
+  padding: 0 6px;
+  border-radius: 6px 0 0 6px;
+}
+
+.dd-tracker-page .pagination-custom button {
+  height: 26px;
+  font-size: 11px;
+  padding: 0 8px;
+  border-radius: 0 6px 6px 0;
+}
+
+.dd-tracker-page .pagination-nav-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.dd-tracker-page .pagination-nav-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dd-tracker-page .pagination-current {
+  font-size: 12px;
+}
+
+.dd-tracker-page .pagination-total {
+  font-size: 12px;
 }

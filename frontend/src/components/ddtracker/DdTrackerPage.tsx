@@ -18,13 +18,39 @@ import '../../pages/Tracker.css';
 import './DdTracker.css';
 
 const TABLE_KEY = 'dd_tracker';
-const PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
+const MIN_PAGE_SIZE = 5;
+const MAX_PAGE_SIZE = 1000;
+const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_VESSEL = 'GCL NARMADA';
+
+const KNOWN_VESSEL_COLORS: Record<string, number> = {
+  'GCL NARMADA': 0,    // Marine Sapphire Blue
+  'GCL SABARMATI': 1,  // Emerald Sea
+  'GCL SARASWATI': 2,  // Royal Indigo
+  'GCL GANGA': 3,      // Ocean Teal
+  'GCL TAPI': 4,       // Amber / Terracotta
+  'GCL YAMUNA': 5,     // Amethyst Purple
+  'AMNS POLAR': 6,     // Cyan / Aquamarine
+  'AMNSI STALLION': 7, // Ocean Sky / Cerulean
+  'AM KIRTI': 8,       // Golden Ochre
+  'AM TARANG': 9,      // Slate Steel
+  'AM UMANG': 0,
+  'GCL FOS': 1,
+  'AMNSI MAXIMUS': 5,
+  'AMNS TUFMAX': 6,
+};
+
+function getVesselColorClass(vessel: string, index: number): string {
+  const colorIndex = KNOWN_VESSEL_COLORS[vessel.toUpperCase()] ?? (index % 10);
+  return `vessel-color-${colorIndex}`;
+}
 
 interface TableLayoutPreference {
   tableKey: string;
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  pageSize?: number | null;
 }
 
 function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableColumnKey[] {
@@ -48,7 +74,8 @@ function buildQueryParams(
   selectedVessel: string,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
-  page: number
+  page: number,
+  pageSize: number
 ): URLSearchParams {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
@@ -58,7 +85,7 @@ function buildQueryParams(
     params.set('sort_dir', sortDir);
   }
   params.set('page', String(page));
-  params.set('page_size', String(PAGE_SIZE));
+  params.set('page_size', String(pageSize));
   return params;
 }
 
@@ -67,6 +94,8 @@ export function DdTrackerPage() {
   const [search, setSearch] = useState('');
   const [selectedVessel, setSelectedVessel] = useState<string>(DEFAULT_VESSEL);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [customPageSizeInput, setCustomPageSizeInput] = useState('');
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -99,17 +128,33 @@ export function DdTrackerPage() {
     setSavedColumnWidths(widths);
     setColumnOrder(order);
     setColumnWidths(widths);
+    if (tableLayoutQuery.data?.pageSize && tableLayoutQuery.data.pageSize >= MIN_PAGE_SIZE && tableLayoutQuery.data.pageSize <= MAX_PAGE_SIZE) {
+      setPageSize(tableLayoutQuery.data.pageSize);
+    }
     initializedRef.current = true;
   }, [tableLayoutQuery.data]);
 
   const saveLayoutMutation = useMutation({
-    mutationFn: () => api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths }),
+    mutationFn: () => api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths, pageSize }),
     onSuccess: () => {
       setSavedColumnOrder(columnOrder);
       setSavedColumnWidths(columnWidths);
       setLayoutEditable(false);
     },
   });
+
+  const savePageSizeMutation = useMutation({
+    mutationFn: (size: number) =>
+      api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths, pageSize: size }),
+  });
+
+  function applyPageSize(size: number) {
+    const clamped = Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, Math.round(size)));
+    setPageSize(clamped);
+    setPage(1);
+    setCustomPageSizeInput('');
+    savePageSizeMutation.mutate(clamped);
+  }
 
   function startLayoutEdit() {
     setLayoutEditable(true);
@@ -126,13 +171,13 @@ export function DdTrackerPage() {
   });
 
   const entriesQuery = useQuery({
-    queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page],
+    queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page, pageSize],
     queryFn: () =>
-      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, selectedVessel, sortBy, sortDir, page).toString()}`),
+      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, selectedVessel, sortBy, sortDir, page, pageSize).toString()}`),
     placeholderData: keepPreviousData,
   });
 
-  const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / PAGE_SIZE)) : 1;
+  const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / pageSize)) : 1;
 
   function handleSort(column: SortColumn) {
     if (sortBy === column) {
@@ -234,11 +279,15 @@ export function DdTrackerPage() {
         "Add Entry" only for items that need tracking here but aren't DD-categorized in SmartPAL (e.g. OPEX).
       </p>
       <div className="dd-tracker-vessel-capsules">
-        {(vesselOptionsQuery.data ?? []).map((vessel) => (
+        <div className="dd-tracker-vessel-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a6 6 0 0 0 12 0 6 6 0 0 0 10 0"/><path d="m4 16 1.5-6h13l1.5 6"/><path d="M10 10V4h4v6"/></svg>
+          <span>Vessels</span>
+        </div>
+        {(vesselOptionsQuery.data ?? []).map((vessel, idx) => (
           <button
             key={vessel}
             type="button"
-            className={`dd-tracker-vessel-capsule${vessel === selectedVessel ? ' active' : ''}`}
+            className={`dd-tracker-vessel-capsule ${getVesselColorClass(vessel, idx)}${vessel === selectedVessel ? ' active' : ''}`}
             onClick={() => selectVessel(vessel)}
           >
             {vessel}
@@ -335,6 +384,46 @@ export function DdTrackerPage() {
             />
           </div>
           <div className="tracker-pagination">
+            {/* LEFT: Page Size Control */}
+            <div className="pagination-left">
+              <span className="pagination-label">Rows per page:</span>
+              <div className="pagination-size-pill">
+                <select
+                  className="pagination-select"
+                  value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
+                  onChange={(e) => {
+                    if (e.target.value) applyPageSize(Number(e.target.value));
+                  }}
+                >
+                  {!PAGE_SIZE_OPTIONS.includes(pageSize) && <option value="">{pageSize} (custom)</option>}
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <div className="pagination-custom">
+                  <input
+                    type="number"
+                    placeholder="Custom"
+                    min={MIN_PAGE_SIZE}
+                    max={MAX_PAGE_SIZE}
+                    value={customPageSizeInput}
+                    onChange={(e) => setCustomPageSizeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customPageSizeInput) applyPageSize(Number(customPageSizeInput));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => customPageSizeInput && applyPageSize(Number(customPageSizeInput))}
+                    disabled={!customPageSizeInput}
+                  >
+                    Set
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER: Navigation */}
             <div className="pagination-center">
               <button className="pagination-nav-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} title="Previous Page">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -346,6 +435,8 @@ export function DdTrackerPage() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
+
+            {/* RIGHT: Total Info */}
             <div className="pagination-right">
               <span className="pagination-total">
                 {entriesQuery.data ? (

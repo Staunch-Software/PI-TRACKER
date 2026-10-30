@@ -371,6 +371,12 @@ body:has(.tracker-page) .page-content {
    rightmost columns). Instead every column gets a static, hardcoded pixel width (COL_WIDTHS in
    PiEntriesTable.tsx) applied identically to both tables' <colgroup>s — with no measurement
    step, there is nothing left that could ever diverge between the two tables. */
+.table-header-wrapper {
+  background: #E2E8F0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+}
+
 .table-header-scroll {
   /* No longer sticky because the tracker page flex layout confines scrolling strictly to the table body */
   z-index: 10;
