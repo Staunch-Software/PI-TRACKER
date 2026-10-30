@@ -68,6 +68,51 @@ def _open_vendor(page, vendor_code: str) -> bool:
     return True
 
 
+# Confirmed live 2026-10-30 (DOM inspection of the Vendor Contacts tab): this is a Knockout.js
+# app — each field is a <textarea>/<input>/<select> with a `data-bind="value:vendorData.<prop>"`
+# attribute, a sibling (not wrapping) <label> with no `for=` attribute. That means Playwright's
+# label-based lookup (get_by_label) can never match these fields — reading by the stable
+# data-bind property name is the reliable approach instead. Candidate property names below are
+# best-effort guesses beyond the one confirmed field ("address"); any that don't match simply
+# return None, same as today, so a wrong guess costs nothing.
+_CONTACT_FIELD_CANDIDATES: dict[str, list[str]] = {
+    "address": ["address"],
+    "phone_1": ["phone1", "phoneNo1", "contactNo1", "phone_1"],
+    "phone_2": ["phone2", "phoneNo2", "contactNo2", "phone_2"],
+    "fax_1": ["fax1", "fax", "fax_1"],
+    "fax_2": ["fax2", "fax_2"],
+    "telex": ["telex"],
+    "website": ["website", "webSite", "web_site"],
+    "zip_code": ["zipCode", "zip", "pinCode", "postalCode"],
+    "email": ["email"],
+    "city": ["city"],
+    "country": ["country"],
+    "state": ["state"],
+}
+
+# Confirmed live 2026-10-30: each tab's content lives in a stable-id container
+# (<div id="Vendor_Contacts" class="tab-pane ...">, <div id="Bank_Details" class="tab-pane ...">)
+# — scoping every selector to these containers (instead of querying the whole page) is what fixes
+# the "93 SmartPAL bank row(s)" bug, where an unscoped `table tbody tr` picked up rows from other
+# tables/tabs elsewhere on the page.
+_VENDOR_CONTACTS_TAB_ID = "#Vendor_Contacts"
+_BANK_DETAILS_TAB_ID = "#Bank_Details"
+
+
+def _databind_field_value(page, scope_selector: str, candidates: list[str]) -> str | None:
+    for prop in candidates:
+        try:
+            el = page.locator(f'{scope_selector} [data-bind*="vendorData.{prop}"]').first
+            if el.count() == 0:
+                continue
+            value = el.input_value(timeout=1500)
+            if value and value.strip():
+                return value.strip()
+        except Exception:
+            continue
+    return None
+
+
 def _scrape_contacts(page) -> dict:
     try:
         page.locator("text=Vendor Contacts").first.click(timeout=5000)
@@ -76,16 +121,9 @@ def _scrape_contacts(page) -> dict:
         log.warning(f"[VENDOR]   Could not open Vendor Contacts tab: {e}")
         return {}
 
-    def _field(label: str) -> str | None:
-        try:
-            value = page.get_by_label(label).input_value(timeout=2000)
-            return value.strip() or None
-        except Exception:
-            return None
-
     contacts: list[dict] = []
     try:
-        rows = page.locator("table tbody tr").all()
+        rows = page.locator(f"{_VENDOR_CONTACTS_TAB_ID} table tbody tr").all()
         for row in rows:
             cells = [c.strip() for c in row.locator("td").all_inner_texts()]
             if cells:
@@ -93,21 +131,12 @@ def _scrape_contacts(page) -> dict:
     except Exception:
         pass
 
-    return {
-        "address": _field("Address"),
-        "phone_1": _field("Phone 1"),
-        "phone_2": _field("Phone 2"),
-        "fax_1": _field("Fax"),
-        "fax_2": _field("Fax 2"),
-        "telex": _field("Telex"),
-        "website": _field("Website"),
-        "zip_code": _field("Zip Code"),
-        "email": _field("Email"),
-        "city": _field("City"),
-        "country": _field("Country"),
-        "state": _field("State"),
-        "contacts": contacts,
+    fields = {
+        field: _databind_field_value(page, _VENDOR_CONTACTS_TAB_ID, candidates)
+        for field, candidates in _CONTACT_FIELD_CANDIDATES.items()
     }
+    fields["contacts"] = contacts
+    return fields
 
 
 def _scrape_bank_details(page) -> list[dict]:
@@ -120,7 +149,7 @@ def _scrape_bank_details(page) -> list[dict]:
 
     rows: list[dict] = []
     try:
-        for row in page.locator("table tbody tr").all():
+        for row in page.locator(f"{_BANK_DETAILS_TAB_ID} table tbody tr").all():
             cells = [c.strip() for c in row.locator("td").all_inner_texts()]
             if not cells or not any(cells):
                 continue
