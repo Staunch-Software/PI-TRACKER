@@ -105,11 +105,64 @@ def _databind_field_value(page, scope_selector: str, candidates: list[str]) -> s
             el = page.locator(f'{scope_selector} [data-bind*="vendorData.{prop}"]').first
             if el.count() == 0:
                 continue
-            value = el.input_value(timeout=1500)
+            tag = el.evaluate("e => e.tagName.toLowerCase()")
+            # A <select>'s input_value() returns the selected OPTION's VALUE (e.g. an internal
+            # numeric country id like "58"), not its visible text ("China") — confirmed live
+            # 2026-10-30 on the Country field. Read the selected option's own text instead.
+            if tag == "select":
+                value = el.evaluate("e => e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''")
+            else:
+                value = el.input_value(timeout=1500)
             if value and value.strip():
                 return value.strip()
         except Exception:
             continue
+    return None
+
+
+def _kendo_grid_data(page, scope_selector: str) -> list[dict] | None:
+    """Reads a Kendo UI Grid's rows via its own `dataSource.data()` API — the exact bound row
+    objects, not rendered table text. Confirmed live 2026-10-30 via DOM inspection: the Vendor
+    Contacts sub-grid (#grdVendorContact) and Bank Details grid (#grdBankDetails) are both Kendo
+    Grid widgets (`data-role="grid"`, `k-header` classes), NOT plain HTML tables — their rendered
+    <td> cells include hidden/technical columns interleaved with the visible ones (confirmed: a
+    bank-details row's visible cells came back completely misaligned when read by fixed cell
+    index). Reading dataSource.data() sidesteps that misalignment entirely and returns real,
+    correctly-typed field values — same spirit as this app's other scrapers preferring a captured
+    real payload over parsing rendered output. Returns None (so callers can fall back to cell-text
+    parsing) if no Kendo grid widget is found in the given scope."""
+    try:
+        data = page.evaluate(
+            """(scope) => {
+                const $ = typeof jQuery !== 'undefined' ? jQuery : window.$;
+                if (!$) return null;
+                const container = document.querySelector(scope);
+                if (!container) return null;
+                const gridEl = container.querySelector('[data-role="grid"]');
+                if (!gridEl) return null;
+                const kg = $(gridEl).data('kendoGrid');
+                if (!kg) return null;
+                return kg.dataSource.data().map(d => (d.toJSON ? d.toJSON() : d));
+            }""",
+            scope_selector,
+        )
+        return data if data else None
+    except Exception:
+        return None
+
+
+def _row_value(row: dict, candidates: list[str]) -> str | None:
+    """Case-insensitive lookup of the first matching, non-empty key among `candidates` in a Kendo
+    row object — raw_json always keeps the full object regardless, so extra fallback candidates
+    beyond the confirmed real property name cost nothing."""
+    lower_map = {str(k).lower(): v for k, v in row.items()}
+    for prop in candidates:
+        value = lower_map.get(prop.lower())
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text and text.lower() != "null":
+            return text
     return None
 
 
@@ -121,15 +174,33 @@ def _scrape_contacts(page) -> dict:
         log.warning(f"[VENDOR]   Could not open Vendor Contacts tab: {e}")
         return {}
 
-    contacts: list[dict] = []
-    try:
-        rows = page.locator(f"{_VENDOR_CONTACTS_TAB_ID} table tbody tr").all()
-        for row in rows:
-            cells = [c.strip() for c in row.locator("td").all_inner_texts()]
-            if cells:
-                contacts.append({"raw_cells": cells})
-    except Exception:
-        pass
+    # Confirmed live 2026-10-30 (Kendo dataSource dump, #grdVendorContact): real field names are
+    # name, designation, email, mobile, landPhone (not "tel"), remarks,
+    # defaultCorrespondence ("Y"/"N", not "isDefault").
+    grid_contacts = _kendo_grid_data(page, _VENDOR_CONTACTS_TAB_ID)
+    if grid_contacts:
+        contacts = [
+            {
+                "name": _row_value(r, ["name", "contactName"]),
+                "designation": _row_value(r, ["designation"]),
+                "email": _row_value(r, ["email"]),
+                "mobile": _row_value(r, ["mobile"]),
+                "tel": _row_value(r, ["landPhone", "tel", "phoneHome"]),
+                "is_default": _row_value(r, ["defaultCorrespondence"]) == "Y",
+                "remarks": _row_value(r, ["remarks"]),
+                "raw": r,
+            }
+            for r in grid_contacts
+        ]
+    else:
+        contacts = []
+        try:
+            for row in page.locator(f"{_VENDOR_CONTACTS_TAB_ID} table tbody tr").all():
+                cells = [c.strip() for c in row.locator("td").all_inner_texts()]
+                if cells:
+                    contacts.append({"raw_cells": cells})
+        except Exception:
+            pass
 
     fields = {
         field: _databind_field_value(page, _VENDOR_CONTACTS_TAB_ID, candidates)
@@ -147,31 +218,43 @@ def _scrape_bank_details(page) -> list[dict]:
         log.warning(f"[VENDOR]   Could not open Bank Details tab: {e}")
         return []
 
+    # Confirmed live 2026-10-30 (Kendo dataSource dump, #grdBankDetails): real field names are
+    # beneficiaryName, branchName, bankName, countryName (not "country"), bankCode,
+    # currencyVal (not "currency"), accountNo (not "accountNumber"),
+    # defaultAccount ("1"/"0", not "isDefault"), active ("Y"/"N"), iBan, swiftCode, aba (not "abaNo").
+    grid_rows = _kendo_grid_data(page, _BANK_DETAILS_TAB_ID)
+    if grid_rows:
+        return [
+            {
+                "beneficiary_name": _row_value(r, ["beneficiaryName"]),
+                "branch_name": _row_value(r, ["branchName"]),
+                "bank_name": _row_value(r, ["bankName"]),
+                "country": _row_value(r, ["countryName", "country"]),
+                "bank_code": _row_value(r, ["bankCode"]),
+                "currency": _row_value(r, ["currencyVal", "currency"]),
+                "account_number": _row_value(r, ["accountNo", "accountNumber"]),
+                "is_default": _row_value(r, ["defaultAccount"]) == "1",
+                "is_active": _row_value(r, ["active"]) != "N",
+                "iban": _row_value(r, ["iBan", "iban"]),
+                "swift_code": _row_value(r, ["swiftCode"]),
+                "aba_no": _row_value(r, ["aba", "abaNo"]),
+                "raw": r,
+            }
+            for r in grid_rows
+        ]
+
+    # Fallback (no Kendo grid widget found for some reason): cell-text parsing. Deliberately does
+    # NOT assume a fixed column order here — confirmed live 2026-10-30 this table's rendered <td>
+    # cells include hidden/technical columns interleaved with the visible ones, so a fixed index
+    # mapping silently reads the wrong cell for every field. Without the grid's own data source
+    # available there is no reliable way to tell which cell is which, so only raw_cells is kept
+    # for this path — every mapped field stays None rather than guessing wrong.
     rows: list[dict] = []
     try:
         for row in page.locator(f"{_BANK_DETAILS_TAB_ID} table tbody tr").all():
             cells = [c.strip() for c in row.locator("td").all_inner_texts()]
-            if not cells or not any(cells):
-                continue
-            # Column order per the real Bank Details tab (confirmed via screenshot 2026-10-30):
-            # Beneficiary Name, Branch Name, Bank Name, Country, Bank Code, Currency,
-            # Account Number, Default, Active, IBAN, Swift Code, ABA No.
-            padded = cells + [None] * (12 - len(cells))
-            rows.append({
-                "beneficiary_name": padded[0] or None,
-                "branch_name": padded[1] or None,
-                "bank_name": padded[2] or None,
-                "country": padded[3] or None,
-                "bank_code": padded[4] or None,
-                "currency": padded[5] or None,
-                "account_number": padded[6] or None,
-                "is_default": bool(padded[7]),
-                "is_active": bool(padded[8]),
-                "iban": padded[9] or None,
-                "swift_code": padded[10] or None,
-                "aba_no": padded[11] or None,
-                "raw_cells": cells,
-            })
+            if cells and any(cells):
+                rows.append({"raw_cells": cells})
     except Exception as e:
         log.warning(f"[VENDOR]   Could not read Bank Details rows: {e}")
 
