@@ -308,6 +308,8 @@ function renderGroupIcon(group: ColumnGroup) {
 
 interface Props {
   entries: DdTrackerEntry[];
+  page: number;
+  pageSize: number;
   canEdit: boolean;
   sortBy: SortColumn | null;
   sortDir: 'asc' | 'desc';
@@ -343,6 +345,8 @@ interface Props {
 
 export function DdTrackerTable({
   entries,
+  page,
+  pageSize,
   canEdit,
   sortBy,
   sortDir,
@@ -576,13 +580,14 @@ export function DdTrackerTable({
                 </td>
               </tr>
             )}
-            {entries.map((entry) => {
+            {entries.map((entry, rowIndex) => {
+              const rowNumber = (page - 1) * pageSize + rowIndex + 1;
               const isEditingRow = editingId === entry.id;
               const editCtx: EditCellCtx | null =
                 isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave } : null;
               return (
                 <tr key={entry.id}>
-                  <td className="sticky-col col-dpr col-dpr-noactions">{entry.seqNo}</td>
+                  <td className="sticky-col col-dpr col-dpr-noactions">{rowNumber}</td>
                   {columnOrder.map((key, idx) => {
                     const def = COLUMNS[key];
                     const isLastInGroup = isLastColumnOfGroup(idx, columnOrder);

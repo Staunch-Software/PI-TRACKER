@@ -357,6 +357,8 @@ export function DdTrackerPage() {
           <div className="tracker-table-shell">
             <DdTrackerTable
               entries={entriesQuery.data?.items ?? []}
+              page={page}
+              pageSize={pageSize}
               canEdit={canEdit}
               sortBy={sortBy}
               sortDir={sortDir}
