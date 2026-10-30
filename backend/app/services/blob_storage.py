@@ -47,6 +47,19 @@ def generate_download_sas_url(blob_key: str) -> str:
     return _sas_url(blob_key, BlobSasPermissions(read=True), DOWNLOAD_SAS_MINUTES)
 
 
+def upload_bytes_to_blob(container: str, blob_key: str, data: bytes, content_type: str) -> None:
+    """Server-side push of already-in-hand bytes into our own blob storage — used by
+    vendor_master_scraper/detail_scraper.py to re-host a SmartPAL vendor attachment it downloaded
+    via the authenticated Playwright context. Everything else in this module is SAS-URL-based for
+    browser-direct upload/download (a user's own file never passes through this backend); this is
+    the one path where the scraper itself holds the bytes and needs to push them server-side."""
+    from azure.storage.blob import ContentSettings
+
+    client = _get_service_client()
+    blob_client = client.get_blob_client(container=container, blob=blob_key)
+    blob_client.upload_blob(data, overwrite=True, content_settings=ContentSettings(content_type=content_type))
+
+
 def delete_blob(blob_key: str) -> None:
     client = _get_service_client()
     blob_client = client.get_blob_client(container=settings.azure_storage_container, blob=blob_key)

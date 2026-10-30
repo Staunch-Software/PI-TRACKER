@@ -53,6 +53,22 @@ export enum PaymentStatus {
   NOT_PAID = 'NOT_PAID',
 }
 
+// Vendor Management's bank-details-request workflow state — mirrors
+// backend/app/core/enums.py BankDetailsStatus.
+export enum BankDetailsStatus {
+  MISSING = 'missing',
+  REQUESTED = 'requested',
+  RECEIVED = 'received',
+  UPDATED = 'updated',
+}
+
+export const BANK_DETAILS_STATUS_LABELS: Record<BankDetailsStatus, string> = {
+  [BankDetailsStatus.MISSING]: 'Missing',
+  [BankDetailsStatus.REQUESTED]: 'Requested',
+  [BankDetailsStatus.RECEIVED]: 'Received',
+  [BankDetailsStatus.UPDATED]: 'Updated',
+};
+
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   [PaymentStatus.PAID]: 'Paid',
   [PaymentStatus.NOT_PAID]: 'Not Paid',
@@ -78,6 +94,7 @@ export enum AuditAction {
   MARK_RECEIVED = 'MARK_RECEIVED',
   SENT_VENDOR_NOTICE = 'SENT_VENDOR_NOTICE',
   SENT_OWNER_REMINDER = 'SENT_OWNER_REMINDER',
+  SENT_BANK_REQUEST = 'SENT_BANK_REQUEST',
 }
 
 export enum AuditEntityType {
@@ -91,6 +108,7 @@ export enum AuditEntityType {
   VENDOR_MAPPING_IMPORT_BATCH = 'vendor_mapping_import_batch',
   PIR_ENTRY = 'pir_entry',
   OWNER_RECIPIENT = 'owner_recipient',
+  VENDOR_TRACKER_ENTRY = 'vendor_tracker_entry',
 }
 
 // Landing Reports oil type — mirrors backend/app/core/enums.py OilType (value is the display string).

@@ -1,0 +1,14 @@
+# Staggered 30 minutes after pi_tracker_po_scrape.timer (07:30/19:30) — all SmartPAL scrapers
+# share one SmartPAL account login, and running two concurrently can kick out each other's
+# session (see that timer's own comment), so each gets its own slot.
+
+[Unit]
+Description=Run PI Follow-up Tracker Vendor Master list scrape twice daily
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

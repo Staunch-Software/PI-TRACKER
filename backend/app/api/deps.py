@@ -61,6 +61,7 @@ def require_module_access(module: str) -> Callable[[User], User]:
         "soa": "can_access_soa",
         "landing": "can_access_landing",
         "dd": "can_access_dd",
+        "vendor": "can_access_vendor",
     }[module]
 
     def dependency(current_user: User = Depends(get_current_user)) -> User:

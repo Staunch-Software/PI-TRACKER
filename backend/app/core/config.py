@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     pir_url: str = "https://smartpal.ozellar.com/AccountsPALApp/Accounts/ProblematicInvoiceOverview"
     requisition_approval_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/RequisitionApproval"
     po_overview_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/POOverview"
+    vendor_master_url: str = "https://smartpal.ozellar.com/PurchasePALApp/Purchase/VendorMaster"
     mariapps_headless: bool = True
 
     # ── Microsoft Graph API (SOA reconciliation module) ─────────────────────────

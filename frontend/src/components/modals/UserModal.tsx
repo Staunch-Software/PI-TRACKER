@@ -19,6 +19,7 @@ export function UserModal({ user, onClose }: Props) {
   const [canAccessSoa, setCanAccessSoa] = useState(user?.canAccessSoa ?? true);
   const [canAccessLanding, setCanAccessLanding] = useState(user?.canAccessLanding ?? true);
   const [canAccessDd, setCanAccessDd] = useState(user?.canAccessDd ?? true);
+  const [canAccessVendor, setCanAccessVendor] = useState(user?.canAccessVendor ?? true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -35,9 +36,10 @@ export function UserModal({ user, onClose }: Props) {
             canAccessSoa,
             canAccessLanding,
             canAccessDd,
+            canAccessVendor,
             ...(password ? { password } : {}),
           })
-        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd }),
+        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
@@ -148,6 +150,15 @@ export function UserModal({ user, onClose }: Props) {
                       onChange={(e) => setCanAccessDd(e.target.checked)}
                     />
                     DD Tracker
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessVendor}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessVendor(e.target.checked)}
+                    />
+                    Vendor Management
                   </label>
                 </div>
                 {role === UserRole.ADMIN && (

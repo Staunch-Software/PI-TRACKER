@@ -26,6 +26,11 @@ from app.models import (  # noqa: E402,F401
     table_layout_preference,
     user,
     vendor,
+    vendor_bank_attachment,
+    vendor_bank_detail,
     vendor_department_mapping,
+    vendor_master_attachment,
+    vendor_master_entry,
+    vendor_tracker_entry,
     vessel,
 )

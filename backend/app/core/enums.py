@@ -49,6 +49,16 @@ class PaymentStatus(str, enum.Enum):
     NOT_PAID = "NOT_PAID"
 
 
+# Vendor Management's bank-details-request workflow state — plain Text column (not a DB enum
+# type), matching the lighter-weight convention dd_tracker_entry.py already uses for its own
+# free-text status fields. See backend/app/models/vendor_tracker_entry.py.
+class BankDetailsStatus(str, enum.Enum):
+    MISSING = "missing"
+    REQUESTED = "requested"
+    RECEIVED = "received"
+    UPDATED = "updated"
+
+
 class Department(str, enum.Enum):
     TECHNICAL = "TECHNICAL"
     MANNING = "MANNING"
@@ -70,6 +80,7 @@ class AuditAction(str, enum.Enum):
     MARK_RECEIVED = "MARK_RECEIVED"
     SENT_VENDOR_NOTICE = "SENT_VENDOR_NOTICE"
     SENT_OWNER_REMINDER = "SENT_OWNER_REMINDER"
+    SENT_BANK_REQUEST = "SENT_BANK_REQUEST"
 
 
 class AuditEntityType(str, enum.Enum):
@@ -83,6 +94,7 @@ class AuditEntityType(str, enum.Enum):
     VENDOR_MAPPING_IMPORT_BATCH = "vendor_mapping_import_batch"
     PIR_ENTRY = "pir_entry"
     OWNER_RECIPIENT = "owner_recipient"
+    VENDOR_TRACKER_ENTRY = "vendor_tracker_entry"
 
 
 # Where a SOA line item's invoice currently lives, in priority order — see

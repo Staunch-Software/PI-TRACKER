@@ -1,0 +1,24 @@
+# systemd unit for the Vendor Master list scraper (vendor_master_scraper module — feeds
+# vendor_master_entries for the Vendor Management module's "Add DD Vendor" picker).
+#
+# Shares the SmartPAL login session with pir_scraper (same auth.json) — mirrors the naming/paths
+# of the other scrapers already running on production. Deliberately lightweight: only the vendor
+# LIST grid (name/email/city/country), not per-vendor detail — see scraper.py's module docstring.
+#
+# Install:
+#   sudo cp deploy/pi_tracker_vendor_master_scrape.service /etc/systemd/system/
+#   sudo cp deploy/pi_tracker_vendor_master_scrape.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pi_tracker_vendor_master_scrape.timer
+
+[Unit]
+Description=PI Follow-up Tracker - Vendor Master list scrape (SmartPAL)
+After=network.target
+
+[Service]
+Type=oneshot
+User=Deployer
+Group=www-data
+WorkingDirectory=/opt/pi_tracker/PI-TRACKER/backend
+EnvironmentFile=/opt/pi_tracker/PI-TRACKER/backend/.env
+ExecStart=/opt/pi_tracker/PI-TRACKER/backend/venv/bin/python -m app.services.vendor_master_scraper.scraper

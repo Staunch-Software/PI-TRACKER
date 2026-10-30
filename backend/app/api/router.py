@@ -18,7 +18,9 @@ from app.api.routes import (
     table_layout,
     user_activity,
     users,
+    vendor_attachments,
     vendor_mapping,
+    vendor_management,
     vendors,
     vessels,
 )
@@ -38,6 +40,8 @@ api_router.include_router(user_activity.router)
 api_router.include_router(soa_entries.router)
 api_router.include_router(landing_reports.router)
 api_router.include_router(dd_tracker.router)
+api_router.include_router(vendor_management.router)
+api_router.include_router(vendor_attachments.router)
 api_router.include_router(attachments.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(import_export.router)

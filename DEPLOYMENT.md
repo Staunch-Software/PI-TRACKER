@@ -160,6 +160,7 @@ their code only needs a `git pull`, never a service restart:
 | `pi_tracker_smartpal_invoice_scrape` | `app.services.smartpal_invoice_scraper.scraper` | 06:30 / 18:30 | All-vessel/all-status invoice sweep for SOA reconciliation |
 | `pi_tracker_invoice_registration_scrape` | `app.services.approved_invoice_scraper.scraper` | 07:00 / 19:00 | AMNS-fleet approved invoices + `invoice_registrations` ("Registered By") |
 | `pi_tracker_po_scrape` | `app.services.po_scraper.scraper` | 07:30 / 19:30 | Fleet-wide `pr_entries`/`po_entries` sweep (from 01-Jul-2026) feeding the DD Tracker module |
+| `pi_tracker_vendor_master_scrape` | `app.services.vendor_master_scraper.scraper` | 08:00 / 20:00 | Fleet-wide `vendor_master_entries` list sweep (~1,098 vendors) feeding the Vendor Management module's picker |
 
 All four log into the same SmartPAL account (just different modules — `AccountsPALApp` for the
 first, `PurchasePALApp` for the other three), and a second concurrent login can kick out the first
@@ -175,11 +176,13 @@ sudo cp deploy/pi_tracker_pir_scrape.service deploy/pi_tracker_pir_scrape.timer 
 sudo cp deploy/pi_tracker_smartpal_invoice_scrape.service deploy/pi_tracker_smartpal_invoice_scrape.timer /etc/systemd/system/
 sudo cp deploy/pi_tracker_invoice_registration_scrape.service deploy/pi_tracker_invoice_registration_scrape.timer /etc/systemd/system/
 sudo cp deploy/pi_tracker_po_scrape.service deploy/pi_tracker_po_scrape.timer /etc/systemd/system/
+sudo cp deploy/pi_tracker_vendor_master_scrape.service deploy/pi_tracker_vendor_master_scrape.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now pi_tracker_pir_scrape.timer
 sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
 sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
 sudo systemctl enable --now pi_tracker_po_scrape.timer
+sudo systemctl enable --now pi_tracker_vendor_master_scrape.timer
 ```
 
 Check status/logs for any of them:

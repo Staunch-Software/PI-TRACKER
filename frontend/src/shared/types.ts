@@ -13,6 +13,7 @@ export interface User {
   canAccessSoa: boolean;
   canAccessLanding: boolean;
   canAccessDd: boolean;
+  canAccessVendor: boolean;
   createdAt: string;
 }
 
@@ -532,4 +533,127 @@ export interface PoLookupResult {
   vendor: string | null;
   reqCategory: string | null;
   approvedStatus: string | null;
+}
+
+// ── Vendor Management ────────────────────────────────────────────────────────────
+
+// Mirrors backend/app/schemas/vendor_management.py VendorMasterLookupResult — one row of the
+// scraped SmartPAL vendor master, used by the "Add DD Vendor" picker.
+export interface VendorMasterLookupResult {
+  vendorCode: string;
+  vendorName: string | null;
+  vendorType: string | null;
+  email: string | null;
+  currency: string | null;
+  city: string | null;
+  country: string | null;
+  state: string | null;
+}
+
+// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut.
+export interface VendorTrackerEntry {
+  id: string;
+  seqNo: number;
+  vendorCode: string;
+
+  bankDetailsStatus: string;
+  bankRequestSentAt: string | null;
+  bankRequestSentByName: string | null;
+  bankDetailsReceivedAt: string | null;
+  bankDetailsReceivedByName: string | null;
+  bankDetailsUpdatedAt: string | null;
+  bankDetailsUpdatedByName: string | null;
+
+  bankBeneficiaryName: string | null;
+  bankName: string | null;
+  bankBranchName: string | null;
+  bankAccountNumber: string | null;
+  bankIban: string | null;
+  bankSwiftCode: string | null;
+
+  bankVerificationCompleted: boolean;
+  bankVerificationCompletedByName: string | null;
+  bankVerificationCompletedAt: string | null;
+
+  createdAt: string;
+  updatedAt: string;
+
+  // Live-joined from vendor_master_entries by vendorCode — null until the on-demand detail
+  // scrape completes (see detailScrapePending).
+  vendorName: string | null;
+  vendorType: string | null;
+  vendorEmail: string | null;
+  vendorPhone1: string | null;
+  vendorAddress: string | null;
+  vendorCity: string | null;
+  vendorCountry: string | null;
+  vendorState: string | null;
+
+  detailScrapePending: boolean;
+  hasMandatoryDetails: boolean;
+  bankDetailsCount: number;
+}
+
+// Request body for adding a vendor to the tracker.
+export interface VendorTrackerEntryCreateInput {
+  vendorCode: string;
+}
+
+// Request body for keying in the manually-reviewed bank fields.
+export interface VendorTrackerEntryBankUpdateInput {
+  bankBeneficiaryName?: string | null;
+  bankName?: string | null;
+  bankBranchName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIban?: string | null;
+  bankSwiftCode?: string | null;
+}
+
+// Mirrors backend/app/schemas/vendor_management.py VendorBankDetailOut — a single SmartPAL Bank
+// Details tab row, read-only.
+export interface VendorBankDetail {
+  id: string;
+  beneficiaryName: string | null;
+  branchName: string | null;
+  bankName: string | null;
+  country: string | null;
+  bankCode: string | null;
+  currency: string | null;
+  accountNumber: string | null;
+  iban: string | null;
+  swiftCode: string | null;
+  abaNo: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryDetailOut.
+export interface VendorTrackerEntryDetail {
+  contacts: Record<string, unknown>[];
+  bankDetails: VendorBankDetail[];
+}
+
+// Mirrors backend/app/schemas/vendor_attachment.py VendorBankAttachmentOut.
+export interface VendorBankAttachment {
+  id: string;
+  vendorTrackerEntryId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedAt: string;
+  downloadUrl: string;
+}
+
+// Mirrors backend/app/schemas/vendor_attachment.py VendorMasterAttachmentOut.
+export interface VendorMasterAttachment {
+  id: string;
+  vendorCode: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  smartpalUploadedBy: string | null;
+  smartpalUploadedAt: string | null;
+  downloadUrl: string;
 }

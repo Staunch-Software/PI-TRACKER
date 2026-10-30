@@ -17,6 +17,7 @@ class UserCreateRequest(CamelModel):
     can_access_soa: bool = True
     can_access_landing: bool = True
     can_access_dd: bool = True
+    can_access_vendor: bool = True
 
 
 class UserUpdateRequest(CamelModel):
@@ -28,4 +29,5 @@ class UserUpdateRequest(CamelModel):
     can_access_soa: bool | None = None
     can_access_landing: bool | None = None
     can_access_dd: bool | None = None
+    can_access_vendor: bool | None = None
     password: str | None = None

@@ -55,6 +55,31 @@ def vendor_notice_email(
     return subject, body
 
 
+def bank_details_request_email(*, vendor_name: str) -> tuple[str, str]:
+    """Returns (subject, html_body). Goes to the VENDOR — asks THEM to send us their bank details
+    on THEIR OWN company letterhead, signed by an authorized signatory (standard anti-fraud
+    bank-mandate verification practice) — confirmed with the user 2026-10-30 this needs no
+    letterhead/branding of our own, just a plain request explaining what to send."""
+    subject = f"Request for Bank Details – {vendor_name}"
+    body = f"""
+    <p>Dear {vendor_name} Team,</p>
+    <p>As part of our standard vendor verification process, we request you to share your bank
+    account details on your company's official letterhead, duly signed by an authorized
+    signatory. Please include the following details:</p>
+    <ul>
+      <li>Beneficiary Name</li>
+      <li>Bank Name</li>
+      <li>Branch Name</li>
+      <li>Account Number</li>
+      <li>IBAN</li>
+      <li>Swift Code</li>
+    </ul>
+    <p>Kindly also attach supporting proof such as a cancelled cheque or a bank confirmation letter.</p>
+    <p>Thank you,<br>Purchase Team</p>
+    """
+    return subject, body
+
+
 def owner_reminder_email(
     *,
     dpr_no: str | None,
