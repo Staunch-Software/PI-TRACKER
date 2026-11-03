@@ -265,12 +265,25 @@ def _scrape_attachments(page, vendor_code: str, existing_keys: set[tuple[str, in
     # selector as first guessed; that never matched anything on the real page.
     try:
         page.locator("button.btn-icon-attachment").first.click(timeout=5000)
-        page.wait_for_timeout(2000)
     except Exception as e:
         log.warning(f"[VENDOR]   Could not open the attachment list: {e}")
         return new_attachments
 
-    if page.locator(f"{_ATTACHMENT_POPUP}:has-text('No Attachments Found')").count() > 0:
+    # Confirmed live 2026-11-03: "No Attachments Found" is shown as a PLACEHOLDER the entire time
+    # the list is still loading, not just when the vendor genuinely has none — on a vendor with 19
+    # attachments it stayed on screen for ~21 seconds before the real rows replaced it (timed via
+    # repeated polling). So it can never be trusted as "empty" the moment it's first seen; only
+    # poll-until-real-rows-or-a-long-timeout is reliable. A short wait (the original fixed 2s, and
+    # later a 10s poll) both previously mistook "still loading" for "empty", silently losing real
+    # attachments for any vendor with enough of them to be slow (WARTCHINA's 9 small files loaded
+    # in under 2s and never exposed this; FGM OZM's 19 did).
+    for _ in range(40):
+        if page.locator(f"{_ATTACHMENT_POPUP} tr:has(.download-icon)").count() > 0:
+            break
+        page.wait_for_timeout(1000)
+    else:
+        if page.locator(f"{_ATTACHMENT_POPUP}:has-text('No Attachments Found')").count() == 0:
+            log.warning(f"[VENDOR]   Attachment list for {vendor_code} never finished loading after 40s — skipping this run.")
         _close_attachment_popup(page)
         return new_attachments
 
