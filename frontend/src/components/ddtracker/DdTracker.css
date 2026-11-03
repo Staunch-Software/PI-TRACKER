@@ -57,7 +57,7 @@
   color: var(--color-primary, #0f4c81);
 }
 
-/* Palette 0: Marine Navy / Sapphire */
+/* Palette 0: Marine Navy / Sapphire (GCL NARMADA) */
 .vessel-color-0 {
   --v-bg-inactive: #f0f6ff;
   --v-border-inactive: #bfdbfe;
@@ -68,7 +68,7 @@
   --v-dot-active: #60a5fa;
 }
 
-/* Palette 1: Emerald Sea */
+/* Palette 1: Emerald Sea Green (GCL SABARMATI) */
 .vessel-color-1 {
   --v-bg-inactive: #ecfdf5;
   --v-border-inactive: #a7f3d0;
@@ -79,7 +79,7 @@
   --v-dot-active: #34d399;
 }
 
-/* Palette 2: Royal Indigo */
+/* Palette 2: Royal Indigo (GCL SARASWATI) */
 .vessel-color-2 {
   --v-bg-inactive: #eef2ff;
   --v-border-inactive: #c7d2fe;
@@ -90,18 +90,18 @@
   --v-dot-active: #818cf8;
 }
 
-/* Palette 3: Deep Ocean Teal */
+/* Palette 3: Tangerine Sunset Orange (GCL GANGA) - distinct, vibrant, non-red citrus */
 .vessel-color-3 {
-  --v-bg-inactive: #f0fdfa;
-  --v-border-inactive: #99f6e4;
-  --v-text-inactive: #0f766e;
-  --v-bg-active: linear-gradient(135deg, #115e59 0%, #0d9488 100%);
-  --v-border-active: #115e59;
-  --v-glow-active: rgba(13, 148, 136, 0.35);
-  --v-dot-active: #2dd4bf;
+  --v-bg-inactive: #fff7ed;
+  --v-border-inactive: #fed7aa;
+  --v-text-inactive: #c2410c;
+  --v-bg-active: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+  --v-border-active: #c2410c;
+  --v-glow-active: rgba(234, 88, 12, 0.35);
+  --v-dot-active: #fdba74;
 }
 
-/* Palette 4: Warm Amber / Terracotta */
+/* Palette 4: Warm Amber / Honey Gold (GCL TAPI) */
 .vessel-color-4 {
   --v-bg-inactive: #fffbeb;
   --v-border-inactive: #fde68a;
@@ -112,7 +112,7 @@
   --v-dot-active: #fbbf24;
 }
 
-/* Palette 5: Amethyst Purple */
+/* Palette 5: Amethyst Purple (GCL YAMUNA) */
 .vessel-color-5 {
   --v-bg-inactive: #faf5ff;
   --v-border-inactive: #e9d5ff;
@@ -123,7 +123,7 @@
   --v-dot-active: #c084fc;
 }
 
-/* Palette 6: Cyan / Aquamarine */
+/* Palette 6: Electric Cyan / Aquamarine (AMNS POLAR) */
 .vessel-color-6 {
   --v-bg-inactive: #ecfeff;
   --v-border-inactive: #a5f3fc;
@@ -134,7 +134,7 @@
   --v-dot-active: #22d3ee;
 }
 
-/* Palette 7: Ocean Sky / Cerulean */
+/* Palette 7: Ocean Sky / Cerulean (AMNSI STALLION) */
 .vessel-color-7 {
   --v-bg-inactive: #f0f9ff;
   --v-border-inactive: #bae6fd;
@@ -145,8 +145,63 @@
   --v-dot-active: #38bdf8;
 }
 
-/* Palette 8: Golden Ochre */
+/* Palette 8: Warm Bronze / Sienna (AMNS TUFMAX) */
 .vessel-color-8 {
+  --v-bg-inactive: #fdf8f6;
+  --v-border-inactive: #fed7aa;
+  --v-text-inactive: #9a3412;
+  --v-bg-active: linear-gradient(135deg, #78350f 0%, #9a3412 100%);
+  --v-border-active: #78350f;
+  --v-glow-active: rgba(120, 53, 15, 0.35);
+  --v-dot-active: #fb923c;
+}
+
+/* Palette 9: Slate Steel / Graphite (AM TARANG) */
+.vessel-color-9 {
+  --v-bg-inactive: #f8fafc;
+  --v-border-inactive: #cbd5e1;
+  --v-text-inactive: #334155;
+  --v-bg-active: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+  --v-border-active: #1e293b;
+  --v-glow-active: rgba(71, 85, 105, 0.35);
+  --v-dot-active: #94a3b8;
+}
+
+/* Palette 10: Plum / Deep Orchid (AMNSI MAXIMUS) */
+.vessel-color-10 {
+  --v-bg-inactive: #fdf4ff;
+  --v-border-inactive: #f5d0fe;
+  --v-text-inactive: #86198f;
+  --v-bg-active: linear-gradient(135deg, #701a75 0%, #a21caf 100%);
+  --v-border-active: #701a75;
+  --v-glow-active: rgba(162, 28, 175, 0.35);
+  --v-dot-active: #e879f9;
+}
+
+/* Palette 11: Olive / Lime Moss (GCL FOS) */
+.vessel-color-11 {
+  --v-bg-inactive: #f7fee7;
+  --v-border-inactive: #d9f99d;
+  --v-text-inactive: #3f6212;
+  --v-bg-active: linear-gradient(135deg, #365314 0%, #4d7c0f 100%);
+  --v-border-active: #365314;
+  --v-glow-active: rgba(77, 124, 15, 0.35);
+  --v-dot-active: #a3e635;
+}
+
+/* Palette 12: Rich Cobalt / Midnight Blue (AM UMANG) */
+.vessel-color-12 {
+  --v-bg-inactive: #eff6ff;
+  --v-border-inactive: #93c5fd;
+  --v-text-inactive: #1e40af;
+  --v-bg-active: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  --v-border-active: #1e3a8a;
+  --v-glow-active: rgba(37, 99, 235, 0.35);
+  --v-dot-active: #60a5fa;
+}
+
+/* Palette 13: Antique Ochre / Dijon (AM KIRTI) */
+.vessel-color-13 {
   --v-bg-inactive: #fefce8;
   --v-border-inactive: #fef08a;
   --v-text-inactive: #a16207;
@@ -156,15 +211,70 @@
   --v-dot-active: #fde047;
 }
 
-/* Palette 9: Slate Steel */
-.vessel-color-9 {
-  --v-bg-inactive: #f8fafc;
-  --v-border-inactive: #cbd5e1;
-  --v-text-inactive: #334155;
-  --v-bg-active: linear-gradient(135deg, #1e293b 0%, #475569 100%);
-  --v-border-active: #1e293b;
-  --v-glow-active: rgba(71, 85, 105, 0.35);
+/* Palette 14: Deep Sea Turquoise / Jade */
+.vessel-color-14 {
+  --v-bg-inactive: #f0fdfa;
+  --v-border-inactive: #99f6e4;
+  --v-text-inactive: #0f766e;
+  --v-bg-active: linear-gradient(135deg, #134e4a 0%, #0d9488 100%);
+  --v-border-active: #134e4a;
+  --v-glow-active: rgba(13, 148, 136, 0.35);
+  --v-dot-active: #2dd4bf;
+}
+
+/* Palette 15: Periwinkle / Iris */
+.vessel-color-15 {
+  --v-bg-inactive: #f5f3ff;
+  --v-border-inactive: #ddd6fe;
+  --v-text-inactive: #5b21b6;
+  --v-bg-active: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
+  --v-border-active: #4c1d95;
+  --v-glow-active: rgba(109, 40, 217, 0.35);
+  --v-dot-active: #a78bfa;
+}
+
+/* Palette 16: Forest Pine */
+.vessel-color-16 {
+  --v-bg-inactive: #f0fdf4;
+  --v-border-inactive: #bbf7d0;
+  --v-text-inactive: #166534;
+  --v-bg-active: linear-gradient(135deg, #14532d 0%, #15803d 100%);
+  --v-border-active: #14532d;
+  --v-glow-active: rgba(21, 128, 61, 0.35);
+  --v-dot-active: #4ade80;
+}
+
+/* Palette 17: Maritime Charcoal / Steel */
+.vessel-color-17 {
+  --v-bg-inactive: #f1f5f9;
+  --v-border-inactive: #94a3b8;
+  --v-text-inactive: #0f172a;
+  --v-bg-active: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  --v-border-active: #0f172a;
+  --v-glow-active: rgba(15, 23, 42, 0.35);
   --v-dot-active: #94a3b8;
+}
+
+/* Palette 18: Warm Sand / Khaki */
+.vessel-color-18 {
+  --v-bg-inactive: #fefce8;
+  --v-border-inactive: #e2d5c3;
+  --v-text-inactive: #713f12;
+  --v-bg-active: linear-gradient(135deg, #713f12 0%, #a16207 100%);
+  --v-border-active: #713f12;
+  --v-glow-active: rgba(161, 98, 7, 0.35);
+  --v-dot-active: #facc15;
+}
+
+/* Palette 19: Midnight Teal */
+.vessel-color-19 {
+  --v-bg-inactive: #ecfeff;
+  --v-border-inactive: #67e8f9;
+  --v-text-inactive: #155e75;
+  --v-bg-active: linear-gradient(135deg, #164e63 0%, #0891b2 100%);
+  --v-border-active: #164e63;
+  --v-glow-active: rgba(8, 145, 178, 0.35);
+  --v-dot-active: #38bdf8;
 }
 
 .dd-tracker-vessel-capsule {

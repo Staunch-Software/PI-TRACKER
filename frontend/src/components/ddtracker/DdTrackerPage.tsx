@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '../../auth/useRole';
 import { api, ApiError } from '../../lib/api';
@@ -24,26 +24,74 @@ const MAX_PAGE_SIZE = 1000;
 const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_VESSEL = 'GCL NARMADA';
 
+const TOTAL_PALETTES = 20;
+
 const KNOWN_VESSEL_COLORS: Record<string, number> = {
   'GCL NARMADA': 0,    // Marine Sapphire Blue
-  'GCL SABARMATI': 1,  // Emerald Sea
+  'GCL SABARMATI': 1,  // Emerald Sea Green
   'GCL SARASWATI': 2,  // Royal Indigo
-  'GCL GANGA': 3,      // Ocean Teal
-  'GCL TAPI': 4,       // Amber / Terracotta
+  'GCL GANGA': 3,      // Tangerine Sunset Orange (distinct from Sabarmati's green)
+  'GCL TAPI': 4,       // Warm Amber / Honey Gold
   'GCL YAMUNA': 5,     // Amethyst Purple
-  'AMNS POLAR': 6,     // Cyan / Aquamarine
-  'AMNSI STALLION': 7, // Ocean Sky / Cerulean
-  'AM KIRTI': 8,       // Golden Ochre
+  'AMNS POLAR': 6,     // Electric Cyan
+  'AMNSI STALLION': 7, // Ocean Sky Cerulean
+  'AMNS TUFMAX': 8,    // Warm Bronze / Sienna
   'AM TARANG': 9,      // Slate Steel
-  'AM UMANG': 0,
-  'GCL FOS': 1,
-  'AMNSI MAXIMUS': 5,
-  'AMNS TUFMAX': 6,
+  'AMNSI MAXIMUS': 10, // Plum / Deep Orchid
+  'GCL FOS': 11,       // Olive / Lime Moss
+  'AM UMANG': 12,      // Rich Cobalt / Midnight Blue
+  'AM KIRTI': 13,      // Antique Ochre / Dijon
 };
 
-function getVesselColorClass(vessel: string, index: number): string {
-  const colorIndex = KNOWN_VESSEL_COLORS[vessel.toUpperCase()] ?? (index % 10);
-  return `vessel-color-${colorIndex}`;
+// Computes a collision-free color index for every vessel currently in the list.
+// Guaranteed: each vessel in the list receives a distinct, visually contrasting color,
+// even when new vessels are dynamically added.
+function computeVesselColorAssignment(vesselList: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  const used = new Set<number>();
+
+  // Pass 1: Give known vessels their signature index if available
+  for (const vessel of vesselList) {
+    const key = vessel.toUpperCase();
+    const preferred = KNOWN_VESSEL_COLORS[key];
+    if (preferred !== undefined && !used.has(preferred)) {
+      result[key] = preferred;
+      used.add(preferred);
+    }
+  }
+
+  // Pass 2: For any vessel without an assigned color (new vessels or conflicting ones),
+  // assign the next unused palette index
+  let nextIdx = 0;
+  for (const vessel of vesselList) {
+    const key = vessel.toUpperCase();
+    if (result[key] === undefined) {
+      while (used.has(nextIdx)) {
+        nextIdx++;
+      }
+      result[key] = nextIdx;
+      used.add(nextIdx);
+    }
+  }
+
+  return result;
+}
+
+// For vessels beyond the 20 pre-defined CSS palettes, generates high-contrast HSL custom properties,
+// safely skipping red hues (345° to 15°) to honor the project's visual constraints.
+function getDynamicVesselStyle(colorIndex: number): React.CSSProperties | undefined {
+  if (colorIndex < TOTAL_PALETTES) return undefined;
+  const rawHue = (25 + (colorIndex - TOTAL_PALETTES) * 137.5) % 360;
+  const safeHue = rawHue >= 345 || rawHue <= 15 ? (rawHue + 40) % 360 : rawHue;
+  return {
+    ['--v-bg-inactive' as string]: `hsl(${safeHue.toFixed(1)}, 85%, 97%)`,
+    ['--v-border-inactive' as string]: `hsl(${safeHue.toFixed(1)}, 65%, 80%)`,
+    ['--v-text-inactive' as string]: `hsl(${safeHue.toFixed(1)}, 85%, 26%)`,
+    ['--v-bg-active' as string]: `linear-gradient(135deg, hsl(${safeHue.toFixed(1)}, 80%, 30%) 0%, hsl(${safeHue.toFixed(1)}, 85%, 45%) 100%)`,
+    ['--v-border-active' as string]: `hsl(${safeHue.toFixed(1)}, 80%, 30%)`,
+    ['--v-glow-active' as string]: `hsla(${safeHue.toFixed(1)}, 85%, 45%, 0.35)`,
+    ['--v-dot-active' as string]: `hsl(${safeHue.toFixed(1)}, 90%, 65%)`,
+  };
 }
 
 interface TableLayoutPreference {
@@ -170,6 +218,9 @@ export function DdTrackerPage() {
     queryFn: () => api.get<string[]>('/dd-tracker/vessel-options'),
   });
 
+  const vesselList = vesselOptionsQuery.data ?? [];
+  const vesselColorMap = useMemo(() => computeVesselColorAssignment(vesselList), [vesselList]);
+
   const entriesQuery = useQuery({
     queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page, pageSize],
     queryFn: () =>
@@ -283,16 +334,23 @@ export function DdTrackerPage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a6 6 0 0 0 12 0 6 6 0 0 0 10 0"/><path d="m4 16 1.5-6h13l1.5 6"/><path d="M10 10V4h4v6"/></svg>
           <span>Vessels</span>
         </div>
-        {(vesselOptionsQuery.data ?? []).map((vessel, idx) => (
-          <button
-            key={vessel}
-            type="button"
-            className={`dd-tracker-vessel-capsule ${getVesselColorClass(vessel, idx)}${vessel === selectedVessel ? ' active' : ''}`}
-            onClick={() => selectVessel(vessel)}
-          >
-            {vessel}
-          </button>
-        ))}
+        {vesselList.map((vessel) => {
+          const colorIndex = vesselColorMap[vessel.toUpperCase()] ?? 0;
+          const colorClass = colorIndex < TOTAL_PALETTES ? `vessel-color-${colorIndex}` : '';
+          const dynamicStyle = getDynamicVesselStyle(colorIndex);
+
+          return (
+            <button
+              key={vessel}
+              type="button"
+              className={`dd-tracker-vessel-capsule ${colorClass}${vessel === selectedVessel ? ' active' : ''}`}
+              style={dynamicStyle}
+              onClick={() => selectVessel(vessel)}
+            >
+              {vessel}
+            </button>
+          );
+        })}
       </div>
       <div className="tracker-toolbar">
         <div className="tracker-search-wrap">
