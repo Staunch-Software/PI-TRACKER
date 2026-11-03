@@ -104,8 +104,25 @@ interface TableLayoutPreference {
 function sanitizeColumnOrder(saved: string[] | null | undefined): ReorderableColumnKey[] {
   const known = new Set<string>(DEFAULT_COLUMN_ORDER);
   const filtered = (saved ?? []).filter((k): k is ReorderableColumnKey => known.has(k));
-  const missing = DEFAULT_COLUMN_ORDER.filter((k) => !filtered.includes(k));
-  return [...filtered, ...missing];
+  const result: ReorderableColumnKey[] = [...filtered];
+  // A column added to DEFAULT_COLUMN_ORDER after a user already saved their own layout (e.g. a
+  // newly introduced column) isn't in `filtered` yet — insert it right after its nearest earlier
+  // DEFAULT_COLUMN_ORDER neighbour that IS present, so it lands next to where it conceptually
+  // belongs (e.g. next to PR Status) instead of always tacked onto the very end of an existing
+  // saved layout.
+  DEFAULT_COLUMN_ORDER.forEach((key, i) => {
+    if (result.includes(key)) return;
+    let insertAfterIndex = -1;
+    for (let j = i - 1; j >= 0; j--) {
+      const idx = result.indexOf(DEFAULT_COLUMN_ORDER[j]);
+      if (idx !== -1) {
+        insertAfterIndex = idx;
+        break;
+      }
+    }
+    result.splice(insertAfterIndex + 1, 0, key);
+  });
+  return result;
 }
 
 function sanitizeColumnWidths(saved: Record<string, number> | null | undefined): Record<string, number> {
