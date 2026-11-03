@@ -116,6 +116,30 @@ export function VendorManagementPage() {
     return new Date(value).toLocaleDateString();
   }
 
+  // Which of the 3 mandatory vendor-level fields are missing, by label — drives the "Missing:
+  // X, Y" badge so the user doesn't have to scan the Email/Phone/Address columns themselves to
+  // work out what's absent.
+  function missingVendorFields(entry: VendorTrackerEntry): string[] {
+    const missing: string[] = [];
+    if (!entry.vendorEmail) missing.push('Email');
+    if (!entry.vendorPhone1) missing.push('Mobile');
+    if (!entry.vendorAddress) missing.push('Address');
+    return missing;
+  }
+
+  const BANK_FIELD_LABELS: Array<[keyof VendorTrackerEntry, string]> = [
+    ['bankBeneficiaryName', 'Beneficiary Name'],
+    ['bankName', 'Bank Name'],
+    ['bankBranchName', 'Branch Name'],
+    ['bankAccountNumber', 'Account Number'],
+    ['bankIban', 'IBAN'],
+    ['bankSwiftCode', 'Swift Code'],
+  ];
+
+  function missingBankFields(entry: VendorTrackerEntry): string[] {
+    return BANK_FIELD_LABELS.filter(([key]) => !entry[key]).map(([, label]) => label);
+  }
+
   return (
     <div className="tracker-page vendor-management-page">
       <div className="tracker-page-header">
@@ -199,16 +223,30 @@ export function VendorManagementPage() {
                       <div style={{ fontWeight: 600 }}>{entry.vendorName ?? entry.vendorCode}</div>
                       <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{entry.vendorCode}</div>
                     </td>
-                    <td>{entry.detailScrapePending ? 'Refreshing…' : entry.vendorEmail ?? '—'}</td>
-                    <td>{entry.detailScrapePending ? 'Refreshing…' : entry.vendorPhone1 ?? '—'}</td>
-                    <td>{entry.detailScrapePending ? 'Refreshing…' : entry.vendorAddress ?? '—'}</td>
+                    <td>
+                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorEmail ?? (
+                        <span className="vendor-field-missing">Missing</span>
+                      )}
+                    </td>
+                    <td>
+                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorPhone1 ?? (
+                        <span className="vendor-field-missing">Missing</span>
+                      )}
+                    </td>
+                    <td>
+                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorAddress ?? (
+                        <span className="vendor-field-missing">Missing</span>
+                      )}
+                    </td>
                     <td>
                       {entry.detailScrapePending ? (
                         <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
                       ) : entry.hasMandatoryDetails ? (
                         <span className="vendor-badge vendor-badge-ok">Complete</span>
                       ) : (
-                        <span className="vendor-badge vendor-badge-warn">Details missing</span>
+                        <span className="vendor-badge vendor-badge-warn" title={`Missing: ${missingVendorFields(entry).join(', ')}`}>
+                          Missing: {missingVendorFields(entry).join(', ')}
+                        </span>
                       )}
                       {canEdit && !entry.detailScrapePending && (
                         <button
@@ -231,6 +269,21 @@ export function VendorManagementPage() {
                           {entry.bankDetailsCount} SmartPAL bank row(s)
                         </div>
                       )}
+                      {(() => {
+                        const missing = missingBankFields(entry);
+                        if (missing.length === 0) {
+                          return <div className="vendor-field-complete" style={{ marginTop: 4 }}>All fields keyed in</div>;
+                        }
+                        return (
+                          <div
+                            className="vendor-field-missing"
+                            style={{ marginTop: 4 }}
+                            title={`Missing: ${missing.join(', ')}`}
+                          >
+                            {BANK_FIELD_LABELS.length - missing.length}/{BANK_FIELD_LABELS.length} fields — missing {missing.join(', ')}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>
                       {bankEditId === entry.id ? (

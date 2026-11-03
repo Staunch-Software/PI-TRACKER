@@ -63,6 +63,19 @@
   color: var(--color-success, #16a34a);
 }
 
+.vendor-field-missing {
+  display: inline-block;
+  color: var(--color-danger, #dc2626);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+
+.vendor-field-complete {
+  display: inline-block;
+  color: var(--color-success, #16a34a);
+  font-size: 11px;
+}
+
 .vendor-action-buttons {
   display: flex;
   flex-direction: column;
