@@ -264,7 +264,7 @@ export function VendorManagementPage() {
                   <th className="col-verified-bank" title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from what SmartPAL already shows.">
                     Verified Bank Fields
                   </th>
-                  <th className="col-verification">Bank Verification</th>
+                  <th className="col-center col-verification">Bank Verification</th>
                   <th className="col-center col-docs" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
                 </tr>
               </thead>
@@ -394,7 +394,7 @@ export function VendorManagementPage() {
                           );
                         })()}
                       </td>
-                      <td className="col-verification">
+                      <td className="col-center col-verification">
                         <div className="vendor-verification-cell">
                           {entry.bankVerificationCompleted ? (
                             <div className="vendor-verified-badge">
@@ -487,3 +487,4 @@ export function VendorManagementPage() {
     </div>
   );
 }
+
