@@ -112,15 +112,15 @@
   --v-dot-active: #fbbf24;
 }
 
-/* Palette 5: Amethyst Purple (GCL YAMUNA) */
+/* Palette 5: Royal Violet / Amethyst (GCL YAMUNA) */
 .vessel-color-5 {
-  --v-bg-inactive: #faf5ff;
-  --v-border-inactive: #e9d5ff;
-  --v-text-inactive: #7e22ce;
-  --v-bg-active: linear-gradient(135deg, #6b21a8 0%, #9333ea 100%);
-  --v-border-active: #6b21a8;
-  --v-glow-active: rgba(147, 51, 234, 0.35);
-  --v-dot-active: #c084fc;
+  --v-bg-inactive: #f5f3ff;
+  --v-border-inactive: #c4b5fd;
+  --v-text-inactive: #6d28d9;
+  --v-bg-active: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+  --v-border-active: #5b21b6;
+  --v-glow-active: rgba(124, 58, 237, 0.35);
+  --v-dot-active: #c4b5fd;
 }
 
 /* Palette 6: Electric Cyan / Turquoise (AMNS POLAR) */
@@ -134,15 +134,15 @@
   --v-dot-active: #22d3ee;
 }
 
-/* Palette 7: Slate Steel / Charcoal Titanium (AMNSI STALLION) - crisp dark metallic slate, fully distinct from Polar's cyan */
+/* Palette 7: Royal Orchid / Deep Plum (AMNSI STALLION) - vibrant jewel orchid, fully distinct from Polar's cyan */
 .vessel-color-7 {
-  --v-bg-inactive: #f1f5f9;
-  --v-border-inactive: #94a3b8;
-  --v-text-inactive: #0f172a;
-  --v-bg-active: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-  --v-border-active: #0f172a;
-  --v-glow-active: rgba(15, 23, 42, 0.35);
-  --v-dot-active: #94a3b8;
+  --v-bg-inactive: #fdf4ff;
+  --v-border-inactive: #f0abfc;
+  --v-text-inactive: #86198f;
+  --v-bg-active: linear-gradient(135deg, #701a75 0%, #a21caf 100%);
+  --v-border-active: #701a75;
+  --v-glow-active: rgba(162, 28, 175, 0.35);
+  --v-dot-active: #f0abfc;
 }
 
 /* Palette 8: Warm Bronze / Sienna (AMNS TUFMAX) */
@@ -167,15 +167,15 @@
   --v-dot-active: #38bdf8;
 }
 
-/* Palette 10: Plum / Deep Orchid (AMNSI MAXIMUS) */
+/* Palette 10: Slate Steel / Graphite (AMNSI MAXIMUS) */
 .vessel-color-10 {
-  --v-bg-inactive: #fdf4ff;
-  --v-border-inactive: #f5d0fe;
-  --v-text-inactive: #86198f;
-  --v-bg-active: linear-gradient(135deg, #701a75 0%, #a21caf 100%);
-  --v-border-active: #701a75;
-  --v-glow-active: rgba(162, 28, 175, 0.35);
-  --v-dot-active: #e879f9;
+  --v-bg-inactive: #f8fafc;
+  --v-border-inactive: #cbd5e1;
+  --v-text-inactive: #334155;
+  --v-bg-active: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+  --v-border-active: #1e293b;
+  --v-glow-active: rgba(71, 85, 105, 0.35);
+  --v-dot-active: #94a3b8;
 }
 
 /* Palette 11: Olive / Lime Moss (GCL FOS) */
