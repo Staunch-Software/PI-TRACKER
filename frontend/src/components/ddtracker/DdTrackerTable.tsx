@@ -30,7 +30,6 @@ export const DEFAULT_COL_WIDTHS = {
   entryType: 110,
   prNumber: 170,
   prStatus: 180,
-  prWorkflowStage: 180,
   poNumber: 170,
   poStatus: 150,
   title: 320,
@@ -59,7 +58,7 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 // Purchase Order, Tracking (the team's own manual follow-up fields), Invoice.
 export const DEFAULT_COLUMN_ORDER = [
   'entryType', 'title',
-  'prNumber', 'prStatus', 'prWorkflowStage',
+  'prNumber', 'prStatus',
   'poNumber', 'poStatus', 'vendor', 'poAmount', 'poCurrency', 'supplyPort',
   'orderStatus', 'leadDays', 'readinessDate', 'exStock', 'supplyConfirmation', 'remarks',
   'invoiceNumber', 'invoiceType', 'invoiceAmount', 'invoiceCurrency', 'invoiceStatus', 'paymentStatus',
@@ -130,15 +129,6 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'PR Status',
     group: 'Requisition',
     renderCell: (e) => e.prStatusLive ?? '—',
-  },
-  prWorkflowStage: {
-    label: 'PR Workflow Stage',
-    group: 'Requisition',
-    // SmartPAL's raw workflow-stage text — unlike PR Status, this is never overridden to
-    // Cancelled/Rejected, so it can show e.g. "Requisition Approved" on a PR that PR Status
-    // correctly shows as "Cancelled" (see backend's _effective_pr_status). Shown side by side so
-    // the team can see both what stage it reached and whether it's actually still alive.
-    renderCell: (e) => e.prWorkflowStage ?? '—',
   },
   poNumber: {
     label: 'PO Number',
