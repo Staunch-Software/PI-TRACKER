@@ -123,7 +123,10 @@
 }
 
 /* ── Premium action buttons ── */
-.tracker-toolbar .btn-tracker-action {
+/* Not scoped to .tracker-toolbar: also used for inline per-row action buttons (e.g. Vendor
+   Management's "Send Bank Details Request"/"Mark Received"/"Edit Bank Fields" table-cell
+   buttons), which need the same shape/sizing outside the toolbar. */
+.btn-tracker-action {
   display: inline-flex;
   align-items: center;
   gap: 7px;

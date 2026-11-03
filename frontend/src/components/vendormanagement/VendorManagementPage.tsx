@@ -205,7 +205,9 @@ export function VendorManagementPage() {
                   <th>Address</th>
                   <th>Vendor Details</th>
                   <th>Bank Details Status</th>
-                  <th>Bank Fields</th>
+                  <th title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from the SmartPAL bank row(s) shown in Bank Details Status.">
+                    Verified Bank Fields
+                  </th>
                   <th>Bank Verification</th>
                   <th>Documents</th>
                 </tr>
@@ -265,22 +267,25 @@ export function VendorManagementPage() {
                         {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
                       </span>
                       {entry.bankDetailsCount > 0 && (
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                          {entry.bankDetailsCount} SmartPAL bank row(s)
+                        <div
+                          style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}
+                          title="Reference only — not yet verified by our own request/confirm workflow. See Verified Bank Fields."
+                        >
+                          {entry.bankDetailsCount} unverified SmartPAL bank row(s) on file
                         </div>
                       )}
                       {(() => {
                         const missing = missingBankFields(entry);
                         if (missing.length === 0) {
-                          return <div className="vendor-field-complete" style={{ marginTop: 4 }}>All fields keyed in</div>;
+                          return <div className="vendor-field-complete" style={{ marginTop: 4 }}>Verified fields: all keyed in</div>;
                         }
                         return (
                           <div
                             className="vendor-field-missing"
                             style={{ marginTop: 4 }}
-                            title={`Missing: ${missing.join(', ')}`}
+                            title={`These are the manually-verified fields keyed in below (separate from whatever SmartPAL already shows) — missing: ${missing.join(', ')}`}
                           >
-                            {BANK_FIELD_LABELS.length - missing.length}/{BANK_FIELD_LABELS.length} fields — missing {missing.join(', ')}
+                            Verified fields {BANK_FIELD_LABELS.length - missing.length}/{BANK_FIELD_LABELS.length} — not yet entered: {missing.join(', ')}
                           </div>
                         );
                       })()}
