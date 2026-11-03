@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, 
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { PrPoLookupInput } from './PrPoLookupInput';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
 // Same sticky-column split as PiEntriesTable/LandingReportsTable, minus an Actions column — there
@@ -122,7 +123,17 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Requisition',
     renderCell: (e) => e.requisitionNo ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input autoFocus value={form.requisitionNo} onChange={(ev) => onChange('requisitionNo', ev.target.value)} />
+      <PrPoLookupInput
+        kind="pr"
+        autoFocus
+        value={form.requisitionNo}
+        onChange={(v) => onChange('requisitionNo', v)}
+        onPick={(r) => {
+          onChange('requisitionNo', r.requisitionNo);
+          onChange('vesselName', r.vesselName ?? '');
+          onChange('title', r.title ?? '');
+        }}
+      />
     ),
   },
   prStatus: {
@@ -135,7 +146,17 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Purchase Order',
     renderCell: (e) => e.poNo ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input autoFocus value={form.poNo} onChange={(ev) => onChange('poNo', ev.target.value)} />
+      <PrPoLookupInput
+        kind="po"
+        autoFocus
+        value={form.poNo}
+        onChange={(v) => onChange('poNo', v)}
+        onPick={(r) => {
+          onChange('poNo', r.poNo);
+          onChange('vesselName', r.vesselName ?? '');
+          onChange('title', r.title ?? '');
+        }}
+      />
     ),
   },
   poStatus: {

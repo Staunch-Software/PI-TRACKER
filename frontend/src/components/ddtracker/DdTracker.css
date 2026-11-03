@@ -531,6 +531,42 @@ tr:hover .dd-tracker-editable-cell {
   border-right: 2px solid #cbd5e1 !important;
 }
 
+/* ── PR/PO Number typeahead (PrPoLookupInput) ─────────────────────────────────────────
+   Reuses SearchableSelect's panel/option/empty classes (global.css) for a consistent look;
+   .lookup-option just adds a 2nd line (title • vessel) under the number since each result needs
+   more context than a plain option label to pick the right one confidently. */
+.lookup-panel .searchable-select-list {
+  overflow-y: auto;
+}
+.lookup-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+}
+.lookup-option-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.lookup-option-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.lookup-option-secondary {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Compact Pagination Bar ────────────────────────────────────────────────────────── */
 .dd-tracker-page .tracker-pagination {
   padding: 3px 18px;
