@@ -593,6 +593,14 @@ export interface VendorTrackerEntry {
   detailScrapePending: boolean;
   hasMandatoryDetails: boolean;
   bankDetailsCount: number;
+  bankDetailsInPalComplete: boolean;
+  bankDetailsInPalMissingFields: string[];
+}
+
+export interface VendorBankRequestPreview {
+  toEmail: string;
+  subject: string;
+  body: string;
 }
 
 // Request body for adding a vendor to the tracker.

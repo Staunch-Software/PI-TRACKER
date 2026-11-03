@@ -13,6 +13,7 @@ import { SearchableSelect, type SearchableSelectOption } from '../common/Searcha
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 import { VendorAttachmentsModal } from './VendorAttachmentsModal';
+import { VendorBankRequestModal } from './VendorBankRequestModal';
 import { blankBankForm, bankFormFromEntry, toBankUpdatePayload, type VendorBankFormState } from './vendorTrackerForm';
 
 import '../../pages/Tracker.css';
@@ -24,6 +25,34 @@ const PAGE_SIZE = 50;
 // reload the page to see it resolve.
 const PENDING_REFETCH_MS = 4000;
 
+// The 3 vendor-level fields this module checks for completeness (Vendor Details column).
+const VENDOR_DETAIL_FIELDS: Array<[keyof VendorTrackerEntry, string]> = [
+  ['vendorEmail', 'Email'],
+  ['vendorPhone1', 'Mobile'],
+  ['vendorAddress', 'Address'],
+];
+
+// The 6 fields this module checks both in SmartPAL's own Bank Details tab (Bank Details Status
+// column, via bankDetailsInPalMissingFields from the backend) and in our manually-keyed Verified
+// Bank Fields column.
+const BANK_FIELD_LABELS: Array<[keyof VendorTrackerEntry, string]> = [
+  ['bankBeneficiaryName', 'Beneficiary Name'],
+  ['bankName', 'Bank Name'],
+  ['bankBranchName', 'Branch Name'],
+  ['bankAccountNumber', 'Account Number'],
+  ['bankIban', 'IBAN'],
+  ['bankSwiftCode', 'Swift Code'],
+];
+
+function DocumentsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
 export function VendorManagementPage() {
   const { canEdit } = useRole();
   const [search, setSearch] = useState('');
@@ -33,6 +62,7 @@ export function VendorManagementPage() {
   const [bankEditId, setBankEditId] = useState<string | null>(null);
   const [bankForm, setBankForm] = useState<VendorBankFormState>(blankBankForm());
   const [attachmentsEntry, setAttachmentsEntry] = useState<VendorTrackerEntry | null>(null);
+  const [bankRequestEntry, setBankRequestEntry] = useState<VendorTrackerEntry | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -78,12 +108,6 @@ export function VendorManagementPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to refresh vendor.'),
   });
 
-  const sendBankRequestMutation = useMutation({
-    mutationFn: (entryId: string) => api.post<VendorTrackerEntry>(`/vendor-management/${entryId}/send-bank-request`, {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] }),
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to send bank details request.'),
-  });
-
   const markReceivedMutation = useMutation({
     mutationFn: (entryId: string) => api.post<VendorTrackerEntry>(`/vendor-management/${entryId}/mark-bank-received`, {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] }),
@@ -116,28 +140,8 @@ export function VendorManagementPage() {
     return new Date(value).toLocaleDateString();
   }
 
-  // Which of the 3 mandatory vendor-level fields are missing, by label — drives the "Missing:
-  // X, Y" badge so the user doesn't have to scan the Email/Phone/Address columns themselves to
-  // work out what's absent.
-  function missingVendorFields(entry: VendorTrackerEntry): string[] {
-    const missing: string[] = [];
-    if (!entry.vendorEmail) missing.push('Email');
-    if (!entry.vendorPhone1) missing.push('Mobile');
-    if (!entry.vendorAddress) missing.push('Address');
-    return missing;
-  }
-
-  const BANK_FIELD_LABELS: Array<[keyof VendorTrackerEntry, string]> = [
-    ['bankBeneficiaryName', 'Beneficiary Name'],
-    ['bankName', 'Bank Name'],
-    ['bankBranchName', 'Branch Name'],
-    ['bankAccountNumber', 'Account Number'],
-    ['bankIban', 'IBAN'],
-    ['bankSwiftCode', 'Swift Code'],
-  ];
-
-  function missingBankFields(entry: VendorTrackerEntry): string[] {
-    return BANK_FIELD_LABELS.filter(([key]) => !entry[key]).map(([, label]) => label);
+  function missingFields(entry: VendorTrackerEntry, fields: Array<[keyof VendorTrackerEntry, string]>): string[] {
+    return fields.filter(([key]) => !entry[key]).map(([, label]) => label);
   }
 
   return (
@@ -200,12 +204,9 @@ export function VendorManagementPage() {
                 <tr>
                   <th className="col-dpr">S.No</th>
                   <th>Vendor</th>
-                  <th>Email</th>
-                  <th>Phone 1</th>
-                  <th>Address</th>
-                  <th>Vendor Details</th>
-                  <th>Bank Details Status</th>
-                  <th title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from the SmartPAL bank row(s) shown in Bank Details Status.">
+                  <th title="Email, Mobile, and Address, read live from SmartPAL's vendor master.">Vendor Details</th>
+                  <th title="The 6 mandatory bank fields, read live from SmartPAL's own Bank Details tab.">Bank Details Status</th>
+                  <th title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from what SmartPAL already shows.">
                     Verified Bank Fields
                   </th>
                   <th>Bank Verification</th>
@@ -215,165 +216,177 @@ export function VendorManagementPage() {
               <tbody>
                 {(entriesQuery.data?.items ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={10} className="empty-state">No vendors are being tracked yet.</td>
+                    <td colSpan={7} className="empty-state">No vendors are being tracked yet.</td>
                   </tr>
                 )}
-                {(entriesQuery.data?.items ?? []).map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="col-dpr">{entry.seqNo}</td>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{entry.vendorName ?? entry.vendorCode}</div>
-                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{entry.vendorCode}</div>
-                    </td>
-                    <td>
-                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorEmail ?? (
-                        <span className="vendor-field-missing">Missing</span>
-                      )}
-                    </td>
-                    <td>
-                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorPhone1 ?? (
-                        <span className="vendor-field-missing">Missing</span>
-                      )}
-                    </td>
-                    <td>
-                      {entry.detailScrapePending ? 'Refreshing…' : entry.vendorAddress ?? (
-                        <span className="vendor-field-missing">Missing</span>
-                      )}
-                    </td>
-                    <td>
-                      {entry.detailScrapePending ? (
-                        <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
-                      ) : entry.hasMandatoryDetails ? (
-                        <span className="vendor-badge vendor-badge-ok">Complete</span>
-                      ) : (
-                        <span className="vendor-badge vendor-badge-warn" title={`Missing: ${missingVendorFields(entry).join(', ')}`}>
-                          Missing: {missingVendorFields(entry).join(', ')}
-                        </span>
-                      )}
-                      {canEdit && !entry.detailScrapePending && (
-                        <button
-                          className="icon-btn"
-                          style={{ marginLeft: 6 }}
-                          title="Refresh from SmartPAL"
-                          onClick={() => refreshMutation.mutate(entry.id)}
-                          disabled={refreshMutation.isPending}
-                        >
-                          ↻
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`}>
-                        {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
-                      </span>
-                      {entry.bankDetailsCount > 0 && (
-                        <div
-                          style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}
-                          title="Reference only — not yet verified by our own request/confirm workflow. See Verified Bank Fields."
-                        >
-                          {entry.bankDetailsCount} unverified SmartPAL bank row(s) on file
-                        </div>
-                      )}
-                      {(() => {
-                        const missing = missingBankFields(entry);
-                        if (missing.length === 0) {
-                          return <div className="vendor-field-complete" style={{ marginTop: 4 }}>Verified fields: all keyed in</div>;
-                        }
-                        return (
-                          <div
-                            className="vendor-field-missing"
+                {(entriesQuery.data?.items ?? []).map((entry) => {
+                  const missingVerifiedBank = missingFields(entry, BANK_FIELD_LABELS);
+                  const palMissing = entry.bankDetailsInPalMissingFields ?? [];
+                  const palComplete = entry.bankDetailsInPalComplete;
+
+                  return (
+                    <tr key={entry.id}>
+                      <td className="col-dpr">{entry.seqNo}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{entry.vendorName ?? entry.vendorCode}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{entry.vendorCode}</div>
+                      </td>
+                      <td>
+                        {entry.detailScrapePending ? (
+                          <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
+                        ) : (
+                          <div className="vendor-field-checklist">
+                            {VENDOR_DETAIL_FIELDS.map(([key, label]) => (
+                              <div key={label}>
+                                <span className="vendor-field-checklist-label">{label}:</span>{' '}
+                                {entry[key] ? (
+                                  <span>{String(entry[key])}</span>
+                                ) : (
+                                  <span className="vendor-field-missing">Missing</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {canEdit && !entry.detailScrapePending && (
+                          <button
+                            className="icon-btn"
                             style={{ marginTop: 4 }}
-                            title={`These are the manually-verified fields keyed in below (separate from whatever SmartPAL already shows) — missing: ${missing.join(', ')}`}
+                            title="Refresh from SmartPAL"
+                            onClick={() => refreshMutation.mutate(entry.id)}
+                            disabled={refreshMutation.isPending}
                           >
-                            Verified fields {BANK_FIELD_LABELS.length - missing.length}/{BANK_FIELD_LABELS.length} — not yet entered: {missing.join(', ')}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td>
-                      {bankEditId === entry.id ? (
-                        <div className="vendor-bank-edit-form">
-                          <input placeholder="Beneficiary Name" value={bankForm.bankBeneficiaryName} onChange={(e) => setBankForm((f) => ({ ...f, bankBeneficiaryName: e.target.value }))} />
-                          <input placeholder="Bank Name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} />
-                          <input placeholder="Branch Name" value={bankForm.bankBranchName} onChange={(e) => setBankForm((f) => ({ ...f, bankBranchName: e.target.value }))} />
-                          <input placeholder="Account Number" value={bankForm.bankAccountNumber} onChange={(e) => setBankForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} />
-                          <input placeholder="IBAN" value={bankForm.bankIban} onChange={(e) => setBankForm((f) => ({ ...f, bankIban: e.target.value }))} />
-                          <input placeholder="Swift Code" value={bankForm.bankSwiftCode} onChange={(e) => setBankForm((f) => ({ ...f, bankSwiftCode: e.target.value }))} />
-                          <div className="vendor-bank-edit-actions">
-                            <button
-                              className="icon-btn icon-btn-success"
-                              disabled={saveBankMutation.isPending}
-                              onClick={() => saveBankMutation.mutate(toBankUpdatePayload(bankForm))}
-                            >
-                              {saveBankMutation.isPending ? '…' : '✓'}
-                            </button>
-                            <button className="icon-btn icon-btn-muted" onClick={() => setBankEditId(null)}>×</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 12.5 }}>
-                          <div>{entry.bankName ?? '—'}</div>
-                          <div style={{ color: 'var(--color-text-muted)' }}>{entry.bankAccountNumber ?? '—'}</div>
-                        </div>
-                      )}
-                      {canEdit && bankEditId !== entry.id && (
-                        <div className="vendor-action-buttons">
-                          {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
-                            <button
-                              className="btn-tracker-action btn-tracker-secondary"
-                              disabled={sendBankRequestMutation.isPending}
-                              onClick={() => sendBankRequestMutation.mutate(entry.id)}
-                            >
-                              Send Bank Details Request
-                            </button>
-                          )}
-                          {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
-                            <button
-                              className="btn-tracker-action btn-tracker-secondary"
-                              disabled={markReceivedMutation.isPending}
-                              onClick={() => markReceivedMutation.mutate(entry.id)}
-                            >
-                              Mark Received
-                            </button>
-                          )}
-                          {(entry.bankDetailsStatus === BankDetailsStatus.RECEIVED || entry.bankDetailsStatus === BankDetailsStatus.UPDATED) && (
-                            <button className="btn-tracker-action btn-tracker-secondary" onClick={() => startBankEdit(entry)}>
-                              {entry.bankDetailsStatus === BankDetailsStatus.UPDATED ? 'Edit Bank Fields' : 'Enter Bank Fields'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      {entry.bankVerificationCompleted ? (
-                        <span className="vendor-badge vendor-badge-ok">
-                          Verified{entry.bankVerificationCompletedByName ? ` — ${entry.bankVerificationCompletedByName}` : ''}
+                            ↻ Refresh
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`} style={{ marginBottom: 4, display: 'inline-block' }}>
+                          {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
                         </span>
-                      ) : canEdit ? (
-                        <button
-                          className="btn-tracker-action btn-tracker-secondary"
-                          disabled={entry.bankDetailsStatus !== BankDetailsStatus.UPDATED || markVerifiedMutation.isPending}
-                          title={entry.bankDetailsStatus !== BankDetailsStatus.UPDATED ? 'Bank details must be keyed in first' : undefined}
-                          onClick={() => markVerifiedMutation.mutate(entry.id)}
-                        >
-                          Mark Verification Completed
-                        </button>
-                      ) : (
-                        <span className="vendor-badge vendor-badge-warn">Not verified</span>
-                      )}
-                      {entry.bankVerificationCompletedAt && (
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                          {formatDate(entry.bankVerificationCompletedAt)}
+                        <div className="vendor-field-checklist">
+                          {BANK_FIELD_LABELS.map(([, label]) => (
+                            <div key={label}>
+                              <span className="vendor-field-checklist-label">{label}:</span>{' '}
+                              {palMissing.includes(label) ? (
+                                <span className="vendor-field-missing">Missing</span>
+                              ) : (
+                                <span className="vendor-field-complete">Present</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </td>
-                    <td>
-                      <button className="btn-tracker-action btn-tracker-secondary" onClick={() => setAttachmentsEntry(entry)}>
-                        Documents
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {(() => {
+                          const canEnterBankFields =
+                            palComplete ||
+                            entry.bankDetailsStatus === BankDetailsStatus.RECEIVED ||
+                            entry.bankDetailsStatus === BankDetailsStatus.UPDATED;
+                          return (
+                            <>
+                              {bankEditId === entry.id ? (
+                                <div className="vendor-bank-edit-form">
+                                  <input placeholder="Beneficiary Name" value={bankForm.bankBeneficiaryName} onChange={(e) => setBankForm((f) => ({ ...f, bankBeneficiaryName: e.target.value }))} />
+                                  <input placeholder="Bank Name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} />
+                                  <input placeholder="Branch Name" value={bankForm.bankBranchName} onChange={(e) => setBankForm((f) => ({ ...f, bankBranchName: e.target.value }))} />
+                                  <input placeholder="Account Number" value={bankForm.bankAccountNumber} onChange={(e) => setBankForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} />
+                                  <input placeholder="IBAN" value={bankForm.bankIban} onChange={(e) => setBankForm((f) => ({ ...f, bankIban: e.target.value }))} />
+                                  <input placeholder="Swift Code" value={bankForm.bankSwiftCode} onChange={(e) => setBankForm((f) => ({ ...f, bankSwiftCode: e.target.value }))} />
+                                  <div className="vendor-bank-edit-actions">
+                                    <button
+                                      className="icon-btn icon-btn-success"
+                                      disabled={saveBankMutation.isPending}
+                                      onClick={() => saveBankMutation.mutate(toBankUpdatePayload(bankForm))}
+                                    >
+                                      {saveBankMutation.isPending ? '…' : '✓'}
+                                    </button>
+                                    <button className="icon-btn icon-btn-muted" onClick={() => setBankEditId(null)}>×</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="vendor-field-checklist">
+                                  {BANK_FIELD_LABELS.map(([key, label]) => (
+                                    <div key={label}>
+                                      <span className="vendor-field-checklist-label">{label}:</span>{' '}
+                                      {entry[key] ? (
+                                        <span>{String(entry[key])}</span>
+                                      ) : (
+                                        <span className="vendor-field-missing">Missing</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {canEdit && bankEditId !== entry.id && (
+                                <div className="vendor-action-buttons">
+                                  {!palComplete && (
+                                    <>
+                                      {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
+                                        <button
+                                          className="btn-tracker-action btn-tracker-secondary"
+                                          onClick={() => setBankRequestEntry(entry)}
+                                        >
+                                          Send Bank Details Request
+                                        </button>
+                                      )}
+                                      {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
+                                        <button
+                                          className="btn-tracker-action btn-tracker-secondary"
+                                          disabled={markReceivedMutation.isPending}
+                                          onClick={() => markReceivedMutation.mutate(entry.id)}
+                                        >
+                                          Mark Received
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                  {canEnterBankFields && (
+                                    <button className="btn-tracker-action btn-tracker-secondary" onClick={() => startBankEdit(entry)}>
+                                      {missingVerifiedBank.length === 0 ? 'Edit Bank Fields' : 'Enter Bank Fields'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td>
+                        {entry.bankVerificationCompleted ? (
+                          <span className="vendor-badge vendor-badge-ok">
+                            Verified{entry.bankVerificationCompletedByName ? ` — ${entry.bankVerificationCompletedByName}` : ''}
+                          </span>
+                        ) : canEdit ? (
+                          <button
+                            className="btn-tracker-action btn-tracker-secondary"
+                            disabled={!palComplete || markVerifiedMutation.isPending}
+                            title={!palComplete ? `All mandatory bank fields must be present in SmartPAL first (missing: ${palMissing.join(', ')})` : undefined}
+                            onClick={() => markVerifiedMutation.mutate(entry.id)}
+                          >
+                            Verification Complete
+                          </button>
+                        ) : (
+                          <span className="vendor-badge vendor-badge-warn">Not verified</span>
+                        )}
+                        {entry.bankVerificationCompletedAt && (
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                            {formatDate(entry.bankVerificationCompletedAt)}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          className="icon-btn vendor-documents-icon-btn"
+                          title="Documents"
+                          onClick={() => setAttachmentsEntry(entry)}
+                        >
+                          <DocumentsIcon />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -404,6 +417,17 @@ export function VendorManagementPage() {
 
       {attachmentsEntry && (
         <VendorAttachmentsModal entry={attachmentsEntry} canEdit={canEdit} onClose={() => setAttachmentsEntry(null)} />
+      )}
+
+      {bankRequestEntry && (
+        <VendorBankRequestModal
+          entry={bankRequestEntry}
+          onSent={() => {
+            queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] });
+            setBankRequestEntry(null);
+          }}
+          onClose={() => setBankRequestEntry(null)}
+        />
       )}
 
       {error && <Toast type="error" message={error} onClose={() => setError(null)} duration={5000} />}

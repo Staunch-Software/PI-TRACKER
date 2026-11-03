@@ -114,6 +114,27 @@ class VendorTrackerEntryOut(CamelModel):
     # Count of live vendor_bank_details rows scraped from SmartPAL for this vendor (separate from
     # the manually-keyed bank_* override fields above).
     bank_details_count: int = 0
+    # Whether the vendor's representative (default, else first) SmartPAL bank row has all 6
+    # mandatory fields filled — drives the "Verification Complete" gate (see
+    # api/routes/vendor_management.py's mark_verification_completed) and the Bank Details Status
+    # column's own field checklist. Separate from has_mandatory_details (vendor-level
+    # email/phone/address) and from the manually-keyed bank_* fields above.
+    bank_details_in_pal_complete: bool = False
+    bank_details_in_pal_missing_fields: list[str] = []
+
+
+class VendorBankRequestPreview(CamelModel):
+    """Editable draft shown in the "Send Bank Details Request" preview modal before it's sent."""
+
+    to_email: str
+    subject: str
+    body: str
+
+
+class VendorBankRequestSend(CamelModel):
+    subject: str = Field(min_length=1, max_length=300)
+    body: str = Field(min_length=1)
+    from_mailbox: str = Field(min_length=1, max_length=320)
 
 
 class VendorTrackerEntryDetailOut(CamelModel):

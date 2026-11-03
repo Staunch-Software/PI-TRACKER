@@ -14,6 +14,8 @@ from app.models.vendor_tracker_entry import VendorTrackerEntry
 from app.schemas.common import PaginatedResult
 from app.schemas.vendor_management import (
     VendorBankDetailOut,
+    VendorBankRequestPreview,
+    VendorBankRequestSend,
     VendorMasterLookupResult,
     VendorTrackerEntryBankUpdate,
     VendorTrackerEntryCreate,
@@ -35,6 +37,25 @@ router = APIRouter(
 
 _writers = require_roles(UserRole.ADMIN, UserRole.EDITOR)
 
+# The 6 fields SmartPAL's own Bank Details tab is checked against (same set the purchaser manually
+# re-keys into the Verified Bank Fields column) — (VendorBankDetail attribute, display label).
+_BANK_MANDATORY_FIELDS: list[tuple[str, str]] = [
+    ("beneficiary_name", "Beneficiary Name"),
+    ("bank_name", "Bank Name"),
+    ("branch_name", "Branch Name"),
+    ("account_number", "Account Number"),
+    ("iban", "IBAN"),
+    ("swift_code", "Swift Code"),
+]
+
+# Fixed, short allowlist for the "Send Bank Details Request" preview modal's From dropdown —
+# validated server-side so a client can't send as an arbitrary mailbox (Mail.Send is an
+# application-wide Graph permission, see pi_reminder_mailer.py).
+BANK_REQUEST_SENDERS: dict[str, str] = {
+    "jayasri.v@ozellar.com": "Jayasri Viswanathan",
+    "gayathri.p@ozellar.com": "Gayathri Sarvanan",
+}
+
 
 def _actor_name(db: Session, user_id: uuid.UUID | None) -> str | None:
     if not user_id:
@@ -43,8 +64,33 @@ def _actor_name(db: Session, user_id: uuid.UUID | None) -> str | None:
     return user.full_name if user else None
 
 
-def _to_out(entry: VendorTrackerEntry, master: VendorMasterEntry | None, bank_count: int, db: Session) -> VendorTrackerEntryOut:
+def _bank_rep_row(db: Session, vendor_code: str) -> tuple[VendorBankDetail | None, int]:
+    """The vendor's representative SmartPAL bank row (the one marked Default, else the first) plus
+    the total row count — used both for display (bank_details_count) and for the PAL-completeness
+    gate (_pal_bank_completeness)."""
+    rows = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == vendor_code).all()
+    if not rows:
+        return None, 0
+    rep = next((r for r in rows if r.is_default), rows[0])
+    return rep, len(rows)
+
+
+def _pal_bank_completeness(bank_row: VendorBankDetail | None) -> tuple[bool, list[str]]:
+    if not bank_row:
+        return False, [label for _, label in _BANK_MANDATORY_FIELDS]
+    missing = [label for attr, label in _BANK_MANDATORY_FIELDS if not getattr(bank_row, attr)]
+    return len(missing) == 0, missing
+
+
+def _to_out(
+    entry: VendorTrackerEntry,
+    master: VendorMasterEntry | None,
+    bank_row: VendorBankDetail | None,
+    bank_count: int,
+    db: Session,
+) -> VendorTrackerEntryOut:
     has_mandatory = bool(master and master.email and master.address and master.phone_1)
+    pal_complete, pal_missing = _pal_bank_completeness(bank_row)
     return VendorTrackerEntryOut(
         id=entry.id,
         seq_no=entry.seq_no,
@@ -78,6 +124,8 @@ def _to_out(entry: VendorTrackerEntry, master: VendorMasterEntry | None, bank_co
         detail_scrape_pending=not (master and master.detail_scraped_at),
         has_mandatory_details=has_mandatory,
         bank_details_count=bank_count,
+        bank_details_in_pal_complete=pal_complete,
+        bank_details_in_pal_missing_fields=pal_missing,
     )
 
 
@@ -87,13 +135,22 @@ def _attach_live_data(db: Session, entries: list[VendorTrackerEntry]) -> list[Ve
         m.vendor_code: m for m in db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code.in_(vendor_codes)).all()
     } if vendor_codes else {}
 
-    bank_counts: dict[str, int] = {}
+    bank_rows_by_vendor: dict[str, list[VendorBankDetail]] = {}
     if vendor_codes:
-        rows = db.query(VendorBankDetail.vendor_code).filter(VendorBankDetail.vendor_code.in_(vendor_codes)).all()
-        for (code,) in rows:
-            bank_counts[code] = bank_counts.get(code, 0) + 1
+        for row in db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code.in_(vendor_codes)).all():
+            bank_rows_by_vendor.setdefault(row.vendor_code, []).append(row)
 
-    return [_to_out(e, masters.get(e.vendor_code), bank_counts.get(e.vendor_code, 0), db) for e in entries]
+    def rep_and_count(code: str) -> tuple[VendorBankDetail | None, int]:
+        rows = bank_rows_by_vendor.get(code, [])
+        if not rows:
+            return None, 0
+        return next((r for r in rows if r.is_default), rows[0]), len(rows)
+
+    out = []
+    for e in entries:
+        rep, count = rep_and_count(e.vendor_code)
+        out.append(_to_out(e, masters.get(e.vendor_code), rep, count, db))
+    return out
 
 
 @router.get("", response_model=PaginatedResult[VendorTrackerEntryOut])
@@ -167,8 +224,8 @@ def create_vendor_tracker_entry(
 
     background_tasks.add_task(scrape_vendor_detail, payload.vendor_code)
 
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == payload.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, payload.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.post("/{entry_id}/refresh", response_model=VendorTrackerEntryOut)
@@ -185,8 +242,8 @@ def refresh_vendor_tracker_entry(
     background_tasks.add_task(scrape_vendor_detail, entry.vendor_code)
 
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == entry.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.patch("/{entry_id}/bank-details", response_model=VendorTrackerEntryOut)
@@ -199,7 +256,14 @@ def update_bank_details(
     entry = db.get(VendorTrackerEntry, entry_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
-    if entry.bank_details_status not in (BankDetailsStatus.RECEIVED.value, BankDetailsStatus.UPDATED.value):
+
+    # Normally gated on having gone through the request/receive workflow — but when SmartPAL
+    # already has the vendor's bank details on file, there's nothing to request, so keying in the
+    # verified fields is allowed straight away (see Verified Bank Fields column: the Send
+    # Request/Mark Received buttons only appear when PAL has none).
+    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
+    pal_complete, _ = _pal_bank_completeness(bank_row)
+    if entry.bank_details_status not in (BankDetailsStatus.RECEIVED.value, BankDetailsStatus.UPDATED.value) and not pal_complete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Mark the vendor's bank details as received before keying them in.",
@@ -215,13 +279,33 @@ def update_bank_details(
     db.refresh(entry)
 
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == entry.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
+
+
+@router.get("/{entry_id}/bank-request-preview", response_model=VendorBankRequestPreview)
+def get_bank_request_preview(entry_id: uuid.UUID, db: Session = Depends(get_db)) -> VendorBankRequestPreview:
+    """Drafted subject/body for the "Send Bank Details Request" preview modal — the user can edit
+    both before actually sending (see send_bank_request)."""
+    entry = db.get(VendorTrackerEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
+
+    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
+    if not master or not master.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This vendor has no email address on file in SmartPAL.",
+        )
+
+    subject, body = bank_details_request_email(vendor_name=master.vendor_name or entry.vendor_code)
+    return VendorBankRequestPreview(to_email=master.email, subject=subject, body=body)
 
 
 @router.post("/{entry_id}/send-bank-request", response_model=VendorTrackerEntryOut)
 def send_bank_request(
     entry_id: uuid.UUID,
+    payload: VendorBankRequestSend,
     db: Session = Depends(get_db),
     current_user: User = Depends(_writers),
 ) -> VendorTrackerEntryOut:
@@ -236,9 +320,13 @@ def send_bank_request(
             detail="This vendor has no email address on file in SmartPAL.",
         )
 
-    subject, body = bank_details_request_email(vendor_name=master.vendor_name or entry.vendor_code)
+    from_mailbox = payload.from_mailbox.strip().lower()
+    sender_name = BANK_REQUEST_SENDERS.get(from_mailbox)
+    if not sender_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown sender mailbox.")
+
     try:
-        send_mail([master.email], subject, body)
+        send_mail([master.email], payload.subject, payload.body, from_mailbox=from_mailbox)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
 
@@ -254,13 +342,13 @@ def send_bank_request(
         entity_id=entry.id,
         action=AuditAction.SENT_BANK_REQUEST,
         changed_by=current_user.id,
-        summary=f"{current_user.full_name} sent a bank details request to {master.vendor_name or entry.vendor_code} ({master.email})",
+        summary=f"{current_user.full_name} sent a bank details request to {master.vendor_name or entry.vendor_code} ({master.email}) from {sender_name}",
     )
     db.commit()
     db.refresh(entry)
 
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == entry.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.post("/{entry_id}/mark-bank-received", response_model=VendorTrackerEntryOut)
@@ -281,8 +369,8 @@ def mark_bank_received(
     db.refresh(entry)
 
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == entry.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.post("/{entry_id}/mark-verification-completed", response_model=VendorTrackerEntryOut)
@@ -294,10 +382,16 @@ def mark_verification_completed(
     entry = db.get(VendorTrackerEntry, entry_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
-    if entry.bank_details_status != BankDetailsStatus.UPDATED.value:
+
+    # Gated on SmartPAL's OWN bank row having all 6 mandatory fields — not on our manually-keyed
+    # Verified Bank Fields — per the Bank Verification column's design: it's confirming what's on
+    # file in PAL, so it can't be enabled until PAL itself is complete.
+    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
+    pal_complete, pal_missing = _pal_bank_completeness(bank_row)
+    if not pal_complete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Bank details must be keyed in (status: Updated) before verification can be marked complete.",
+            detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
         )
 
     entry.bank_verification_completed = True
@@ -308,8 +402,8 @@ def mark_verification_completed(
     db.refresh(entry)
 
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    bank_count = db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code == entry.vendor_code).count()
-    return _to_out(entry, master, bank_count, db)
+    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
