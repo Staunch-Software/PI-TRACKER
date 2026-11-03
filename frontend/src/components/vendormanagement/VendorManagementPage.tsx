@@ -218,15 +218,15 @@ export function VendorManagementPage() {
             <table className="data-table vendor-management-table">
               <thead>
                 <tr>
-                  <th className="col-dpr">S.No</th>
-                  <th>Vendor</th>
-                  <th title="Email, Mobile, and Address, read live from SmartPAL's vendor master.">Vendor Details</th>
-                  <th title="The 6 mandatory bank fields, read live from SmartPAL's own Bank Details tab.">Bank Details Status</th>
-                  <th title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from what SmartPAL already shows.">
+                  <th className="col-dpr col-sno">S.No</th>
+                  <th className="col-vendor">Vendor</th>
+                  <th className="col-vendor-details" title="Email, Mobile, and Address, read live from SmartPAL's vendor master.">Vendor Details</th>
+                  <th className="col-bank-status" title="The 6 mandatory bank fields, read live from SmartPAL's own Bank Details tab.">Bank Details Status</th>
+                  <th className="col-verified-bank" title="Manually verified bank details, keyed in after the vendor replies on letterhead — separate from what SmartPAL already shows.">
                     Verified Bank Fields
                   </th>
-                  <th>Bank Verification</th>
-                  <th className="col-center" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
+                  <th className="col-verification">Bank Verification</th>
+                  <th className="col-center col-docs" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,12 +243,12 @@ export function VendorManagementPage() {
 
                   return (
                     <tr key={entry.id}>
-                      <td className="col-dpr">{rowNumber}</td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{entry.vendorName ?? entry.vendorCode}</div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{entry.vendorCode}</div>
+                      <td className="col-dpr col-sno">{rowNumber}</td>
+                      <td className="col-vendor">
+                        <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
+                        <div className="vendor-code-text">{entry.vendorCode}</div>
                       </td>
-                      <td>
+                      <td className="col-vendor-details">
                         {entry.detailScrapePending ? (
                           <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
                         ) : (
@@ -271,7 +271,7 @@ export function VendorManagementPage() {
                           </button>
                         )}
                       </td>
-                      <td>
+                      <td className="col-bank-status">
                         <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`} style={{ marginBottom: 6, display: 'inline-block' }}>
                           {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
                         </span>
@@ -279,7 +279,7 @@ export function VendorManagementPage() {
                           items={BANK_FIELD_LABELS.map(([, label]) => ({ label, present: !palMissing.includes(label) }))}
                         />
                       </td>
-                      <td>
+                      <td className="col-verified-bank">
                         {(() => {
                           const canEnterBankFields =
                             palComplete ||
@@ -349,7 +349,7 @@ export function VendorManagementPage() {
                           );
                         })()}
                       </td>
-                      <td>
+                      <td className="col-verification">
                         {entry.bankVerificationCompleted ? (
                           <span className="vendor-badge vendor-badge-ok">
                             Verified{entry.bankVerificationCompletedByName ? ` — ${entry.bankVerificationCompletedByName}` : ''}
@@ -372,7 +372,7 @@ export function VendorManagementPage() {
                           </div>
                         )}
                       </td>
-                      <td className="col-center">
+                      <td className="col-center col-docs">
                         <button
                           className="vendor-full-docs-btn"
                           title="View all SmartPAL scraped documents & verified bank reply attachments"

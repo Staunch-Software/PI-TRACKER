@@ -43,8 +43,8 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
   });
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay vendor-bank-request-modal-overlay" onClick={onClose}>
+      <div className="modal-panel vendor-bank-request-modal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Send Bank Details Request — {entry.vendorName ?? entry.vendorCode}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">×</button>

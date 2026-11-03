@@ -12,7 +12,27 @@
   color: var(--color-text-muted);
 }
 
-/* Table Shell with Bidirectional Scrolling and Sticky Headers */
+/* ── Toolbar Enhancements for Vendor Management ── */
+.vendor-management-page .tracker-toolbar .searchable-select-trigger {
+  height: 38px;
+  min-width: 250px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+  padding: 0 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.vendor-management-page .tracker-toolbar .searchable-select-trigger:hover:not(:disabled) {
+  border-color: #0f4c81;
+  box-shadow: 0 2px 6px rgba(15, 76, 129, 0.12);
+}
+
+/* ── Table Shell with Bidirectional Scrolling and Sticky Headers ── */
 .vendor-management-table-shell {
   overflow-x: auto;
   overflow-y: auto;
@@ -39,7 +59,7 @@
 }
 
 .vendor-management-table {
-  min-width: 1320px;
+  min-width: 1260px;
   width: 100%;
 }
 
@@ -69,11 +89,66 @@
   vertical-align: middle;
 }
 
+/* Table Column Widths & Alignments */
+.vendor-management-table th.col-sno,
+.vendor-management-table td.col-sno,
 .vendor-management-table th.col-dpr,
 .vendor-management-table td.col-dpr {
-  width: 70px;
-  min-width: 70px;
-  max-width: 70px;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  text-align: center;
+}
+
+.vendor-management-table th.col-vendor,
+.vendor-management-table td.col-vendor {
+  width: 210px;
+  min-width: 200px;
+  max-width: 260px;
+}
+
+.vendor-name-text {
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.vendor-code-text {
+  font-size: 11.5px;
+  color: #64748b;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.vendor-management-table th.col-vendor-details,
+.vendor-management-table td.col-vendor-details {
+  width: 230px;
+  min-width: 210px;
+}
+
+.vendor-management-table th.col-bank-status,
+.vendor-management-table td.col-bank-status {
+  width: 240px;
+  min-width: 220px;
+}
+
+.vendor-management-table th.col-verified-bank,
+.vendor-management-table td.col-verified-bank {
+  width: 240px;
+  min-width: 220px;
+}
+
+.vendor-management-table th.col-verification,
+.vendor-management-table td.col-verification {
+  width: 170px;
+  min-width: 160px;
+}
+
+.vendor-management-table th.col-docs,
+.vendor-management-table td.col-docs {
+  width: 145px;
+  min-width: 140px;
   text-align: center;
 }
 
@@ -82,6 +157,7 @@
   text-align: center;
 }
 
+/* ── Badges ── */
 .vendor-badge {
   display: inline-block;
   padding: 3px 9px;
@@ -199,10 +275,12 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .vendor-refresh-link:hover:not(:disabled) {
   text-decoration: underline;
+  color: #0b3a63;
 }
 
 .vendor-refresh-link:disabled {
@@ -219,14 +297,13 @@
   color: var(--color-primary, #0f4c81);
 }
 
-/* Denser sizing for the table's inline per-row action buttons (Send Bank Details Request, Mark
-   Received, Enter/Edit Bank Fields, Verification Complete) — .btn-tracker-action's default
-   38px-tall toolbar sizing looks oversized stacked next to the small field-checklist chips. */
+/* Inline per-row action buttons */
 .vendor-table-btn {
   height: 28px;
   padding: 0 10px;
   font-size: 11.5px;
   border-radius: 7px;
+  white-space: nowrap;
 }
 
 .vendor-bank-request-field {
@@ -285,7 +362,6 @@
   gap: 6px;
   justify-content: flex-end;
 }
-
 
 /* ── Full Documents Column Button ── */
 .vendor-full-docs-btn {
@@ -431,7 +507,7 @@
   transform: rotate(90deg);
 }
 
-/* ── Segmented Navigation Tabs ── */
+/* Segmented Navigation Tabs */
 .vendor-docs-tabs {
   display: flex;
   gap: 6px;
@@ -478,7 +554,7 @@
   color: #ffffff;
 }
 
-/* ── Modal Body & Scroll ── */
+/* Modal Body & Scroll */
 .vendor-docs-modal-body {
   padding: 20px 24px;
   overflow-y: auto;
@@ -488,7 +564,7 @@
   gap: 18px;
 }
 
-/* ── Drag & Drop Upload Zone ── */
+/* Drag & Drop Upload Zone */
 .vendor-docs-dropzone {
   border: 2px dashed #93c5fd;
   border-radius: 12px;
@@ -550,7 +626,7 @@
   background: #1e40af;
 }
 
-/* ── Document Item Cards ── */
+/* Document Item Cards */
 .vendor-docs-list {
   display: flex;
   flex-direction: column;
@@ -692,7 +768,7 @@
   color: #b91c1c;
 }
 
-/* ── Modal Footer ── */
+/* Modal Footer */
 .vendor-docs-modal-footer {
   display: flex;
   align-items: center;
@@ -707,7 +783,7 @@
   color: #64748b;
 }
 
-/* ── Empty State ── */
+/* Empty State */
 .vendor-docs-empty-state {
   text-align: center;
   padding: 32px 20px;
@@ -740,4 +816,999 @@
   color: #64748b;
   max-width: 420px;
   margin: 0 auto;
+}
+
+/* ── Bank Request Modal Custom Sizing ── */
+.vendor-bank-request-modal-panel {
+  max-width: 680px;
+  width: 100%;
+}
+
+
+/* ==========================================================================
+   RESPONSIVE DESIGN BREAKPOINTS
+   (Mobile < 768px, Tablet 768px-1023px, Laptops 1024px-1440px [incl 1300/1400],
+    Full HD 1441px-1920px, Ultra-wide 2K & 4K >= 2560px)
+   ========================================================================== */
+
+/* ── 1. Sticky Columns for Desktop & Large Viewports (≥ 1024px) ── */
+@media (min-width: 1024px) {
+  .vendor-management-table th.col-sno {
+    position: sticky;
+    left: 0;
+    top: 0;
+    z-index: 25;
+  }
+  .vendor-management-table td.col-sno {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: #ffffff;
+  }
+
+  .vendor-management-table th.col-vendor {
+    position: sticky;
+    left: 58px;
+    top: 0;
+    z-index: 25;
+    box-shadow: 3px 0 6px -1px rgba(15, 23, 42, 0.12);
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .vendor-management-table td.col-vendor {
+    position: sticky;
+    left: 58px;
+    z-index: 5;
+    background: #ffffff;
+    box-shadow: 3px 0 6px -1px rgba(15, 23, 42, 0.08);
+    border-right: 1px solid #e2e8f0;
+  }
+
+  .vendor-management-table tbody tr:hover td.col-sno,
+  .vendor-management-table tbody tr:hover td.col-vendor {
+    background: #f8fafc;
+  }
+}
+
+/* ── 2. Standard Laptops & Desktops (1024px – 1440px, incl. 1300px & 1400px) ── */
+@media (min-width: 1024px) and (max-width: 1440px) {
+  .vendor-management-page .tracker-page-header {
+    padding: 16px 24px;
+  }
+
+  .vendor-management-auto-note {
+    padding: 0 24px;
+    margin: -6px 0 10px;
+  }
+
+  .vendor-management-page .tracker-toolbar {
+    padding: 12px 22px;
+    margin: 0 22px 12px;
+    gap: 12px;
+    border-radius: 14px;
+  }
+
+  .vendor-management-page .tracker-search-wrap {
+    flex: 0 1 380px;
+  }
+
+  .vendor-management-page .tracker-toolbar .searchable-select-trigger {
+    min-width: 240px;
+    max-width: 320px;
+  }
+
+  .vendor-management-table-shell {
+    margin: 0 22px;
+    max-height: calc(100vh - 215px);
+    border-radius: 14px 14px 0 0;
+  }
+
+  .vendor-management-table {
+    min-width: 1260px;
+  }
+
+  .field-checklist {
+    min-width: 180px;
+    max-width: 235px;
+  }
+
+  .vendor-management-page .tracker-pagination {
+    margin: 0 22px 18px;
+    padding: 8px 20px;
+    border-radius: 0 0 14px 14px;
+  }
+
+  .vendor-docs-modal-panel {
+    max-width: 780px;
+    max-height: 90vh;
+  }
+
+  .vendor-bank-request-modal-panel {
+    max-width: 680px;
+  }
+}
+
+/* ── 3. Full HD Monitors (1441px – 1920px, incl. 1900px) ── */
+@media (min-width: 1441px) and (max-width: 1920px) {
+  .vendor-management-page .tracker-page-header {
+    padding: 20px 32px;
+  }
+
+  .vendor-management-page .tracker-page-title {
+    font-size: 24px;
+  }
+
+  .vendor-management-auto-note {
+    padding: 0 32px;
+    font-size: 13px;
+    margin: -6px 0 12px;
+  }
+
+  .vendor-management-page .tracker-toolbar {
+    padding: 14px 30px;
+    margin: 0 30px 14px;
+    gap: 16px;
+    border-radius: 16px;
+  }
+
+  .vendor-management-page .tracker-search-wrap {
+    flex: 0 1 440px;
+  }
+
+  .vendor-management-page .tracker-toolbar .searchable-select-trigger {
+    min-width: 280px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .vendor-management-table-shell {
+    margin: 0 30px;
+    max-height: calc(100vh - 230px);
+    border-radius: 16px 16px 0 0;
+  }
+
+  .vendor-management-table {
+    width: 100%;
+    min-width: 1320px;
+  }
+
+  .field-checklist {
+    min-width: 200px;
+    max-width: 280px;
+  }
+
+  .vendor-management-page .tracker-pagination {
+    margin: 0 30px 20px;
+    padding: 10px 24px;
+    border-radius: 0 0 16px 16px;
+  }
+
+  .vendor-docs-modal-panel {
+    max-width: 860px;
+    max-height: 88vh;
+  }
+
+  .vendor-bank-request-modal-panel {
+    max-width: 740px;
+  }
+}
+
+/* ── 4. Tablet Devices (768px – 1023px) ── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .vendor-management-page .tracker-page-header {
+    padding: 14px 18px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .vendor-management-page .tracker-page-title {
+    font-size: 22px;
+  }
+
+  .vendor-management-auto-note {
+    padding: 0 18px;
+    font-size: 12px;
+    margin: -4px 0 10px;
+  }
+
+  .vendor-management-page .tracker-toolbar {
+    padding: 10px 16px;
+    margin: 0 16px 10px;
+    gap: 10px;
+    flex-wrap: wrap;
+    border-radius: 14px;
+  }
+
+  .vendor-management-page .tracker-search-wrap {
+    flex: 1 1 260px;
+    min-width: 220px;
+  }
+
+  .vendor-management-page .tracker-toolbar .searchable-select-trigger {
+    flex: 0 1 240px;
+    min-width: 200px;
+  }
+
+  .vendor-management-table-shell {
+    margin: 0 16px;
+    max-height: calc(100vh - 225px);
+    border-radius: 14px 14px 0 0;
+  }
+
+  .vendor-management-table {
+    min-width: 1240px;
+  }
+
+  .field-checklist {
+    min-width: 180px;
+    max-width: 220px;
+  }
+
+  .vendor-management-page .tracker-pagination {
+    margin: 0 16px 16px;
+    padding: 8px 16px;
+    border-radius: 0 0 14px 14px;
+  }
+
+  /* Modals on Tablet */
+  .vendor-docs-modal-overlay,
+  .vendor-bank-request-modal-overlay {
+    padding: 16px;
+  }
+
+  .vendor-docs-modal-panel {
+    max-width: 720px;
+    width: 95%;
+    max-height: 88vh;
+  }
+
+  .vendor-doc-name {
+    max-width: 300px;
+  }
+
+  .vendor-bank-request-modal-panel {
+    max-width: 660px;
+    width: 95%;
+  }
+}
+
+/* ── 5. Mobile Smartphones (< 768px) ── */
+@media (max-width: 767px) {
+  /* Unpin sticky left columns so user can swipe sideways freely */
+  .vendor-management-table th.col-sno,
+  .vendor-management-table td.col-sno,
+  .vendor-management-table th.col-vendor,
+  .vendor-management-table td.col-vendor {
+    position: static !important;
+    left: auto !important;
+    box-shadow: none !important;
+    border-right: none !important;
+  }
+
+  /* Keep thead sticky vertically */
+  .vendor-management-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Header */
+  .vendor-management-page .tracker-page-header {
+    padding: 10px 14px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .vendor-management-page .tracker-page-title {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .vendor-management-page .tracker-page-count {
+    align-self: flex-start;
+    padding: 4px 10px;
+  }
+
+  /* Auto note */
+  .vendor-management-auto-note {
+    padding: 0 14px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
+
+  /* Toolbar */
+  .vendor-management-page .tracker-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+    margin: 0 12px 10px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .vendor-management-page .tracker-toolbar-spacer {
+    display: none;
+  }
+
+  .vendor-management-page .tracker-search-wrap {
+    width: 100%;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .vendor-management-page .tracker-toolbar .searchable-select-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+  }
+
+  /* Table shell */
+  .vendor-management-table-shell {
+    margin: 0 12px;
+    max-height: calc(100vh - 270px);
+    max-height: calc(100dvh - 270px);
+    border-radius: 12px 12px 0 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vendor-management-table {
+    min-width: 1200px;
+  }
+
+  .vendor-management-table th,
+  .vendor-management-table td {
+    padding: 10px 12px;
+  }
+
+  .field-checklist {
+    min-width: 180px;
+    max-width: 220px;
+    gap: 3px;
+  }
+
+  .field-checklist-row {
+    padding: 3px 6px;
+    font-size: 11.5px;
+  }
+
+  /* Pagination */
+  .vendor-management-page .tracker-pagination {
+    margin: 0 12px 16px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* ── Modals on Mobile ── */
+  .vendor-docs-modal-overlay,
+  .vendor-bank-request-modal-overlay {
+    padding: 10px;
+    align-items: center;
+  }
+
+  .vendor-docs-modal-panel,
+  .vendor-bank-request-modal-panel {
+    max-width: 100%;
+    width: 100%;
+    max-height: 94vh;
+    max-height: 94dvh;
+    border-radius: 14px;
+  }
+
+  /* Attachments Modal on Mobile */
+  .vendor-docs-modal-header {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .vendor-docs-header-left {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .vendor-docs-header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .vendor-docs-header-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .vendor-docs-header-titles h2 {
+    font-size: 15.5px;
+  }
+
+  .vendor-docs-header-sub {
+    font-size: 11.5px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .vendor-docs-tabs {
+    padding: 6px 12px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 4px;
+  }
+
+  .vendor-docs-tab-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    gap: 6px;
+  }
+
+  .vendor-docs-tab-count {
+    font-size: 10.5px;
+    padding: 1px 6px;
+  }
+
+  .vendor-docs-modal-body {
+    padding: 14px 16px;
+    gap: 14px;
+  }
+
+  .vendor-docs-dropzone {
+    padding: 16px 14px;
+  }
+
+  .vendor-docs-dropzone-icon {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 6px;
+  }
+
+  .vendor-docs-dropzone-title {
+    font-size: 12.5px;
+  }
+
+  .vendor-docs-dropzone-subtitle {
+    font-size: 11.5px;
+    margin-bottom: 6px;
+  }
+
+  .vendor-docs-dropzone-btn {
+    padding: 5px 12px;
+    font-size: 11.5px;
+  }
+
+  /* Doc Cards in Mobile: Stack nicely */
+  .vendor-doc-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .vendor-doc-info {
+    width: 100%;
+  }
+
+  .vendor-doc-name {
+    max-width: 230px;
+    font-size: 13px;
+  }
+
+  .vendor-doc-meta {
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .vendor-doc-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+    gap: 8px;
+  }
+
+  .vendor-doc-action-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 6px 10px;
+    font-size: 11.5px;
+  }
+
+  .vendor-docs-modal-footer {
+    padding: 12px 16px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .vendor-docs-modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .vendor-docs-modal-footer .footer-left {
+    text-align: center;
+    font-size: 11.5px;
+  }
+
+  /* Bank Request Modal on Mobile */
+  .vendor-bank-request-modal-panel .modal-header {
+    padding: 14px 16px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-header h2 {
+    font-size: 15.5px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-body {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .vendor-bank-request-field {
+    font-size: 12px;
+  }
+
+  .vendor-bank-request-field textarea {
+    min-height: 120px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-footer {
+    padding: 12px 16px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── 6. Small Phone Screens (<= 400px, e.g. iPhone SE) ── */
+@media (max-width: 400px) {
+  .vendor-management-page .tracker-page-title {
+    font-size: 18px;
+  }
+
+  .vendor-management-auto-note {
+    font-size: 11px;
+  }
+
+  .vendor-doc-name {
+    max-width: 180px;
+  }
+
+  .vendor-docs-modal-header {
+    padding: 12px 14px;
+  }
+
+  .vendor-docs-modal-body {
+    padding: 12px 14px;
+  }
+}
+
+/* ── 7. Ultra-wide 2K & 4K Displays (≥ 2560px, up to 4K 3840px+) ── */
+@media (min-width: 2560px) {
+  /* Page Header */
+  .vendor-management-page .tracker-page-header {
+    padding: 28px 48px;
+    gap: 20px;
+  }
+
+  .vendor-management-page .tracker-page-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .vendor-management-page .tracker-page-count {
+    padding: 8px 18px;
+    border-radius: 12px;
+    gap: 8px;
+  }
+
+  .vendor-management-page .count-number {
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  .vendor-management-page .count-label {
+    font-size: 14.5px;
+  }
+
+  /* Auto note */
+  .vendor-management-auto-note {
+    padding: 0 48px;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: -4px 0 18px;
+  }
+
+  /* Toolbar */
+  .vendor-management-page .tracker-toolbar {
+    padding: 18px 44px;
+    margin: 0 44px 18px;
+    gap: 20px;
+    border-radius: 20px;
+  }
+
+  .vendor-management-page .tracker-search-wrap {
+    flex: 0 1 580px;
+  }
+
+  .vendor-management-page .tracker-search-wrap input[type='search'] {
+    height: 48px;
+    font-size: 16px;
+    border-radius: 14px;
+    padding-left: 48px;
+  }
+
+  .vendor-management-page .tracker-search-wrap svg {
+    width: 22px;
+    height: 22px;
+    left: 16px;
+  }
+
+  .vendor-management-page .tracker-toolbar .searchable-select-trigger {
+    height: 48px;
+    font-size: 16px;
+    border-radius: 14px;
+    min-width: 360px;
+    padding: 0 18px;
+  }
+
+  /* Table shell */
+  .vendor-management-table-shell {
+    margin: 0 44px;
+    border-radius: 20px 20px 0 0;
+    max-height: calc(100vh - 280px);
+  }
+
+  .vendor-management-table-shell::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Table Typography & Sizing */
+  .vendor-management-table {
+    min-width: 1500px;
+    width: 100%;
+  }
+
+  .vendor-management-table thead th {
+    font-size: 14px;
+    padding: 18px 22px;
+    letter-spacing: 0.07em;
+  }
+
+  .vendor-management-table th,
+  .vendor-management-table td {
+    padding: 18px 22px;
+    font-size: 15px;
+  }
+
+  .vendor-management-table th.col-sno,
+  .vendor-management-table td.col-sno {
+    width: 76px;
+    min-width: 76px;
+    max-width: 76px;
+  }
+
+  .vendor-management-table th.col-vendor {
+    left: 76px !important;
+    min-width: 280px;
+  }
+
+  .vendor-management-table td.col-vendor {
+    left: 76px !important;
+    min-width: 280px;
+  }
+
+  .vendor-name-text {
+    font-size: 16.5px;
+  }
+
+  .vendor-code-text {
+    font-size: 13.5px;
+  }
+
+  /* Field Checklist Chips on 4K */
+  .field-checklist {
+    min-width: 260px;
+    max-width: 340px;
+    gap: 6px;
+  }
+
+  .field-checklist-row {
+    padding: 6px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    gap: 10px;
+  }
+
+  .field-checklist-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+
+  .vendor-badge {
+    padding: 5px 14px;
+    font-size: 13.5px;
+  }
+
+  .vendor-refresh-link {
+    font-size: 14px;
+    margin-top: 10px;
+    gap: 6px;
+  }
+
+  .vendor-table-btn {
+    height: 38px;
+    padding: 0 16px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .vendor-full-docs-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 10px;
+    gap: 9px;
+  }
+
+  .vendor-full-docs-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Pagination */
+  .vendor-management-page .tracker-pagination {
+    margin: 0 44px 28px;
+    padding: 14px 32px;
+    border-radius: 0 0 20px 20px;
+    font-size: 15px;
+  }
+
+  .vendor-management-page .pagination-nav-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  .vendor-management-page .pagination-nav-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .vendor-management-page .pagination-current {
+    font-size: 15px;
+  }
+
+  .vendor-management-page .pagination-current strong {
+    font-size: 17px;
+  }
+
+  .vendor-management-page .pagination-total {
+    font-size: 15px;
+  }
+
+  /* Modals in 2K & 4K */
+  .vendor-docs-modal-overlay,
+  .vendor-bank-request-modal-overlay {
+    padding: 48px;
+  }
+
+  .vendor-docs-modal-panel {
+    max-width: 1100px;
+    max-height: 86vh;
+    border-radius: 24px;
+  }
+
+  .vendor-docs-modal-header {
+    padding: 24px 36px;
+  }
+
+  .vendor-docs-header-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+  }
+
+  .vendor-docs-header-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .vendor-docs-header-titles h2 {
+    font-size: 24px;
+  }
+
+  .vendor-docs-header-sub {
+    font-size: 15px;
+    margin-top: 6px;
+    gap: 12px;
+  }
+
+  .vendor-docs-code-pill {
+    font-size: 13px;
+    padding: 3px 9px;
+  }
+
+  .vendor-docs-close-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .vendor-docs-tabs {
+    padding: 16px 36px 0;
+    gap: 12px;
+  }
+
+  .vendor-docs-tab-btn {
+    padding: 12px 20px;
+    font-size: 15px;
+    gap: 10px;
+  }
+
+  .vendor-docs-tab-count {
+    font-size: 13px;
+    padding: 3px 9px;
+  }
+
+  .vendor-docs-modal-body {
+    padding: 28px 36px;
+    gap: 24px;
+  }
+
+  .vendor-docs-dropzone {
+    padding: 32px 36px;
+    border-radius: 16px;
+  }
+
+  .vendor-docs-dropzone-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .vendor-docs-dropzone-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .vendor-docs-dropzone-title {
+    font-size: 17px;
+  }
+
+  .vendor-docs-dropzone-subtitle {
+    font-size: 14px;
+  }
+
+  .vendor-docs-dropzone-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .vendor-doc-card {
+    padding: 18px 22px;
+    border-radius: 14px;
+    gap: 18px;
+  }
+
+  .vendor-doc-type-icon {
+    width: 52px;
+    height: 52px;
+    font-size: 13px;
+    border-radius: 12px;
+  }
+
+  .vendor-doc-type-icon svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .vendor-doc-name {
+    font-size: 16px;
+    max-width: 560px;
+  }
+
+  .vendor-doc-source-tag {
+    font-size: 12.5px;
+    padding: 3px 9px;
+  }
+
+  .vendor-doc-meta {
+    font-size: 13.5px;
+    gap: 18px;
+  }
+
+  .vendor-doc-actions {
+    gap: 12px;
+  }
+
+  .vendor-doc-action-btn {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 8px;
+    gap: 8px;
+  }
+
+  .vendor-doc-action-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .vendor-doc-delete-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+  }
+
+  .vendor-doc-delete-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .vendor-docs-modal-footer {
+    padding: 18px 36px;
+    font-size: 14.5px;
+  }
+
+  .vendor-docs-modal-footer .footer-left {
+    font-size: 14.5px;
+  }
+
+  .vendor-docs-modal-footer .btn {
+    padding: 10px 22px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
+
+  /* Bank Request Modal on 4K */
+  .vendor-bank-request-modal-panel {
+    max-width: 900px;
+    border-radius: 24px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-header {
+    padding: 24px 36px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-header h2 {
+    font-size: 22px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-body {
+    padding: 28px 36px;
+    gap: 18px;
+  }
+
+  .vendor-bank-request-field {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .vendor-bank-request-field input,
+  .vendor-bank-request-field select,
+  .vendor-bank-request-field textarea {
+    font-size: 15px;
+    padding: 12px 16px;
+    border-radius: 10px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-footer {
+    padding: 18px 36px;
+  }
+
+  .vendor-bank-request-modal-panel .modal-footer .btn {
+    padding: 10px 24px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
 }
