@@ -52,7 +52,7 @@ function computeVesselColorAssignment(vesselList: string[]): Record<string, numb
 
   // Pass 1: Give known vessels their signature index if available
   for (const vessel of vesselList) {
-    const key = vessel.toUpperCase();
+    const key = vessel.trim().toUpperCase();
     const preferred = KNOWN_VESSEL_COLORS[key];
     if (preferred !== undefined && !used.has(preferred)) {
       result[key] = preferred;
@@ -64,7 +64,7 @@ function computeVesselColorAssignment(vesselList: string[]): Record<string, numb
   // assign the next unused palette index
   let nextIdx = 0;
   for (const vessel of vesselList) {
-    const key = vessel.toUpperCase();
+    const key = vessel.trim().toUpperCase();
     if (result[key] === undefined) {
       while (used.has(nextIdx)) {
         nextIdx++;
@@ -341,7 +341,7 @@ export function DdTrackerPage() {
           <span>Vessels</span>
         </div>
         {vesselList.map((vessel) => {
-          const colorIndex = vesselColorMap[vessel.toUpperCase()] ?? 0;
+          const colorIndex = vesselColorMap[vessel.trim().toUpperCase()] ?? 0;
           const colorClass = colorIndex < TOTAL_PALETTES ? `vessel-color-${colorIndex}` : '';
           const dynamicStyle = getDynamicVesselStyle(colorIndex);
 
