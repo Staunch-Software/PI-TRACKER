@@ -459,12 +459,21 @@ export function DdTrackerTable({
 
   // Dropdown (immediateCommit) cells already save the instant a value is picked — clicking away
   // without picking anything should just close the cell, not re-trigger a save.
+  //
+  // SearchableSelect's open option panel is rendered through a React portal straight into
+  // document.body (see SearchableSelect.tsx), and auto-focuses its own search box the instant it
+  // opens — so opening the dropdown moves focus to an element that is NOT a DOM descendant of
+  // this cell's wrapping div, even though it's still logically part of the same control. Without
+  // this check, that focus move alone looked exactly like "the user clicked away," and opening
+  // the dropdown would immediately cancel the edit before the user could pick anything.
   function handleImmediateCellBlur(e: FocusEvent<HTMLDivElement>) {
     if (suppressBlurRef.current) {
       suppressBlurRef.current = false;
       return;
     }
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+    const related = e.relatedTarget as Node | null;
+    const movedIntoPanel = related instanceof Element && related.closest('.searchable-select-panel');
+    if (!e.currentTarget.contains(related) && !movedIntoPanel) {
       onCancelEdit();
     }
   }
