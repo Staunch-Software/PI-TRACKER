@@ -218,7 +218,7 @@ export function VendorManagementPage() {
             <table className="data-table vendor-management-table">
               <thead>
                 <tr>
-                  <th className="col-dpr col-sno">S.No</th>
+                  <th className="col-sno">S.No</th>
                   <th className="col-vendor">Vendor</th>
                   <th className="col-vendor-details" title="Email, Mobile, and Address, read live from SmartPAL's vendor master.">Vendor Details</th>
                   <th className="col-bank-status" title="The 6 mandatory bank fields, read live from SmartPAL's own Bank Details tab.">Bank Details Status</th>
@@ -243,7 +243,7 @@ export function VendorManagementPage() {
 
                   return (
                     <tr key={entry.id}>
-                      <td className="col-dpr col-sno">{rowNumber}</td>
+                      <td className="col-sno">{rowNumber}</td>
                       <td className="col-vendor">
                         <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
                         <div className="vendor-code-text">{entry.vendorCode}</div>
