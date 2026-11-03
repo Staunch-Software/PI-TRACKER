@@ -618,3 +618,8 @@ tr:hover .dd-tracker-editable-cell {
 .dd-tracker-page .pagination-total {
   font-size: 12px;
 }
+
+/* Sync table header scroll container background to seamlessly match the dual-row header when right gutter padding is present */
+.dd-tracker-page .table-header-scroll {
+  background: linear-gradient(180deg, #10528b 0%, #0b3a63 50%, #f1f5f9 50%, #f1f5f9 100%) !important;
+}

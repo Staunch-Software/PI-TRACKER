@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -406,6 +406,7 @@ export function DdTrackerTable({
   onResizeColumn,
 }: Props) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
   const draggedKeyRef = useRef<ReorderableColumnKey | null>(null);
   const resizeStateRef = useRef<{ key: ReorderableColumnKey; startX: number; startWidth: number } | null>(null);
   const [dragOverKey, setDragOverKey] = useState<ReorderableColumnKey | null>(null);
@@ -418,9 +419,25 @@ export function DdTrackerTable({
 
   function syncHeaderScroll(e: UIEvent<HTMLDivElement>) {
     if (headerScrollRef.current) {
+      const gutter = e.currentTarget.offsetWidth - e.currentTarget.clientWidth;
+      if (headerScrollRef.current.style.paddingRight !== `${gutter}px`) {
+        headerScrollRef.current.style.paddingRight = `${gutter}px`;
+      }
       headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   }
+
+  useEffect(() => {
+    function updateScrollbarGutter() {
+      if (headerScrollRef.current && bodyScrollRef.current) {
+        const gutter = bodyScrollRef.current.offsetWidth - bodyScrollRef.current.clientWidth;
+        headerScrollRef.current.style.paddingRight = `${gutter}px`;
+      }
+    }
+    updateScrollbarGutter();
+    window.addEventListener('resize', updateScrollbarGutter);
+    return () => window.removeEventListener('resize', updateScrollbarGutter);
+  }, [entries.length, columnOrder, columnWidths]);
 
   function handleDragStart(key: ReorderableColumnKey) {
     draggedKeyRef.current = key;
@@ -599,7 +616,7 @@ export function DdTrackerTable({
           </thead>
         </table>
       </div>
-      <div className="table-body-scroll" onScroll={syncHeaderScroll}>
+      <div className="table-body-scroll" ref={bodyScrollRef} onScroll={syncHeaderScroll}>
         <table className="data-table">
           {colgroup}
           <tbody>
