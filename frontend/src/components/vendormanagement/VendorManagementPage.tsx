@@ -53,6 +53,22 @@ function DocumentsIcon() {
   );
 }
 
+// A row's present/missing state, rendered as a small check/cross chip — shared look for the
+// Vendor Details, Bank Details Status, and Verified Bank Fields columns' field checklists.
+function FieldChecklist({ items }: { items: Array<{ label: string; value?: string | null; present: boolean }> }) {
+  return (
+    <div className="field-checklist">
+      {items.map(({ label, value, present }) => (
+        <div key={label} className={`field-checklist-row ${present ? 'is-present' : 'is-missing'}`}>
+          <span className="field-checklist-icon">{present ? '✓' : '✕'}</span>
+          <span className="field-checklist-label">{label}</span>
+          {value && <span className="field-checklist-value" title={value}>{value}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function VendorManagementPage() {
   const { canEdit } = useRole();
   const [search, setSearch] = useState('');
@@ -235,23 +251,17 @@ export function VendorManagementPage() {
                         {entry.detailScrapePending ? (
                           <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
                         ) : (
-                          <div className="vendor-field-checklist">
-                            {VENDOR_DETAIL_FIELDS.map(([key, label]) => (
-                              <div key={label}>
-                                <span className="vendor-field-checklist-label">{label}:</span>{' '}
-                                {entry[key] ? (
-                                  <span>{String(entry[key])}</span>
-                                ) : (
-                                  <span className="vendor-field-missing">Missing</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          <FieldChecklist
+                            items={VENDOR_DETAIL_FIELDS.map(([key, label]) => ({
+                              label,
+                              value: entry[key] ? String(entry[key]) : null,
+                              present: !!entry[key],
+                            }))}
+                          />
                         )}
                         {canEdit && !entry.detailScrapePending && (
                           <button
-                            className="icon-btn"
-                            style={{ marginTop: 4 }}
+                            className="vendor-refresh-link"
                             title="Refresh from SmartPAL"
                             onClick={() => refreshMutation.mutate(entry.id)}
                             disabled={refreshMutation.isPending}
@@ -261,21 +271,12 @@ export function VendorManagementPage() {
                         )}
                       </td>
                       <td>
-                        <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`} style={{ marginBottom: 4, display: 'inline-block' }}>
+                        <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`} style={{ marginBottom: 6, display: 'inline-block' }}>
                           {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
                         </span>
-                        <div className="vendor-field-checklist">
-                          {BANK_FIELD_LABELS.map(([, label]) => (
-                            <div key={label}>
-                              <span className="vendor-field-checklist-label">{label}:</span>{' '}
-                              {palMissing.includes(label) ? (
-                                <span className="vendor-field-missing">Missing</span>
-                              ) : (
-                                <span className="vendor-field-complete">Present</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                        <FieldChecklist
+                          items={BANK_FIELD_LABELS.map(([, label]) => ({ label, present: !palMissing.includes(label) }))}
+                        />
                       </td>
                       <td>
                         {(() => {
@@ -305,18 +306,13 @@ export function VendorManagementPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="vendor-field-checklist">
-                                  {BANK_FIELD_LABELS.map(([key, label]) => (
-                                    <div key={label}>
-                                      <span className="vendor-field-checklist-label">{label}:</span>{' '}
-                                      {entry[key] ? (
-                                        <span>{String(entry[key])}</span>
-                                      ) : (
-                                        <span className="vendor-field-missing">Missing</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
+                                <FieldChecklist
+                                  items={BANK_FIELD_LABELS.map(([key, label]) => ({
+                                    label,
+                                    value: entry[key] ? String(entry[key]) : null,
+                                    present: !!entry[key],
+                                  }))}
+                                />
                               )}
                               {canEdit && bankEditId !== entry.id && (
                                 <div className="vendor-action-buttons">
@@ -324,7 +320,7 @@ export function VendorManagementPage() {
                                     <>
                                       {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
                                         <button
-                                          className="btn-tracker-action btn-tracker-secondary"
+                                          className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
                                           onClick={() => setBankRequestEntry(entry)}
                                         >
                                           Send Bank Details Request
@@ -332,7 +328,7 @@ export function VendorManagementPage() {
                                       )}
                                       {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
                                         <button
-                                          className="btn-tracker-action btn-tracker-secondary"
+                                          className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
                                           disabled={markReceivedMutation.isPending}
                                           onClick={() => markReceivedMutation.mutate(entry.id)}
                                         >
@@ -342,7 +338,7 @@ export function VendorManagementPage() {
                                     </>
                                   )}
                                   {canEnterBankFields && (
-                                    <button className="btn-tracker-action btn-tracker-secondary" onClick={() => startBankEdit(entry)}>
+                                    <button className="btn-tracker-action btn-tracker-secondary vendor-table-btn" onClick={() => startBankEdit(entry)}>
                                       {missingVerifiedBank.length === 0 ? 'Edit Bank Fields' : 'Enter Bank Fields'}
                                     </button>
                                   )}
@@ -359,7 +355,7 @@ export function VendorManagementPage() {
                           </span>
                         ) : canEdit ? (
                           <button
-                            className="btn-tracker-action btn-tracker-secondary"
+                            className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
                             disabled={!palComplete || markVerifiedMutation.isPending}
                             title={!palComplete ? `All mandatory bank fields must be present in SmartPAL first (missing: ${palMissing.join(', ')})` : undefined}
                             onClick={() => markVerifiedMutation.mutate(entry.id)}

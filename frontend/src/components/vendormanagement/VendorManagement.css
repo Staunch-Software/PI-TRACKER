@@ -19,7 +19,11 @@
 .vendor-management-table th,
 .vendor-management-table td {
   vertical-align: top;
-  padding: 10px 12px;
+  padding: 14px 16px;
+}
+
+.vendor-management-table td:last-child {
+  vertical-align: middle;
 }
 
 .vendor-badge {
@@ -63,37 +67,110 @@
   color: var(--color-success, #16a34a);
 }
 
-.vendor-field-missing {
-  display: inline-block;
-  color: var(--color-danger, #dc2626);
-  font-weight: 600;
-  font-size: 11.5px;
-}
-
-.vendor-field-complete {
-  display: inline-block;
-  color: var(--color-success, #16a34a);
-  font-size: 11px;
-}
-
-.vendor-field-checklist {
+/* ── Field checklist chips (Vendor Details / Bank Details Status / Verified Bank Fields) ── */
+.field-checklist {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
-  min-width: 170px;
+  gap: 4px;
+  min-width: 200px;
+  max-width: 260px;
 }
 
-.vendor-field-checklist-label {
+.field-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.field-checklist-row.is-present {
+  background: var(--color-success-bg, #dcfce7);
+}
+
+.field-checklist-row.is-missing {
+  background: var(--color-danger-bg, #fee2e2);
+}
+
+.field-checklist-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.field-checklist-row.is-present .field-checklist-icon {
+  background: var(--color-success, #16a34a);
+}
+
+.field-checklist-row.is-missing .field-checklist-icon {
+  background: var(--color-danger, #dc2626);
+}
+
+.field-checklist-label {
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  white-space: nowrap;
+}
+
+.field-checklist-value {
   color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.vendor-refresh-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary, #0f4c81);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vendor-refresh-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.vendor-refresh-link:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
 }
 
 .vendor-documents-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  color: var(--color-primary, #0f4c81);
+}
+
+/* Denser sizing for the table's inline per-row action buttons (Send Bank Details Request, Mark
+   Received, Enter/Edit Bank Fields, Verification Complete) — .btn-tracker-action's default
+   38px-tall toolbar sizing looks oversized stacked next to the small field-checklist chips. */
+.vendor-table-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  border-radius: 7px;
 }
 
 .vendor-bank-request-field {
