@@ -53,6 +53,45 @@ function DocumentsIcon() {
   );
 }
 
+function RefreshIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+function CheckShieldIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <polyline points="9 12 11 14 15 10" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function EditPenIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
 // A row's present/missing state, rendered as a small check/cross chip — shared look for the
 // Vendor Details, Bank Details Status, and Verified Bank Fields columns' field checklists.
 function FieldChecklist({ items }: { items: Array<{ label: string; value?: string | null; present: boolean }> }) {
@@ -243,14 +282,19 @@ export function VendorManagementPage() {
 
                   return (
                     <tr key={entry.id}>
-                      <td className="col-sno">{rowNumber}</td>
+                      <td className="col-sno">
+                        <span className="vendor-sno-pill">{rowNumber}</span>
+                      </td>
                       <td className="col-vendor">
                         <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
-                        <div className="vendor-code-text">{entry.vendorCode}</div>
+                        <div className="vendor-code-badge">{entry.vendorCode}</div>
                       </td>
                       <td className="col-vendor-details">
                         {entry.detailScrapePending ? (
-                          <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
+                          <span className="vendor-badge vendor-badge-pending">
+                            <span className="vendor-badge-dot" />
+                            Refreshing…
+                          </span>
                         ) : (
                           <FieldChecklist
                             items={VENDOR_DETAIL_FIELDS.map(([key, label]) => ({
@@ -262,19 +306,23 @@ export function VendorManagementPage() {
                         )}
                         {canEdit && !entry.detailScrapePending && (
                           <button
-                            className="vendor-refresh-link"
+                            className="vendor-refresh-btn"
                             title="Refresh from SmartPAL"
                             onClick={() => refreshMutation.mutate(entry.id)}
                             disabled={refreshMutation.isPending}
                           >
-                            ↻ Refresh
+                            <RefreshIcon />
+                            <span>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh'}</span>
                           </button>
                         )}
                       </td>
                       <td className="col-bank-status">
-                        <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`} style={{ marginBottom: 6, display: 'inline-block' }}>
-                          {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
-                        </span>
+                        <div style={{ marginBottom: 6 }}>
+                          <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`}>
+                            <span className="vendor-badge-dot" />
+                            {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
+                          </span>
+                        </div>
                         <FieldChecklist
                           items={BANK_FIELD_LABELS.map(([, label]) => ({ label, present: !palMissing.includes(label) }))}
                         />
@@ -297,13 +345,13 @@ export function VendorManagementPage() {
                                   <input placeholder="Swift Code" value={bankForm.bankSwiftCode} onChange={(e) => setBankForm((f) => ({ ...f, bankSwiftCode: e.target.value }))} />
                                   <div className="vendor-bank-edit-actions">
                                     <button
-                                      className="icon-btn icon-btn-success"
+                                      className="vendor-table-btn vendor-save-btn"
                                       disabled={saveBankMutation.isPending}
                                       onClick={() => saveBankMutation.mutate(toBankUpdatePayload(bankForm))}
                                     >
-                                      {saveBankMutation.isPending ? '…' : '✓'}
+                                      {saveBankMutation.isPending ? '…' : '✓ Save'}
                                     </button>
-                                    <button className="icon-btn icon-btn-muted" onClick={() => setBankEditId(null)}>×</button>
+                                    <button className="vendor-table-btn vendor-cancel-btn" onClick={() => setBankEditId(null)}>Cancel</button>
                                   </div>
                                 </div>
                               ) : (
@@ -321,7 +369,7 @@ export function VendorManagementPage() {
                                     <>
                                       {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
                                         <button
-                                          className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
+                                          className="vendor-table-btn vendor-btn-request"
                                           onClick={() => setBankRequestEntry(entry)}
                                         >
                                           Send Bank Details Request
@@ -329,7 +377,7 @@ export function VendorManagementPage() {
                                       )}
                                       {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
                                         <button
-                                          className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
+                                          className="vendor-table-btn vendor-btn-secondary"
                                           disabled={markReceivedMutation.isPending}
                                           onClick={() => markReceivedMutation.mutate(entry.id)}
                                         >
@@ -339,8 +387,9 @@ export function VendorManagementPage() {
                                     </>
                                   )}
                                   {canEnterBankFields && (
-                                    <button className="btn-tracker-action btn-tracker-secondary vendor-table-btn" onClick={() => startBankEdit(entry)}>
-                                      {missingVerifiedBank.length === 0 ? 'Edit Bank Fields' : 'Enter Bank Fields'}
+                                    <button className="vendor-table-btn vendor-btn-edit" onClick={() => startBankEdit(entry)}>
+                                      <EditPenIcon />
+                                      <span>{missingVerifiedBank.length === 0 ? 'Edit Bank Fields' : 'Enter Bank Fields'}</span>
                                     </button>
                                   )}
                                 </div>
@@ -351,24 +400,32 @@ export function VendorManagementPage() {
                       </td>
                       <td className="col-verification">
                         {entry.bankVerificationCompleted ? (
-                          <span className="vendor-badge vendor-badge-ok">
-                            Verified{entry.bankVerificationCompletedByName ? ` — ${entry.bankVerificationCompletedByName}` : ''}
-                          </span>
+                          <div className="vendor-verified-badge">
+                            <CheckShieldIcon />
+                            <div className="vendor-verified-badge-text">
+                              <span className="vendor-verified-title">Verified</span>
+                              {entry.bankVerificationCompletedByName && (
+                                <span className="vendor-verified-by">{entry.bankVerificationCompletedByName}</span>
+                              )}
+                            </div>
+                          </div>
                         ) : canEdit ? (
                           <button
-                            className="btn-tracker-action btn-tracker-secondary vendor-table-btn"
+                            className="vendor-table-btn vendor-btn-verify"
                             disabled={!palComplete || markVerifiedMutation.isPending}
                             title={!palComplete ? `All mandatory bank fields must be present in SmartPAL first (missing: ${palMissing.join(', ')})` : undefined}
                             onClick={() => markVerifiedMutation.mutate(entry.id)}
                           >
-                            Verification Complete
+                            <CheckShieldIcon />
+                            <span>Verification Complete</span>
                           </button>
                         ) : (
                           <span className="vendor-badge vendor-badge-warn">Not verified</span>
                         )}
                         {entry.bankVerificationCompletedAt && (
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                            {formatDate(entry.bankVerificationCompletedAt)}
+                          <div className="vendor-verified-date">
+                            <CalendarIcon />
+                            <span>{formatDate(entry.bankVerificationCompletedAt)}</span>
                           </div>
                         )}
                       </td>
