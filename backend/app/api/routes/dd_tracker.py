@@ -79,6 +79,7 @@ def _to_out(
         updated_at=entry.updated_at,
         pr_title=pr.title if pr else None,
         pr_status_live=_effective_pr_status(pr),
+        pr_workflow_stage=pr.status if pr else None,
         pr_department=pr.department if pr else None,
         pr_req_category=pr.req_category if pr else None,
         po_title=po.title if po else None,

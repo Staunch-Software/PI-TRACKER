@@ -80,6 +80,12 @@ class DdTrackerEntryOut(CamelModel):
     # when the linked requisition_no/po_no has no match (not yet scraped, or typo'd).
     pr_title: str | None = None
     pr_status_live: str | None = None
+    # SmartPAL's raw workflow-stage text ("RFQ Created", "Requisition Approved", "PO Sent", …) —
+    # unlike pr_status_live, this is NEVER overridden to Cancelled/Rejected, so a requisition
+    # cancelled after being approved still shows "Requisition Approved" here. Shown as its own
+    # column so the team can see both: what stage it reached, and whether it's actually still
+    # alive (pr_status_live). See api/routes/dd_tracker.py's _effective_pr_status.
+    pr_workflow_stage: str | None = None
     pr_department: str | None = None
     pr_req_category: str | None = None
 

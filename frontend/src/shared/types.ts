@@ -470,6 +470,7 @@ export interface DdTrackerEntry {
 
   prTitle: string | null;
   prStatusLive: string | null;
+  prWorkflowStage: string | null;
   prDepartment: string | null;
   prReqCategory: string | null;
 
