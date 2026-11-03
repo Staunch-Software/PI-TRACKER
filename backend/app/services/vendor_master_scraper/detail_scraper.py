@@ -11,12 +11,9 @@
 # SessionLocal() since background tasks execute outside the request's DB session, same as
 # po_scraper.run()/scraper.run() already do when invoked standalone.
 #
-# NOTE: unlike po_scraper.py's PR/PO grid bodies (confirmed live 2026-10-27), the exact UI flow
-# for reaching a single vendor's detail page/tabs has not yet been confirmed against a live
-# SmartPAL session — this drives the page by visible text (the vendor's own Code filter field,
-# tab labels, the paperclip icon) rather than a guessed API shape, matching this app's established
-# "real click over hand-built request" caution. Watch the first real run's logs closely and adjust
-# selectors if SmartPAL's actual DOM differs from what's assumed here.
+# Every selector below (Code filter, tab labels, attachment button/rows) has now been confirmed
+# live against a real SmartPAL session (2026-10-30 contacts/bank tabs; 2026-11-03 Code filter and
+# attachments), matching this app's established "real click over hand-built request" caution.
 # ===========================================================================
 import logging
 from datetime import date, datetime, timezone
@@ -43,19 +40,16 @@ def _open_vendor(page, vendor_code: str) -> bool:
     if "login" in page.url.lower() or "SIGN IN" in (page.content() or ""):
         raise RuntimeError("Session expired / not authenticated — SmartPAL bounced to the login page.")
 
-    code_field = page.locator("input").filter(has=page.locator("xpath=preceding-sibling::label[text()='Code']")).first
+    # Confirmed live 2026-11-03 (DOM inspection against the real Vendor grid): the Code filter is
+    # a plain input `#vendorcode2` with no `<label for=>` (so get_by_label never matched it, and
+    # the preceding-sibling-label fallback never found a real match either — both silently failed
+    # before). The "Show" button that applies the filter is `button.btn-icon-apply-search-result`
+    # (title "Show [Alt+F]"), not a magnifying-glass/"Search"-labelled button as first guessed.
     try:
-        page.get_by_label("Code").fill(vendor_code, timeout=5000)
-    except Exception:
-        try:
-            code_field.fill(vendor_code, timeout=5000)
-        except Exception as e:
-            log.warning(f"[VENDOR]   Could not find the Code filter field: {e}")
-
-    try:
-        page.locator("button[title='Search'], .search-icon, button:has-text('Search')").first.click(timeout=5000)
-    except Exception:
-        page.keyboard.press("Enter")
+        page.locator("#vendorcode2").fill(vendor_code, timeout=5000)
+        page.locator("button.btn-icon-apply-search-result").first.click(timeout=5000)
+    except Exception as e:
+        log.warning(f"[VENDOR]   Could not find the Code filter field: {e}")
     page.wait_for_timeout(2000)
 
     try:
@@ -261,53 +255,89 @@ def _scrape_bank_details(page) -> list[dict]:
     return rows
 
 
+_ATTACHMENT_POPUP = ".attachment-popup"
+
+
 def _scrape_attachments(page, vendor_code: str, existing_keys: set[tuple[str, int]]) -> list[dict]:
     new_attachments: list[dict] = []
+    # Confirmed live 2026-11-03: the attachments control is `button.btn-icon-attachment` (top-right
+    # of the vendor header, next to the rating stars) — not a generic svg/paperclip/"Attachments"
+    # selector as first guessed; that never matched anything on the real page.
     try:
-        page.locator("button:has(svg), .attachment-icon, [title='Attachments']").first.click(timeout=5000)
-        page.wait_for_timeout(1500)
+        page.locator("button.btn-icon-attachment").first.click(timeout=5000)
+        page.wait_for_timeout(2000)
     except Exception as e:
         log.warning(f"[VENDOR]   Could not open the attachment list: {e}")
         return new_attachments
 
+    if page.locator(f"{_ATTACHMENT_POPUP}:has-text('No Attachments Found')").count() > 0:
+        _close_attachment_popup(page)
+        return new_attachments
+
+    # Confirmed live 2026-11-03 (Knockout, DOM inspection on a vendor with real attachments): each
+    # row is a <tr> with a <h6 data-bind="text:fileName"> and its own `.download-icon` link
+    # (`singleDownloadClick`, targets a hidden iframe) — clicking it fires a genuine browser
+    # download, verified via Playwright's `expect_download`. Scoping to `tr:has(.download-icon)`
+    # (rather than a bare `table tbody tr`) skips the hidden file-upload table that shares the same
+    # popup and has no download icons.
     try:
-        for row in page.locator("table tbody tr").all():
-            cells = [c.strip() for c in row.locator("td").all_inner_texts()]
-            if len(cells) < 3:
-                continue
-            file_name = cells[1] if len(cells) > 1 else cells[0]
-            size_label = cells[2] if len(cells) > 2 else ""
-            date_label = cells[3] if len(cells) > 3 else None
-            uploaded_by = cells[4] if len(cells) > 4 else None
-
-            try:
-                with page.expect_download(timeout=15000) as download_info:
-                    row.click()
-                download = download_info.value
-                path = download.path()
-                if not path:
-                    continue
-                data = open(path, "rb").read()
-            except Exception as e:
-                log.warning(f"[VENDOR]   Could not download attachment {file_name!r} for {vendor_code}: {e}")
-                continue
-
-            key = (file_name, len(data))
-            if key in existing_keys:
-                continue
-
-            new_attachments.append({
-                "file_name": file_name,
-                "size_bytes": len(data),
-                "data": data,
-                "smartpal_uploaded_by": uploaded_by,
-                "smartpal_uploaded_at": date_label,
-                "raw_cells": cells,
-            })
+        rows = page.locator(f"{_ATTACHMENT_POPUP} tr:has(.download-icon)").all()
     except Exception as e:
         log.warning(f"[VENDOR]   Could not read attachment list for {vendor_code}: {e}")
+        rows = []
 
+    for row in rows:
+        try:
+            file_name = row.locator("h6[data-bind*='fileName']").first.inner_text().strip()
+        except Exception:
+            continue
+        try:
+            size_label = row.locator("td[data-bind*='fileSize']").first.inner_text().strip()
+        except Exception:
+            size_label = ""
+        try:
+            date_label = row.locator("span[data-bind*='modifiedOn']").first.inner_text().strip()
+        except Exception:
+            date_label = None
+        try:
+            uploaded_by = row.locator("span[data-bind*='modifiedBy']").first.inner_text().strip()
+        except Exception:
+            uploaded_by = None
+
+        try:
+            with page.expect_download(timeout=15000) as download_info:
+                row.locator(".download-icon").first.click()
+            download = download_info.value
+            path = download.path()
+            if not path:
+                continue
+            data = open(path, "rb").read()
+        except Exception as e:
+            log.warning(f"[VENDOR]   Could not download attachment {file_name!r} for {vendor_code}: {e}")
+            continue
+
+        key = (file_name, len(data))
+        if key in existing_keys:
+            continue
+
+        new_attachments.append({
+            "file_name": file_name,
+            "size_bytes": len(data),
+            "data": data,
+            "smartpal_uploaded_by": uploaded_by,
+            "smartpal_uploaded_at": date_label,
+            "raw_cells": [file_name, size_label, date_label, uploaded_by],
+        })
+
+    _close_attachment_popup(page)
     return new_attachments
+
+
+def _close_attachment_popup(page) -> None:
+    try:
+        page.locator(f"{_ATTACHMENT_POPUP} .close").first.click(timeout=3000)
+    except Exception:
+        pass
 
 
 def _guess_content_type(file_name: str) -> str:
