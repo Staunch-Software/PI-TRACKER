@@ -44,6 +44,15 @@ const BANK_FIELD_LABELS: Array<[keyof VendorTrackerEntry, string]> = [
   ['bankSwiftCode', 'Swift Code'],
 ];
 
+function MailIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  );
+}
+
 function DocumentsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -361,26 +370,34 @@ export function VendorManagementPage() {
                               )}
                               {canEdit && bankEditId !== entry.id && (
                                 <div className="vendor-action-buttons">
-                                  {!palComplete && (
-                                    <>
-                                      {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
-                                        <button
-                                          className="vendor-table-btn vendor-btn-request"
-                                          onClick={() => setBankRequestEntry(entry)}
-                                        >
-                                          Send Bank Details Request
-                                        </button>
-                                      )}
-                                      {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
-                                        <button
-                                          className="vendor-table-btn vendor-btn-secondary"
-                                          disabled={markReceivedMutation.isPending}
-                                          onClick={() => markReceivedMutation.mutate(entry.id)}
-                                        >
-                                          Mark Received
-                                        </button>
-                                      )}
-                                    </>
+                                  {entry.bankDetailsStatus === BankDetailsStatus.MISSING && (
+                                    <button
+                                      className="vendor-table-btn vendor-btn-request"
+                                      onClick={() => setBankRequestEntry(entry)}
+                                      title="Send official bank details request email"
+                                    >
+                                      <MailIcon />
+                                      <span>Send Bank Details Request</span>
+                                    </button>
+                                  )}
+                                  {entry.bankDetailsStatus === BankDetailsStatus.REQUESTED && (
+                                    <button
+                                      className="vendor-table-btn vendor-btn-request"
+                                      onClick={() => setBankRequestEntry(entry)}
+                                      title="Re-send bank request email"
+                                    >
+                                      <MailIcon />
+                                      <span>Re-send Bank Request</span>
+                                    </button>
+                                  )}
+                                  {(entry.bankDetailsStatus === BankDetailsStatus.MISSING || entry.bankDetailsStatus === BankDetailsStatus.REQUESTED) && (
+                                    <button
+                                      className="vendor-table-btn vendor-btn-secondary"
+                                      disabled={markReceivedMutation.isPending}
+                                      onClick={() => markReceivedMutation.mutate(entry.id)}
+                                    >
+                                      Mark Received
+                                    </button>
                                   )}
                                   {canEnterBankFields && (
                                     <button className="vendor-table-btn vendor-btn-edit" onClick={() => startBankEdit(entry)}>
