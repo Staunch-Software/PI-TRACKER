@@ -221,6 +221,7 @@ def _run_pr(page, db) -> dict:
             "req_category": r.get("reqCategory"),
             "department": r.get("department"),
             "status": r.get("status"),
+            "approval_flag": r.get("approvalflag"),
             "priority": r.get("priority"),
             "critical": _bool_yn(r.get("critical")),
             "created_by": r.get("createdBy"),

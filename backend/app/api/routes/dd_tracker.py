@@ -43,6 +43,20 @@ _SORTABLE_COLUMNS = {
 }
 
 
+def _effective_pr_status(pr: PrEntry | None) -> str | None:
+    """pr.status is SmartPAL's workflow-STAGE text ("RFQ Created", "Requisition Approved", …) and
+    does NOT get reset when a requisition is later rejected or cancelled — confirmed live
+    2026-11-03, a requisition cancelled right after approval still showed status "Requisition
+    Approved" forever. pr.approval_flag is the field that actually reflects that terminal state
+    (Approved / Finally Approved / Pending / Rejected / Cancelled), so it takes precedence here
+    whenever it says the requisition is dead."""
+    if not pr:
+        return None
+    if pr.approval_flag in ("Cancelled", "Rejected"):
+        return pr.approval_flag
+    return pr.status
+
+
 def _to_out(
     entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None, invoice: SmartpalInvoiceEntry | None
 ) -> DdTrackerEntryOut:
@@ -64,7 +78,7 @@ def _to_out(
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         pr_title=pr.title if pr else None,
-        pr_status_live=pr.status if pr else None,
+        pr_status_live=_effective_pr_status(pr),
         pr_department=pr.department if pr else None,
         pr_req_category=pr.req_category if pr else None,
         po_title=po.title if po else None,
@@ -246,7 +260,7 @@ def lookup_pr_entries(
     return [
         PrLookupResult(
             requisition_no=r.requisition_no, title=r.title, vessel_name=r.vessel_name,
-            req_category=r.req_category, status=r.status,
+            req_category=r.req_category, status=_effective_pr_status(r),
         )
         for r in rows
     ]

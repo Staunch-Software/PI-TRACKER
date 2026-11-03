@@ -42,9 +42,19 @@ class PrEntry(Base):
     vessel_name: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     req_category: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     department: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # SmartPAL's own narrative status ("RFQ Created", "Requisition Approved", etc.) — NOT the same
-    # as the team's own manual follow-up notes on dd_tracker_entries.pr_status, see that model.
+    # SmartPAL's own narrative WORKFLOW-STAGE text ("RFQ Created", "Requisition Approved", "PO
+    # Sent", etc.) — NOT the same as the team's own manual follow-up notes on
+    # dd_tracker_entries.pr_status, see that model. Confirmed live 2026-11-03: this field does NOT
+    # get reset when a requisition is later rejected or cancelled — it just freezes at whatever
+    # workflow stage it had reached, e.g. a requisition cancelled right after approval still shows
+    # "Requisition Approved" here forever. The real terminal state lives in approval_flag below;
+    # see api/routes/dd_tracker.py's _effective_pr_status for how the two combine.
     status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SmartPAL's own "approvalflag" field — Approved / Finally Approved / Pending / Rejected /
+    # Cancelled. This is the one that actually reflects rejection/cancellation; `status` above
+    # does not. Confirmed live 2026-11-03 via a requisition cancelled after approval: status stayed
+    # "Requisition Approved" while approval_flag correctly read "Cancelled".
+    approval_flag: Mapped[str | None] = mapped_column(Text, nullable=True)
     priority: Mapped[str | None] = mapped_column(Text, nullable=True)
     critical: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_by: Mapped[str | None] = mapped_column(Text, nullable=True)
