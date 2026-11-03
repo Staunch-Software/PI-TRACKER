@@ -76,6 +76,15 @@ interface EditCellCtx {
   // it right away instead of waiting for a separate Save click, since choosing from a short fixed
   // list is already the complete action (unlike a text field, where you might still be typing).
   onSelectAndSave: (field: keyof DdTrackerFormState, value: string) => void;
+  // Wired to SearchableSelect's own onClose — fires exactly when its option panel actually closes,
+  // whether that's from picking a value (onChange already ran first, synchronously, so the save is
+  // already in flight by the time this fires) or a genuine click-away. Using this instead of this
+  // cell's own onBlur sidesteps a real bug: SearchableSelect's panel renders through a React portal
+  // into document.body, so focus moving into/around it never looks like a descendant of this
+  // cell's wrapping div, and a relatedTarget/blur-based guard kept mistaking normal dropdown
+  // interaction (opening it, clicking an option) for "clicked away" and closing the cell before
+  // the user could pick anything.
+  onClose: () => void;
 }
 
 // The 2nd header row's group label — same contiguous blocks as DEFAULT_COLUMN_ORDER above.
@@ -104,8 +113,8 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'General',
     renderCell: (e) => e.entryType ?? '—',
     immediateCommit: true,
-    renderEditCell: ({ form, onSelectAndSave }) => (
-      <SearchableSelect options={ENTRY_TYPE_OPTIONS} value={form.entryType} onChange={(v) => onSelectAndSave('entryType', v)} />
+    renderEditCell: ({ form, onSelectAndSave, onClose }) => (
+      <SearchableSelect options={ENTRY_TYPE_OPTIONS} value={form.entryType} onChange={(v) => onSelectAndSave('entryType', v)} onClose={onClose} />
     ),
   },
   prNumber: {
@@ -232,8 +241,8 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Invoice',
     renderCell: (e) => e.invoiceType ?? '—',
     immediateCommit: true,
-    renderEditCell: ({ form, onSelectAndSave }) => (
-      <SearchableSelect options={INVOICE_TYPE_OPTIONS} value={form.invoiceType} onChange={(v) => onSelectAndSave('invoiceType', v)} />
+    renderEditCell: ({ form, onSelectAndSave, onClose }) => (
+      <SearchableSelect options={INVOICE_TYPE_OPTIONS} value={form.invoiceType} onChange={(v) => onSelectAndSave('invoiceType', v)} onClose={onClose} />
     ),
   },
   invoiceAmount: {
@@ -457,27 +466,6 @@ export function DdTrackerTable({
     }
   }
 
-  // Dropdown (immediateCommit) cells already save the instant a value is picked — clicking away
-  // without picking anything should just close the cell, not re-trigger a save.
-  //
-  // SearchableSelect's open option panel is rendered through a React portal straight into
-  // document.body (see SearchableSelect.tsx), and auto-focuses its own search box the instant it
-  // opens — so opening the dropdown moves focus to an element that is NOT a DOM descendant of
-  // this cell's wrapping div, even though it's still logically part of the same control. Without
-  // this check, that focus move alone looked exactly like "the user clicked away," and opening
-  // the dropdown would immediately cancel the edit before the user could pick anything.
-  function handleImmediateCellBlur(e: FocusEvent<HTMLDivElement>) {
-    if (suppressBlurRef.current) {
-      suppressBlurRef.current = false;
-      return;
-    }
-    const related = e.relatedTarget as Node | null;
-    const movedIntoPanel = related instanceof Element && related.closest('.searchable-select-panel');
-    if (!e.currentTarget.contains(related) && !movedIntoPanel) {
-      onCancelEdit();
-    }
-  }
-
   const colgroup = (
     <colgroup>
       <col className="col-dpr col-dpr-noactions" style={{ width: STICKY_COL_WIDTHS.sno }} />
@@ -610,7 +598,7 @@ export function DdTrackerTable({
                   return (
                     <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
                       {def.renderEditCell
-                        ? def.renderEditCell({ form: newRowForm, onChange: onNewRowChange, onSelectAndSave: onNewRowChange })
+                        ? def.renderEditCell({ form: newRowForm, onChange: onNewRowChange, onSelectAndSave: onNewRowChange, onClose: () => {} })
                         : '—'}
                     </td>
                   );
@@ -628,7 +616,7 @@ export function DdTrackerTable({
               const rowNumber = (page - 1) * pageSize + rowIndex + 1;
               const isEditingRow = editingId === entry.id;
               const editCtx: EditCellCtx | null =
-                isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave } : null;
+                isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave, onClose: onCancelEdit } : null;
               return (
                 <tr key={entry.id} className={entry.invoiceType === 'Proforma Invoice' ? 'dd-tracker-row-proforma' : undefined}>
                   <td className="sticky-col col-dpr col-dpr-noactions">{rowNumber}</td>
@@ -642,7 +630,7 @@ export function DdTrackerTable({
                       if (def.immediateCommit) {
                         return (
                           <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
-                            <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate" onBlur={handleImmediateCellBlur}>
+                            <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate">
                               {def.renderEditCell!(editCtx)}
                             </div>
                           </td>

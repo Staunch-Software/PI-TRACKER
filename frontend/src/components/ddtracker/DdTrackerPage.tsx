@@ -270,11 +270,17 @@ export function DdTrackerPage() {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
-  // Takes the form explicitly (rather than reading editForm from closure) so a dropdown's
-  // "pick a value and save immediately" path (see onSelectAndSave) can save the field it just
-  // changed without waiting a render for setEditForm to land first.
+  // Takes both the row id and the form explicitly as the mutate() argument, rather than reading
+  // editingId/editForm from render closure inside mutationFn — a dropdown field's "pick a value
+  // and save immediately" path (see selectAndSave) now also fires a dropdown-close callback in
+  // the same click (see DdTrackerTable.tsx's onClose), which clears editingId via setEditingId
+  // (batched with the save's own state updates into the same React render). If mutationFn read
+  // editingId from closure, that render could land before the in-flight fetch actually reads the
+  // id, sending a PATCH to "/dd-tracker/null" — passing the id as an explicit argument captures it
+  // at the moment mutate() is called instead, immune to anything that happens afterward.
   const saveEditMutation = useMutation({
-    mutationFn: (form: DdTrackerFormState) => api.patch<DdTrackerEntry>(`/dd-tracker/${editingId}`, toDdTrackerPayload(form)),
+    mutationFn: ({ id, form }: { id: string; form: DdTrackerFormState }) =>
+      api.patch<DdTrackerEntry>(`/dd-tracker/${id}`, toDdTrackerPayload(form)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
       queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
@@ -288,10 +294,10 @@ export function DdTrackerPage() {
   // A dropdown field (Type, Invoice Type) doesn't need a separate Save click — picking a value is
   // already the complete action, unlike a text field where you might still be typing.
   function selectAndSave(field: keyof DdTrackerFormState, value: string) {
-    if (!editForm) return;
+    if (!editForm || !editingId) return;
     const updated = { ...editForm, [field]: value };
     setEditForm(updated);
-    saveEditMutation.mutate(updated);
+    saveEditMutation.mutate({ id: editingId, form: updated });
   }
 
   function startAdd() {
@@ -427,7 +433,7 @@ export function DdTrackerPage() {
               isSavingEdit={saveEditMutation.isPending}
               onStartCellEdit={startCellEdit}
               onEditFormChange={handleEditFormChange}
-              onSaveEdit={() => editForm && saveEditMutation.mutate(editForm)}
+              onSaveEdit={() => editForm && editingId && saveEditMutation.mutate({ id: editingId, form: editForm })}
               onSelectAndSave={selectAndSave}
               onCancelEdit={cancelEdit}
               isAddingNew={isAddingNew}
