@@ -123,26 +123,26 @@
   --v-dot-active: #c084fc;
 }
 
-/* Palette 6: Electric Cyan / Aquamarine (AMNS POLAR) */
+/* Palette 6: Electric Cyan / Turquoise (AMNS POLAR) */
 .vessel-color-6 {
   --v-bg-inactive: #ecfeff;
-  --v-border-inactive: #a5f3fc;
-  --v-text-inactive: #0e7490;
-  --v-bg-active: linear-gradient(135deg, #0e7490 0%, #0891b2 100%);
-  --v-border-active: #0e7490;
-  --v-glow-active: rgba(8, 145, 178, 0.35);
+  --v-border-inactive: #67e8f9;
+  --v-text-inactive: #0891b2;
+  --v-bg-active: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  --v-border-active: #0891b2;
+  --v-glow-active: rgba(6, 182, 212, 0.35);
   --v-dot-active: #22d3ee;
 }
 
-/* Palette 7: Ocean Sky / Cerulean (AMNSI STALLION) */
+/* Palette 7: Slate Steel / Charcoal Titanium (AMNSI STALLION) - crisp dark metallic slate, fully distinct from Polar's cyan */
 .vessel-color-7 {
-  --v-bg-inactive: #f0f9ff;
-  --v-border-inactive: #bae6fd;
-  --v-text-inactive: #0369a1;
-  --v-bg-active: linear-gradient(135deg, #075985 0%, #0284c7 100%);
-  --v-border-active: #075985;
-  --v-glow-active: rgba(2, 132, 199, 0.35);
-  --v-dot-active: #38bdf8;
+  --v-bg-inactive: #f1f5f9;
+  --v-border-inactive: #94a3b8;
+  --v-text-inactive: #0f172a;
+  --v-bg-active: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  --v-border-active: #0f172a;
+  --v-glow-active: rgba(15, 23, 42, 0.35);
+  --v-dot-active: #94a3b8;
 }
 
 /* Palette 8: Warm Bronze / Sienna (AMNS TUFMAX) */
@@ -156,15 +156,15 @@
   --v-dot-active: #fb923c;
 }
 
-/* Palette 9: Slate Steel / Graphite (AM TARANG) */
+/* Palette 9: Ocean Sky / Cerulean (AM TARANG) */
 .vessel-color-9 {
-  --v-bg-inactive: #f8fafc;
-  --v-border-inactive: #cbd5e1;
-  --v-text-inactive: #334155;
-  --v-bg-active: linear-gradient(135deg, #1e293b 0%, #475569 100%);
-  --v-border-active: #1e293b;
-  --v-glow-active: rgba(71, 85, 105, 0.35);
-  --v-dot-active: #94a3b8;
+  --v-bg-inactive: #f0f9ff;
+  --v-border-inactive: #bae6fd;
+  --v-text-inactive: #0369a1;
+  --v-bg-active: linear-gradient(135deg, #075985 0%, #0284c7 100%);
+  --v-border-active: #075985;
+  --v-glow-active: rgba(2, 132, 199, 0.35);
+  --v-dot-active: #38bdf8;
 }
 
 /* Palette 10: Plum / Deep Orchid (AMNSI MAXIMUS) */

@@ -33,10 +33,10 @@ const KNOWN_VESSEL_COLORS: Record<string, number> = {
   'GCL GANGA': 3,      // Tangerine Sunset Orange (distinct from Sabarmati's green)
   'GCL TAPI': 4,       // Warm Amber / Honey Gold
   'GCL YAMUNA': 5,     // Amethyst Purple
-  'AMNS POLAR': 6,     // Electric Cyan
-  'AMNSI STALLION': 7, // Ocean Sky Cerulean
+  'AMNS POLAR': 6,     // Electric Cyan / Turquoise
+  'AMNSI STALLION': 7, // Slate Steel / Charcoal Titanium (distinct from Polar's cyan)
   'AMNS TUFMAX': 8,    // Warm Bronze / Sienna
-  'AM TARANG': 9,      // Slate Steel
+  'AM TARANG': 9,      // Ocean Sky Cerulean
   'AMNSI MAXIMUS': 10, // Plum / Deep Orchid
   'GCL FOS': 11,       // Olive / Lime Moss
   'AM UMANG': 12,      // Rich Cobalt / Midnight Blue
