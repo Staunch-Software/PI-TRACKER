@@ -43,20 +43,43 @@ function htmlToPlainText(html: string): string {
  */
 function plainTextToHtml(text: string): string {
   if (!text) return '';
-  const paragraphs = text.split(/\n\s*\n/);
-  const htmlParts = paragraphs.map((para) => {
-    const lines = para.split('\n').map((l) => l.trim()).filter(Boolean);
-    const isBulletList = lines.length > 0 && lines.every((l) => l.startsWith('•') || l.startsWith('-') || l.startsWith('*'));
-    if (isBulletList) {
-      const items = lines
-        .map((l) => l.replace(/^[•\-\*]\s*/, ''))
-        .map((l) => `<li>${l}</li>`)
-        .join('');
-      return `<ul>${items}</ul>`;
+  const lines = text.split('\n').map((l) => l.trim());
+  const blocks: string[] = [];
+  let currentBullets: string[] = [];
+  let currentPara: string[] = [];
+
+  function flushBullets() {
+    if (currentBullets.length > 0) {
+      blocks.push(`<ul>${currentBullets.map((b) => `<li>${b}</li>`).join('')}</ul>`);
+      currentBullets = [];
     }
-    return `<p>${lines.join('<br />')}</p>`;
-  });
-  return htmlParts.join('\n');
+  }
+
+  function flushPara() {
+    if (currentPara.length > 0) {
+      blocks.push(`<p>${currentPara.join('<br />')}</p>`);
+      currentPara = [];
+    }
+  }
+
+  for (const line of lines) {
+    if (!line) {
+      flushPara();
+      continue;
+    }
+    const isBullet = line.startsWith('•') || line.startsWith('- ') || line.startsWith('* ');
+    if (isBullet) {
+      flushPara();
+      currentBullets.push(line.replace(/^[•\-\*]\s*/, ''));
+    } else {
+      flushBullets();
+      currentPara.push(line);
+    }
+  }
+  flushBullets();
+  flushPara();
+
+  return blocks.join('\n');
 }
 
 export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {

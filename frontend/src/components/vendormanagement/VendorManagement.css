@@ -1116,6 +1116,7 @@ table.data-table.vendor-management-table td.col-center {
   align-items: center;
   gap: 14px;
   min-width: 0;
+  flex: 1;
 }
 
 .vendor-bank-modal-icon-badge {
@@ -1213,6 +1214,7 @@ table.data-table.vendor-management-table td.col-center {
 .vendor-bank-modal-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
@@ -1358,6 +1360,8 @@ table.data-table.vendor-management-table td.col-center {
   border-radius: 8px;
   font-size: 13px;
   color: #166534;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .vendor-bank-recipient-dot {
@@ -1366,11 +1370,16 @@ table.data-table.vendor-management-table td.col-center {
   border-radius: 50%;
   background: #16a34a;
   box-shadow: 0 0 6px rgba(22, 163, 74, 0.6);
+  flex-shrink: 0;
 }
 
 .vendor-bank-recipient-email {
   font-weight: 600;
   letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .vendor-bank-recipient-tag {
@@ -1696,8 +1705,9 @@ table.data-table.vendor-management-table td.col-center {
   box-shadow: none;
 }
 
-.vendor-bank-request-modal-panel {
-  max-width: 680px;
+.vendor-bank-request-modal-panel,
+.vendor-bank-modal-panel {
+  max-width: 720px;
   width: 100%;
 }
 
@@ -1759,8 +1769,10 @@ table.data-table.vendor-management-table td.col-center {
     max-height: 90vh;
   }
 
-  .vendor-bank-request-modal-panel {
-    max-width: 680px;
+  .vendor-bank-request-modal-panel,
+  .vendor-bank-modal-panel {
+    max-width: 740px;
+    max-height: 90vh;
   }
 }
 
@@ -1824,8 +1836,10 @@ table.data-table.vendor-management-table td.col-center {
     max-height: 88vh;
   }
 
-  .vendor-bank-request-modal-panel {
-    max-width: 740px;
+  .vendor-bank-request-modal-panel,
+  .vendor-bank-modal-panel {
+    max-width: 780px;
+    max-height: 88vh;
   }
 }
 
@@ -1887,7 +1901,8 @@ table.data-table.vendor-management-table td.col-center {
   }
 
   .vendor-docs-modal-overlay,
-  .vendor-bank-request-modal-overlay {
+  .vendor-bank-request-modal-overlay,
+  .vendor-bank-modal-overlay {
     padding: 16px;
   }
 
@@ -1901,9 +1916,15 @@ table.data-table.vendor-management-table td.col-center {
     max-width: 300px;
   }
 
-  .vendor-bank-request-modal-panel {
-    max-width: 660px;
+  .vendor-bank-request-modal-panel,
+  .vendor-bank-modal-panel {
+    max-width: 680px;
     width: 95%;
+    max-height: 90vh;
+  }
+
+  .vendor-bank-email-preview-content ul {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 }
 
@@ -2005,17 +2026,19 @@ table.data-table.vendor-management-table td.col-center {
 
   /* Modals on Mobile */
   .vendor-docs-modal-overlay,
-  .vendor-bank-request-modal-overlay {
-    padding: 10px;
+  .vendor-bank-request-modal-overlay,
+  .vendor-bank-modal-overlay {
+    padding: 8px;
     align-items: center;
   }
 
   .vendor-docs-modal-panel,
-  .vendor-bank-request-modal-panel {
+  .vendor-bank-request-modal-panel,
+  .vendor-bank-modal-panel {
     max-width: 100%;
     width: 100%;
-    max-height: 94vh;
-    max-height: 94dvh;
+    max-height: 96vh;
+    max-height: 96dvh;
     border-radius: 14px;
   }
 
@@ -2133,6 +2156,244 @@ table.data-table.vendor-management-table td.col-center {
     font-size: 11.5px;
   }
 
+  /* Bank Request Modal Responsive (Mobile < 768px) */
+  .vendor-bank-modal-header {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .vendor-bank-modal-header-left {
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .vendor-bank-modal-icon-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .vendor-bank-modal-icon-badge svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .vendor-bank-modal-titles {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .vendor-bank-modal-titles h2 {
+    font-size: 15px;
+  }
+
+  .vendor-bank-modal-sub {
+    font-size: 11px;
+    flex-wrap: wrap;
+    gap: 4px;
+    white-space: normal;
+  }
+
+  .vendor-bank-name-truncate {
+    max-width: 160px;
+  }
+
+  .vendor-bank-dot-divider,
+  .vendor-bank-sub-tag {
+    display: none;
+  }
+
+  .vendor-bank-modal-close {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .vendor-bank-modal-body {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .vendor-bank-workflow-callout {
+    padding: 10px 12px;
+    font-size: 11.5px;
+    gap: 8px;
+  }
+
+  .vendor-bank-callout-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .vendor-bank-callout-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .vendor-bank-composer-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .vendor-bank-composer-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .vendor-bank-composer-label {
+    width: auto;
+    font-size: 11px;
+    gap: 5px;
+  }
+
+  .vendor-bank-select,
+  .vendor-bank-input {
+    height: 36px;
+    font-size: 12.5px;
+  }
+
+  .vendor-bank-recipient-chip {
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .vendor-bank-recipient-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .vendor-bank-recipient-tag {
+    font-size: 9.5px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+
+  .vendor-bank-view-switcher {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .vendor-bank-tabs {
+    width: 100%;
+    display: flex;
+  }
+
+  .vendor-bank-tab-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 7px 10px;
+    font-size: 11.5px;
+  }
+
+  .vendor-bank-format-pill {
+    text-align: center;
+    font-size: 10.5px;
+    padding: 4px 8px;
+  }
+
+  .vendor-bank-email-preview-wrapper {
+    border-radius: 10px;
+  }
+
+  .vendor-bank-email-preview-header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .vendor-bank-email-preview-content {
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .vendor-bank-email-preview-content ul {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .vendor-bank-email-preview-content li {
+    font-size: 11.5px !important;
+    padding: 5px 10px !important;
+  }
+
+  .vendor-bank-editor-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .vendor-bank-editor-hint {
+    font-size: 11.5px;
+  }
+
+  .vendor-bank-editor-actions {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+
+  .vendor-bank-tool-btn {
+    flex: 1;
+    justify-content: center;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .vendor-bank-textarea {
+    min-height: 140px;
+    font-size: 12.5px;
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .vendor-bank-editor-helper {
+    font-size: 10.5px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .vendor-bank-modal-footer {
+    padding: 12px 14px;
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .vendor-bank-footer-left {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .vendor-bank-footer-badge {
+    font-size: 11px;
+    justify-content: center;
+  }
+
+  .vendor-bank-footer-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .vendor-bank-btn-cancel,
+  .vendor-bank-btn-send {
+    flex: 1;
+    justify-content: center;
+    height: 40px;
+    font-size: 12.5px;
+  }
+
   .vendor-bank-request-modal-panel .modal-header {
     padding: 14px 16px;
   }
@@ -2186,6 +2447,44 @@ table.data-table.vendor-management-table td.col-center {
 
   .vendor-docs-modal-body {
     padding: 12px 14px;
+  }
+
+  .vendor-bank-modal-overlay {
+    padding: 6px;
+  }
+
+  .vendor-bank-modal-panel {
+    border-radius: 10px;
+    max-height: 98vh;
+    max-height: 98dvh;
+  }
+
+  .vendor-bank-modal-header {
+    padding: 10px 12px;
+  }
+
+  .vendor-bank-modal-titles h2 {
+    font-size: 13.5px;
+  }
+
+  .vendor-bank-name-truncate {
+    max-width: 110px;
+  }
+
+  .vendor-bank-modal-body {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .vendor-bank-footer-actions {
+    flex-direction: column-reverse;
+    gap: 6px;
+  }
+
+  .vendor-bank-btn-cancel,
+  .vendor-bank-btn-send {
+    width: 100%;
+    height: 38px;
   }
 }
 
@@ -2565,9 +2864,236 @@ table.data-table.vendor-management-table td.col-center {
     border-radius: 10px;
   }
 
-  .vendor-bank-request-modal-panel {
-    max-width: 900px;
+  .vendor-bank-request-modal-panel,
+  .vendor-bank-modal-panel {
+    max-width: 980px;
     border-radius: 24px;
+  }
+
+  .vendor-bank-modal-header {
+    padding: 24px 36px;
+  }
+
+  .vendor-bank-modal-icon-badge {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+  }
+
+  .vendor-bank-modal-icon-badge svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .vendor-bank-modal-titles h2 {
+    font-size: 24px;
+  }
+
+  .vendor-bank-modal-sub {
+    font-size: 14.5px;
+    gap: 10px;
+  }
+
+  .vendor-bank-code-pill {
+    font-size: 13px;
+    padding: 3px 10px;
+  }
+
+  .vendor-bank-name-truncate {
+    max-width: 360px;
+  }
+
+  .vendor-bank-sub-tag {
+    font-size: 13px;
+  }
+
+  .vendor-bank-modal-close {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .vendor-bank-modal-body {
+    padding: 28px 36px;
+    gap: 20px;
+  }
+
+  .vendor-bank-workflow-callout {
+    padding: 16px 22px;
+    font-size: 15px;
+    border-radius: 14px;
+    gap: 16px;
+  }
+
+  .vendor-bank-callout-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .vendor-bank-callout-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .vendor-bank-composer-card {
+    padding: 20px 24px;
+    gap: 16px;
+    border-radius: 16px;
+  }
+
+  .vendor-bank-composer-row {
+    gap: 20px;
+  }
+
+  .vendor-bank-composer-label {
+    width: 100px;
+    font-size: 13.5px;
+    gap: 8px;
+  }
+
+  .vendor-bank-composer-label svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .vendor-bank-select,
+  .vendor-bank-input {
+    height: 48px;
+    font-size: 15px;
+    border-radius: 12px;
+    padding: 0 16px;
+  }
+
+  .vendor-bank-recipient-chip {
+    padding: 10px 18px;
+    font-size: 14.5px;
+    border-radius: 12px;
+  }
+
+  .vendor-bank-recipient-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+
+  .vendor-bank-tab-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+
+  .vendor-bank-tab-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .vendor-bank-format-pill {
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 8px;
+  }
+
+  .vendor-bank-email-preview-wrapper {
+    border-radius: 16px;
+  }
+
+  .vendor-bank-email-preview-header {
+    padding: 14px 24px;
+  }
+
+  .vendor-bank-brand-title {
+    font-size: 15px;
+  }
+
+  .vendor-bank-brand-badge {
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+
+  .vendor-bank-preview-date {
+    font-size: 13.5px;
+  }
+
+  .vendor-bank-email-preview-content {
+    padding: 26px 32px;
+    font-size: 15.5px;
+    line-height: 1.7;
+  }
+
+  .vendor-bank-email-preview-content ul {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .vendor-bank-email-preview-content li {
+    font-size: 13.5px !important;
+    padding: 10px 16px !important;
+  }
+
+  .vendor-bank-editor-toolbar {
+    padding: 4px;
+  }
+
+  .vendor-bank-editor-hint {
+    font-size: 14px;
+  }
+
+  .vendor-bank-tool-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .vendor-bank-textarea {
+    min-height: 260px;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 20px 24px;
+    border-radius: 14px;
+  }
+
+  .vendor-bank-editor-helper {
+    font-size: 13px;
+    padding: 0 6px;
+  }
+
+  .vendor-bank-modal-footer {
+    padding: 20px 36px;
+  }
+
+  .vendor-bank-footer-badge {
+    font-size: 14px;
+    gap: 8px;
+  }
+
+  .vendor-bank-footer-badge svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .vendor-bank-footer-actions {
+    gap: 14px;
+  }
+
+  .vendor-bank-btn-cancel {
+    height: 48px;
+    padding: 0 24px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .vendor-bank-btn-send {
+    height: 48px;
+    padding: 0 28px;
+    font-size: 15px;
+    border-radius: 12px;
+    gap: 10px;
+  }
+
+  .vendor-bank-btn-send svg {
+    width: 18px;
+    height: 18px;
   }
 
   .vendor-bank-request-modal-panel .modal-header {
