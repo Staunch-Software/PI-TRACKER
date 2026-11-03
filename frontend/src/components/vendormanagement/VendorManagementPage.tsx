@@ -291,10 +291,7 @@ export function VendorManagementPage() {
                       </td>
                       <td className="col-vendor-details">
                         {entry.detailScrapePending ? (
-                          <span className="vendor-badge vendor-badge-pending">
-                            <span className="vendor-badge-dot" />
-                            Refreshing…
-                          </span>
+                          <span className="vendor-badge vendor-badge-pending">Refreshing…</span>
                         ) : (
                           <FieldChecklist
                             items={VENDOR_DETAIL_FIELDS.map(([key, label]) => ({
@@ -319,7 +316,6 @@ export function VendorManagementPage() {
                       <td className="col-bank-status">
                         <div style={{ marginBottom: 6 }}>
                           <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`}>
-                            <span className="vendor-badge-dot" />
                             {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
                           </span>
                         </div>
@@ -399,35 +395,37 @@ export function VendorManagementPage() {
                         })()}
                       </td>
                       <td className="col-verification">
-                        {entry.bankVerificationCompleted ? (
-                          <div className="vendor-verified-badge">
-                            <CheckShieldIcon />
-                            <div className="vendor-verified-badge-text">
-                              <span className="vendor-verified-title">Verified</span>
-                              {entry.bankVerificationCompletedByName && (
-                                <span className="vendor-verified-by">{entry.bankVerificationCompletedByName}</span>
-                              )}
+                        <div className="vendor-verification-cell">
+                          {entry.bankVerificationCompleted ? (
+                            <div className="vendor-verified-badge">
+                              <CheckShieldIcon />
+                              <div className="vendor-verified-badge-text">
+                                <span className="vendor-verified-title">Verified</span>
+                                {entry.bankVerificationCompletedByName && (
+                                  <span className="vendor-verified-by">{entry.bankVerificationCompletedByName}</span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ) : canEdit ? (
-                          <button
-                            className="vendor-table-btn vendor-btn-verify"
-                            disabled={!palComplete || markVerifiedMutation.isPending}
-                            title={!palComplete ? `All mandatory bank fields must be present in SmartPAL first (missing: ${palMissing.join(', ')})` : undefined}
-                            onClick={() => markVerifiedMutation.mutate(entry.id)}
-                          >
-                            <CheckShieldIcon />
-                            <span>Verification Complete</span>
-                          </button>
-                        ) : (
-                          <span className="vendor-badge vendor-badge-warn">Not verified</span>
-                        )}
-                        {entry.bankVerificationCompletedAt && (
-                          <div className="vendor-verified-date">
-                            <CalendarIcon />
-                            <span>{formatDate(entry.bankVerificationCompletedAt)}</span>
-                          </div>
-                        )}
+                          ) : canEdit ? (
+                            <button
+                              className="vendor-table-btn vendor-btn-verify"
+                              disabled={!palComplete || markVerifiedMutation.isPending}
+                              title={!palComplete ? `All mandatory bank fields must be present in SmartPAL first (missing: ${palMissing.join(', ')})` : undefined}
+                              onClick={() => markVerifiedMutation.mutate(entry.id)}
+                            >
+                              <CheckShieldIcon />
+                              <span>Verification Complete</span>
+                            </button>
+                          ) : (
+                            <span className="vendor-badge vendor-badge-warn">Not verified</span>
+                          )}
+                          {entry.bankVerificationCompletedAt && (
+                            <div className="vendor-verified-date">
+                              <CalendarIcon />
+                              <span>{formatDate(entry.bankVerificationCompletedAt)}</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="col-center col-docs">
                         <button
