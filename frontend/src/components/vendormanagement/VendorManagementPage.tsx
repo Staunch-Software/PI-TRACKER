@@ -226,7 +226,7 @@ export function VendorManagementPage() {
                     Verified Bank Fields
                   </th>
                   <th>Bank Verification</th>
-                  <th>Documents</th>
+                  <th className="col-center" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
                 </tr>
               </thead>
               <tbody>
@@ -235,14 +235,15 @@ export function VendorManagementPage() {
                     <td colSpan={7} className="empty-state">No vendors are being tracked yet.</td>
                   </tr>
                 )}
-                {(entriesQuery.data?.items ?? []).map((entry) => {
+                {(entriesQuery.data?.items ?? []).map((entry, idx) => {
+                  const rowNumber = (page - 1) * PAGE_SIZE + idx + 1;
                   const missingVerifiedBank = missingFields(entry, BANK_FIELD_LABELS);
                   const palMissing = entry.bankDetailsInPalMissingFields ?? [];
                   const palComplete = entry.bankDetailsInPalComplete;
 
                   return (
                     <tr key={entry.id}>
-                      <td className="col-dpr">{entry.seqNo}</td>
+                      <td className="col-dpr">{rowNumber}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{entry.vendorName ?? entry.vendorCode}</div>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{entry.vendorCode}</div>
@@ -371,13 +372,14 @@ export function VendorManagementPage() {
                           </div>
                         )}
                       </td>
-                      <td>
+                      <td className="col-center">
                         <button
-                          className="icon-btn vendor-documents-icon-btn"
-                          title="Documents"
+                          className="vendor-full-docs-btn"
+                          title="View all SmartPAL scraped documents & verified bank reply attachments"
                           onClick={() => setAttachmentsEntry(entry)}
                         >
                           <DocumentsIcon />
+                          <span>Full Documents</span>
                         </button>
                       </td>
                     </tr>
