@@ -514,6 +514,7 @@ export interface DdTrackerEntryInput {
   readinessDate?: string | null;
   exStock?: string | null;
   supplyConfirmation?: string | null;
+  supplyPort?: string | null;
   remarks?: string | null;
   invoiceType?: string | null;
 }

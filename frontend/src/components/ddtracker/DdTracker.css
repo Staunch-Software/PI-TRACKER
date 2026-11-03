@@ -208,8 +208,9 @@
 }
 
 /* ── Cell-level editing ───────────────────────────────────────────────────────────────
-   No row Actions column: double-clicking an editable cell turns just that cell into an input
-   with its own inline Save/Cancel, instead of the whole row. */
+   No row Actions column, no Save/Cancel buttons either: double-clicking an editable cell turns
+   just that cell into an input, and clicking anywhere outside it commits the edit automatically
+   (see handleCellBlur in DdTrackerTable.tsx) — Enter saves and Escape cancels explicitly. */
 .dd-tracker-editable-cell {
   cursor: pointer;
 }
@@ -253,22 +254,17 @@ td:has(> .dd-tracker-cell-edit) {
   border-color: #0f4c81;
   box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15);
 }
+/* Brief feedback while the auto-save-on-blur PATCH is in flight (no Save button left to show a
+   "…" label on). */
+.dd-tracker-cell-edit.dd-tracker-cell-saving input {
+  opacity: 0.6;
+}
 .dd-tracker-cell-edit .searchable-select-trigger {
   flex: 1;
-  width: auto; /* overrides its own width:100%, which otherwise fills the whole cell and pushes
-                  the Save/Cancel buttons that follow it in this flex row out of view */
+  width: auto; /* overrides its own width:100%, which otherwise fills the whole cell */
   min-width: 70px;
   height: 32px;
   border-color: #0f4c81;
-}
-/* Smaller than the default 32px icon-btn (global.css) — these two always share a narrow cell
-   with a text/date input or a SearchableSelect trigger, confirmed live that the default size
-   pushed them past the cell's own width and off-screen/clipped entirely. */
-.dd-tracker-cell-edit .icon-btn {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  font-size: 11px;
 }
 
 /* ── Grouped header strip (Unified Executive Marine Theme) ──────────────────────────────
@@ -395,6 +391,21 @@ tr:hover .dd-tracker-editable-cell {
 .dd-tracker-editable-cell:hover {
   background: #cfe4f5 !important;
   box-shadow: inset 0 0 0 1.5px #0f4c81 !important;
+}
+
+/* ── Proforma Invoice row highlight ────────────────────────────────────────────────────
+   Makes a row stand out at a glance once its Invoice Type is set to "Proforma Invoice" —
+   covers the sticky S.No cell and editable-cell cells too (both of those set their own
+   background with !important elsewhere in this file, so this needs to win over them here). */
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma td,
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma td.sticky-col,
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma td.dd-tracker-editable-cell {
+  background: #FEF3C7 !important;
+}
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma:hover td,
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma:hover td.sticky-col,
+.dd-tracker-page table.data-table tbody tr.dd-tracker-row-proforma:hover td.dd-tracker-editable-cell {
+  background: #FDE68A !important;
 }
 
 /* ── Gutter wrapper behind header scroll container ─────────────────────────────────── */

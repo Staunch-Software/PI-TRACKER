@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
+import { useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -113,7 +113,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Requisition',
     renderCell: (e) => e.requisitionNo ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.requisitionNo} onChange={(ev) => onChange('requisitionNo', ev.target.value)} />
+      <input autoFocus value={form.requisitionNo} onChange={(ev) => onChange('requisitionNo', ev.target.value)} />
     ),
   },
   prStatus: {
@@ -126,7 +126,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Purchase Order',
     renderCell: (e) => e.poNo ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.poNo} onChange={(ev) => onChange('poNo', ev.target.value)} />
+      <input autoFocus value={form.poNo} onChange={(ev) => onChange('poNo', ev.target.value)} />
     ),
   },
   poStatus: {
@@ -139,7 +139,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'General',
     renderCell: (e) => e.title ?? e.poTitle ?? e.prTitle ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.title} onChange={(ev) => onChange('title', ev.target.value)} />
+      <input autoFocus value={form.title} onChange={(ev) => onChange('title', ev.target.value)} />
     ),
   },
   vendor: {
@@ -163,13 +163,16 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Supply Port',
     group: 'Purchase Order',
     renderCell: (e) => e.poSchdDelPort ?? '—',
+    renderEditCell: ({ form, onChange }) => (
+      <input autoFocus value={form.supplyPort} onChange={(ev) => onChange('supplyPort', ev.target.value)} />
+    ),
   },
   orderStatus: {
     label: 'Order Status',
     group: 'Tracking',
     renderCell: (e) => e.orderStatus ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.orderStatus} onChange={(ev) => onChange('orderStatus', ev.target.value)} />
+      <input autoFocus value={form.orderStatus} onChange={(ev) => onChange('orderStatus', ev.target.value)} />
     ),
   },
   leadDays: {
@@ -188,7 +191,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     cellClassName: 'col-center',
     renderCell: (e) => formatDate(e.readinessDate),
     renderEditCell: ({ form, onChange }) => (
-      <input type="date" value={form.readinessDate} onChange={(ev) => onChange('readinessDate', ev.target.value)} />
+      <input autoFocus type="date" value={form.readinessDate} onChange={(ev) => onChange('readinessDate', ev.target.value)} />
     ),
   },
   exStock: {
@@ -196,7 +199,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Tracking',
     renderCell: (e) => e.exStock ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.exStock} onChange={(ev) => onChange('exStock', ev.target.value)} />
+      <input autoFocus value={form.exStock} onChange={(ev) => onChange('exStock', ev.target.value)} />
     ),
   },
   supplyConfirmation: {
@@ -204,7 +207,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Tracking',
     renderCell: (e) => e.supplyConfirmation ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.supplyConfirmation} onChange={(ev) => onChange('supplyConfirmation', ev.target.value)} />
+      <input autoFocus value={form.supplyConfirmation} onChange={(ev) => onChange('supplyConfirmation', ev.target.value)} />
     ),
   },
   remarks: {
@@ -212,7 +215,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Tracking',
     renderCell: (e) => e.remarks ?? '—',
     renderEditCell: ({ form, onChange }) => (
-      <input value={form.remarks} onChange={(ev) => onChange('remarks', ev.target.value)} />
+      <input autoFocus value={form.remarks} onChange={(ev) => onChange('remarks', ev.target.value)} />
     ),
   },
   // Invoice Number/Amount/Currency/Status are live-joined from smartpal_invoice_entries by PO
@@ -376,6 +379,12 @@ export function DdTrackerTable({
   const draggedKeyRef = useRef<ReorderableColumnKey | null>(null);
   const resizeStateRef = useRef<{ key: ReorderableColumnKey; startX: number; startWidth: number } | null>(null);
   const [dragOverKey, setDragOverKey] = useState<ReorderableColumnKey | null>(null);
+  // Enter/Escape already call onSaveEdit/onCancelEdit explicitly — both also cause the cell's
+  // input to lose focus a moment later (Escape unmounts the cell, Enter often blurs natively),
+  // which would otherwise fire onBlur's own save a second time (harmless but wasteful for Enter,
+  // and would wrongly re-save over a cancel for Escape). Suppresses exactly that one follow-up
+  // blur.
+  const suppressBlurRef = useRef(false);
 
   function syncHeaderScroll(e: UIEvent<HTMLDivElement>) {
     if (headerScrollRef.current) {
@@ -427,9 +436,35 @@ export function DdTrackerTable({
   function handleCellKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      suppressBlurRef.current = true;
       onSaveEdit();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      suppressBlurRef.current = true;
+      onCancelEdit();
+    }
+  }
+
+  // Click-outside-to-save: the cell's own Save/Cancel buttons are gone — editing a cell and then
+  // clicking anywhere else (another cell, the page background) commits it immediately.
+  function handleCellBlur(e: FocusEvent<HTMLDivElement>) {
+    if (suppressBlurRef.current) {
+      suppressBlurRef.current = false;
+      return;
+    }
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      onSaveEdit();
+    }
+  }
+
+  // Dropdown (immediateCommit) cells already save the instant a value is picked — clicking away
+  // without picking anything should just close the cell, not re-trigger a save.
+  function handleImmediateCellBlur(e: FocusEvent<HTMLDivElement>) {
+    if (suppressBlurRef.current) {
+      suppressBlurRef.current = false;
+      return;
+    }
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       onCancelEdit();
     }
   }
@@ -586,7 +621,7 @@ export function DdTrackerTable({
               const editCtx: EditCellCtx | null =
                 isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave } : null;
               return (
-                <tr key={entry.id}>
+                <tr key={entry.id} className={entry.invoiceType === 'Proforma Invoice' ? 'dd-tracker-row-proforma' : undefined}>
                   <td className="sticky-col col-dpr col-dpr-noactions">{rowNumber}</td>
                   {columnOrder.map((key, idx) => {
                     const def = COLUMNS[key];
@@ -598,7 +633,7 @@ export function DdTrackerTable({
                       if (def.immediateCommit) {
                         return (
                           <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
-                            <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate">
+                            <div className="dd-tracker-cell-edit dd-tracker-cell-edit-immediate" onBlur={handleImmediateCellBlur}>
                               {def.renderEditCell!(editCtx)}
                             </div>
                           </td>
@@ -606,12 +641,12 @@ export function DdTrackerTable({
                       }
                       return (
                         <td key={key} className={[def.cellClassName, isLastInGroup ? 'group-boundary' : undefined].filter(Boolean).join(' ') || undefined}>
-                          <div className="dd-tracker-cell-edit" onKeyDown={handleCellKeyDown}>
+                          <div
+                            className={`dd-tracker-cell-edit${isSavingEdit ? ' dd-tracker-cell-saving' : ''}`}
+                            onKeyDown={handleCellKeyDown}
+                            onBlur={handleCellBlur}
+                          >
                             {def.renderEditCell!(editCtx)}
-                            <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveEdit} disabled={isSavingEdit}>
-                              {isSavingEdit ? '…' : '✓'}
-                            </button>
-                            <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelEdit}>×</button>
                           </div>
                         </td>
                       );

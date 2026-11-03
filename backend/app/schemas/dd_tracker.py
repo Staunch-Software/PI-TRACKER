@@ -18,6 +18,7 @@ _MANUAL_TEXT_FIELDS = (
     "order_status",
     "ex_stock",
     "supply_confirmation",
+    "supply_port",
     "remarks",
     "invoice_type",
 )
@@ -44,6 +45,7 @@ class DdTrackerEntryCreate(_TextFieldsMixin):
     readiness_date: date | None = None
     ex_stock: str | None = Field(default=None, max_length=_TEXT_MAX)
     supply_confirmation: str | None = Field(default=None, max_length=_TEXT_MAX)
+    supply_port: str | None = Field(default=None, max_length=_TEXT_MAX)
     remarks: str | None = Field(default=None, max_length=_TEXT_MAX)
     invoice_type: str | None = Field(default=None, max_length=_TEXT_MAX)
 

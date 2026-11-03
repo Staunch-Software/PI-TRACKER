@@ -14,6 +14,7 @@ export interface DdTrackerFormState {
   readinessDate: string;
   exStock: string;
   supplyConfirmation: string;
+  supplyPort: string;
   remarks: string;
   invoiceType: string;
 }
@@ -30,6 +31,7 @@ export function blankDdTrackerForm(): DdTrackerFormState {
     readinessDate: '',
     exStock: '',
     supplyConfirmation: '',
+    supplyPort: '',
     remarks: '',
     invoiceType: '',
   };
@@ -47,6 +49,9 @@ export function ddTrackerFormFromEntry(entry: DdTrackerEntry): DdTrackerFormStat
     readinessDate: entry.readinessDate ?? '',
     exStock: entry.exStock ?? '',
     supplyConfirmation: entry.supplyConfirmation ?? '',
+    // Prefills from the already-merged live-or-override display value, same as what's shown in
+    // the cell — whatever the user edits becomes the stored override (see dd_tracker.py).
+    supplyPort: entry.poSchdDelPort ?? '',
     remarks: entry.remarks ?? '',
     invoiceType: entry.invoiceType ?? '',
   };
@@ -64,6 +69,7 @@ export function toDdTrackerPayload(form: DdTrackerFormState): DdTrackerEntryInpu
     readinessDate: form.readinessDate || null,
     exStock: form.exStock.trim() || null,
     supplyConfirmation: form.supplyConfirmation.trim() || null,
+    supplyPort: form.supplyPort.trim() || null,
     remarks: form.remarks.trim() || null,
     invoiceType: form.invoiceType.trim() || null,
   };

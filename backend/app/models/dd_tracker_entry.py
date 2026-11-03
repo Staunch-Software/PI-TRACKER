@@ -65,6 +65,11 @@ class DdTrackerEntry(Base):
     readiness_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     ex_stock: Mapped[str | None] = mapped_column(Text, nullable=True)
     supply_confirmation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Overrides the live po_entries.schd_del_port value when set — the team can correct/fill in
+    # a Supply Port the PO scrape got wrong or never had, without losing the live join entirely;
+    # see api/routes/dd_tracker.py's _to_out, which falls back to the live PO value when this is
+    # null.
+    supply_port: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     invoice_type: Mapped[str | None] = mapped_column(Text, nullable=True)
 

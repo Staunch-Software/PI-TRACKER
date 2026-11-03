@@ -75,7 +75,7 @@ def _to_out(
         po_base_amount=po.base_amount if po else None,
         po_base_currency=po.base_currency if po else None,
         po_confirmed_date=po.approved_date if po else None,
-        po_schd_del_port=po.schd_del_port if po else None,
+        po_schd_del_port=entry.supply_port or (po.schd_del_port if po else None),
         po_agent_name=po.agent_name if po else None,
         po_warehouse_name=po.warehouse_name if po else None,
         po_grn_nos=po.grn_nos if po else None,
