@@ -79,3 +79,10 @@ class DdTrackerEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    # Soft delete (2026-11-04): the row is kept, not dropped, when the team deletes an entry from
+    # the UI — this is what stops the scraper's own dedup check in
+    # _sync_dd_tracker_entries(requisition_no/po_no "already tracked" lookup) from silently
+    # re-creating a row the team deliberately removed. api/routes/dd_tracker.py filters every read
+    # (list, vessel-options) on deleted_at IS NULL; the scraper deliberately does NOT.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

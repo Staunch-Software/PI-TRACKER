@@ -130,3 +130,11 @@ class PoLookupResult(CamelModel):
     vendor: str | None
     req_category: str | None
     approved_status: str | None
+
+
+class DdTrackerBulkDeleteRequest(CamelModel):
+    ids: list[uuid.UUID] = Field(min_length=1)
+
+
+class DdTrackerBulkDeleteResult(CamelModel):
+    deleted_count: int

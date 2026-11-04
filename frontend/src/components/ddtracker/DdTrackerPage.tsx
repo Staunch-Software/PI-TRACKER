@@ -13,6 +13,7 @@ import {
 import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
+import { TrashIcon } from '../common/TrashIcon';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
 
 import '../../pages/Tracker.css';
@@ -177,7 +178,8 @@ export function DdTrackerPage() {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newRowForm, setNewRowForm] = useState<DdTrackerFormState>(blankDdTrackerForm());
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<DdTrackerEntry | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
 
   const queryClient = useQueryClient();
   const initializedRef = useRef(false);
@@ -248,6 +250,26 @@ export function DdTrackerPage() {
   });
 
   const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / pageSize)) : 1;
+  const entries = entriesQuery.data?.items ?? [];
+
+  // Selection is scoped to whatever's currently loaded (the current page/filter) — any change to
+  // which rows are visible invalidates it, so a checkbox never silently refers to a row that's
+  // since scrolled off-screen under a different filter/page/sort.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [search, selectedVessel, sortBy, sortDir, page, pageSize]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === entries.length ? new Set() : new Set(entries.map((e) => e.id))));
+  }
 
   function handleSort(column: SortColumn) {
     if (sortBy === column) {
@@ -341,16 +363,17 @@ export function DdTrackerPage() {
     onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to add DD Tracker entry.'),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (entry: DdTrackerEntry) => api.delete(`/dd-tracker/${entry.id}`),
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post<{ deletedCount: number }>('/dd-tracker/bulk-delete', { ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
       queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
-      setDeleting(null);
+      setSelectedIds(new Set());
+      setConfirmingBulkDelete(false);
     },
     onError: (err) => {
-      setDeleting(null);
-      setSaveError(err instanceof ApiError ? err.message : 'Failed to delete DD Tracker entry.');
+      setConfirmingBulkDelete(false);
+      setSaveError(err instanceof ApiError ? err.message : 'Failed to delete the selected DD Tracker entries.');
     },
   });
 
@@ -407,6 +430,16 @@ export function DdTrackerPage() {
         <div className="tracker-toolbar-spacer" />
         {canEdit && (
           <>
+            {selectedIds.size > 0 && (
+              <button
+                className="btn-tracker-action btn-tracker-danger"
+                onClick={() => setConfirmingBulkDelete(true)}
+                disabled={bulkDeleteMutation.isPending || layoutEditable}
+              >
+                <TrashIcon />
+                Delete Selected ({selectedIds.size})
+              </button>
+            )}
             <button
               className="btn-tracker-action btn-tracker-primary"
               onClick={startAdd}
@@ -453,7 +486,7 @@ export function DdTrackerPage() {
         <>
           <div className="tracker-table-shell">
             <DdTrackerTable
-              entries={entriesQuery.data?.items ?? []}
+              entries={entries}
               page={page}
               pageSize={pageSize}
               canEdit={canEdit}
@@ -475,10 +508,9 @@ export function DdTrackerPage() {
               onNewRowChange={handleNewRowChange}
               onSaveNew={() => saveNewMutation.mutate()}
               onCancelNew={cancelAdd}
-              onDelete={(entry) => {
-                setSaveError(null);
-                setDeleting(entry);
-              }}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
               columnOrder={columnOrder}
               columnWidths={columnWidths}
               layoutEditable={layoutEditable}
@@ -555,13 +587,13 @@ export function DdTrackerPage() {
 
       {saveError && <Toast type="error" message={saveError} onClose={() => setSaveError(null)} duration={5000} />}
 
-      {deleting && (
+      {confirmingBulkDelete && (
         <ConfirmDialog
-          title="Delete DD Tracker Entry"
-          message={`Delete the entry for ${deleting.requisitionNo || deleting.poNo || 'this row'}${deleting.vesselName ? ` (${deleting.vesselName})` : ''}? This cannot be undone.`}
-          isConfirming={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleting)}
-          onCancel={() => setDeleting(null)}
+          title="Delete DD Tracker Entries"
+          message={`Delete ${selectedIds.size} selected entr${selectedIds.size === 1 ? 'y' : 'ies'}? This cannot be undone.`}
+          isConfirming={bulkDeleteMutation.isPending}
+          onConfirm={() => bulkDeleteMutation.mutate([...selectedIds])}
+          onCancel={() => setConfirmingBulkDelete(false)}
         />
       )}
     </div>

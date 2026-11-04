@@ -16,6 +16,8 @@ from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.user import User
 from app.schemas.common import PaginatedResult
 from app.schemas.dd_tracker import (
+    DdTrackerBulkDeleteRequest,
+    DdTrackerBulkDeleteResult,
     DdTrackerEntryCreate,
     DdTrackerEntryOut,
     DdTrackerEntryUpdate,
@@ -150,7 +152,7 @@ def _filtered_query(
     sort_by: str | None,
     sort_dir: str,
 ) -> OrmQuery:
-    query = db.query(DdTrackerEntry)
+    query = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None))
 
     if search and search.strip():
         escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -234,7 +236,7 @@ def list_vessel_options(db: Session = Depends(get_db)) -> list[str]:
     table, since DD Tracker rows aren't FK'd to it."""
     rows = (
         db.query(DdTrackerEntry.vessel_name)
-        .filter(DdTrackerEntry.vessel_name.isnot(None))
+        .filter(DdTrackerEntry.vessel_name.isnot(None), DdTrackerEntry.deleted_at.is_(None))
         .distinct()
         .order_by(DdTrackerEntry.vessel_name)
         .all()
@@ -325,6 +327,26 @@ def update_dd_tracker_entry(
     return _to_out(entry, pr, po, invoice)
 
 
+@router.post("/bulk-delete", response_model=DdTrackerBulkDeleteResult)
+def bulk_delete_dd_tracker_entries(
+    payload: DdTrackerBulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(_writers),
+) -> DdTrackerBulkDeleteResult:
+    """Soft-deletes every row in payload.ids (checkbox multi-select + "Delete Selected" on the
+    table) in one round trip — see DdTrackerEntry.deleted_at. Unknown/already-deleted ids are
+    silently ignored rather than erroring the whole batch, since the selection the frontend sends
+    was read from the table a moment earlier and could only be stale, never malformed."""
+    now = datetime.now()
+    updated = (
+        db.query(DdTrackerEntry)
+        .filter(DdTrackerEntry.id.in_(payload.ids), DdTrackerEntry.deleted_at.is_(None))
+        .update({DdTrackerEntry.deleted_at: now}, synchronize_session=False)
+    )
+    db.commit()
+    return DdTrackerBulkDeleteResult(deleted_count=updated)
+
+
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_dd_tracker_entry(
     entry_id: uuid.UUID,
@@ -334,5 +356,5 @@ def delete_dd_tracker_entry(
     entry = db.get(DdTrackerEntry, entry_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DD Tracker entry not found")
-    db.delete(entry)
+    entry.deleted_at = datetime.now()
     db.commit()

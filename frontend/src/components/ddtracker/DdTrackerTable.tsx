@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, type DragEvent, type FocusEvent, type Keyb
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
-import { TrashIcon } from '../common/TrashIcon';
 import { PrPoLookupInput } from './PrPoLookupInput';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
-// Same sticky-column split as PiEntriesTable/LandingReportsTable: an Actions column (Delete; Save
-// /Cancel while adding a new row) pinned first, then S.No. There's still no row-level Edit button
-// — double-clicking an editable cell edits just that cell, with its own inline auto-save (see
+// Same sticky-column split as PiEntriesTable/LandingReportsTable: an Actions column (a per-row
+// select checkbox, used for bulk delete via the toolbar's "Delete Selected"; Save/Cancel while
+// adding a new row) pinned first, then S.No. There's still no row-level Edit button —
+// double-clicking an editable cell edits just that cell, with its own inline auto-save (see
 // DdTrackerPage). Vessel is also not a column — it's filtered via the capsule row above the table
 // instead.
 const STICKY_COL_WIDTHS = {
@@ -371,7 +371,12 @@ interface Props {
   onSaveNew: () => void;
   onCancelNew: () => void;
 
-  onDelete: (entry: DdTrackerEntry) => void;
+  // Checkbox multi-select for bulk delete (see DdTrackerPage) — selectedIds is keyed by entry.id,
+  // scoped to whatever's currently loaded (i.e. the current page), same as PirInvoiceTable's own
+  // selection pattern.
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: () => void;
 
   columnOrder: ReorderableColumnKey[];
   columnWidths: Record<string, number>;
@@ -403,7 +408,9 @@ export function DdTrackerTable({
   onNewRowChange,
   onSaveNew,
   onCancelNew,
-  onDelete,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
   columnOrder,
   columnWidths,
   layoutEditable,
@@ -595,7 +602,13 @@ export function DdTrackerTable({
             <tr className="dd-tracker-group-row">
               {canEdit && (
                 <th className="sticky-col col-actions dd-tracker-sno-header" rowSpan={2}>
-                  Actions
+                  <input
+                    type="checkbox"
+                    checked={entries.length > 0 && selectedIds.size === entries.length}
+                    onChange={onToggleSelectAll}
+                    disabled={entries.length === 0 || isAddingNew || layoutEditable}
+                    title="Select all on this page"
+                  />
                 </th>
               )}
               <th
@@ -673,16 +686,12 @@ export function DdTrackerTable({
                 <tr key={entry.id} className={entry.invoiceType === 'Proforma Invoice' ? 'dd-tracker-row-proforma' : undefined}>
                   {canEdit && (
                     <td className="sticky-col col-actions">
-                      <div className="row-actions">
-                        <button
-                          className="icon-btn icon-btn-danger"
-                          title="Delete"
-                          onClick={() => onDelete(entry)}
-                          disabled={editingId !== null || isAddingNew || layoutEditable}
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(entry.id)}
+                        onChange={() => onToggleSelect(entry.id)}
+                        disabled={isAddingNew || layoutEditable}
+                      />
                     </td>
                   )}
                   <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{rowNumber}</td>
