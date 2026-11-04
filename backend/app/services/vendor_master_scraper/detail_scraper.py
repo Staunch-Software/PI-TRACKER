@@ -58,7 +58,29 @@ def _open_vendor(page, vendor_code: str) -> bool:
     page.wait_for_timeout(2000)
 
     try:
-        page.locator(f"a:has-text('{vendor_code}')").first.click(timeout=10000)
+        link = page.locator(f"a:has-text('{vendor_code}')")
+        match_count = link.count()
+        if match_count == 0:
+            # Added 2026-11-04 diagnosing the bulk scrape's persistent 8-vendor failure set
+            # (CHIL/DR/Everllence/MARI/OCE/SAND/TAJ/UPI, same set across two independent runs):
+            # their own vendor_code has no leading/trailing whitespace or casing issue in our DB
+            # (confirmed by a direct repr() query), so the mismatch must be on SmartPAL's side —
+            # either the Code filter isn't matching these particular rows, or the grid renders
+            # something other than the bare code as link text for them. Logging the actual grid
+            # row count + a snippet of its text lets the next run's log say exactly which, instead
+            # of just "timeout" again.
+            try:
+                row_texts = page.locator("table tbody tr").all_inner_texts()[:5]
+            except Exception:
+                row_texts = []
+            log.warning(
+                f"[VENDOR]   Code filter for {vendor_code!r} found 0 matching link(s) on the grid. "
+                f"First few grid rows' text: {row_texts!r}"
+            )
+            return False
+        if match_count > 1:
+            log.warning(f"[VENDOR]   Code filter for {vendor_code!r} matched {match_count} links — clicking the first.")
+        link.first.click(timeout=10000)
     except Exception as e:
         log.warning(f"[VENDOR]   Could not open vendor {vendor_code!r} from the grid: {e}")
         return False
