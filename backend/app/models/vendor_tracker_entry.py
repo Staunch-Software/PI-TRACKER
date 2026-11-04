@@ -40,6 +40,14 @@ class VendorTrackerEntry(Base):
 
     vendor_code: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
 
+    # Classification only — confirmed with the user 2026-11-04: "All Vendors" and "DD Vendors" in
+    # the UI are the SAME underlying rows, not two datasets. This flag is the only thing that
+    # distinguishes them; every other column here is shared regardless of its value. A row can
+    # exist with this False (created lazily the first time any action is taken on a vendor from
+    # the All Vendors tab — see api/routes/vendor_management.py's ensure-tracking endpoint) and
+    # later flip True via "+ Add DD Vendor" without losing any of its tracked state.
+    is_dd_vendor: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # ── Bank-details-request workflow ───────────────────────────────────────────────────────
     bank_details_status: Mapped[str] = mapped_column(Text, nullable=False, default="missing")
     bank_request_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -49,7 +57,11 @@ class VendorTrackerEntry(Base):
     bank_details_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     bank_details_updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
-    # ── Manually-keyed bank field overrides — see docstring above for why these duplicate ───
+    # ── Manually-keyed bank field overrides ─────────────────────────────────────────────────
+    # Retired 2026-11-04: nothing writes to these anymore (the "Enter/Edit Bank Fields" UI was
+    # removed in favor of relying solely on vendor_bank_details, SmartPAL's own scraped Bank
+    # Details tab — see bank_details_in_pal_complete/_missing_fields on VendorTrackerEntryOut).
+    # Columns kept rather than dropped to avoid a destructive migration; safe to remove later.
     bank_beneficiary_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     bank_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     bank_branch_name: Mapped[str | None] = mapped_column(Text, nullable=True)

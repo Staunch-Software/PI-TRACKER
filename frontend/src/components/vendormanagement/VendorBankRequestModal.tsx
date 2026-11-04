@@ -1,13 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { VendorBankRequestPreview, VendorTrackerEntry } from '../../shared';
+import type { TrackedVendorEntry, VendorBankRequestPreview } from '../../shared';
 import { Toast } from '../common/Toast';
 
 interface Props {
-  entry: VendorTrackerEntry;
+  entry: TrackedVendorEntry;
   onSent: () => void;
   onClose: () => void;
+}
+
+// Comma/semicolon/whitespace-separated email list -> trimmed, deduped, non-empty array. Shared
+// shape with VendorVerificationReminderModal's own To/Cc fields.
+function parseEmailList(raw: string): string[] {
+  const seen = new Set<string>();
+  for (const part of raw.split(/[,;\s]+/)) {
+    const email = part.trim();
+    if (email) seen.add(email);
+  }
+  return [...seen];
 }
 
 // Fixed sender options authorized for bank details requests
@@ -86,6 +97,8 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
   const [subject, setSubject] = useState('');
   const [plainBody, setPlainBody] = useState('');
   const [fromMailbox, setFromMailbox] = useState(FROM_OPTIONS[0].email);
+  const [to, setTo] = useState('');
+  const [cc, setCc] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'edit'>('preview');
   const [error, setError] = useState<string | null>(null);
 
@@ -99,12 +112,19 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
       setSubject(previewQuery.data.subject);
       // Convert backend HTML draft into natural plain text for normal users
       setPlainBody(htmlToPlainText(previewQuery.data.body));
+      setTo(previewQuery.data.toEmail);
+      setCc(previewQuery.data.ccEmails.join(', '));
     }
   }, [previewQuery.data]);
+
+  const toList = parseEmailList(to);
+  const ccList = parseEmailList(cc);
 
   const sendMutation = useMutation({
     mutationFn: () =>
       api.post(`/vendor-management/${entry.id}/send-bank-request`, {
+        to: toList,
+        cc: ccList,
         subject,
         body: plainTextToHtml(plainBody),
         fromMailbox,
@@ -114,7 +134,6 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
   });
 
   const vendorDisplayName = entry.vendorName ?? entry.vendorCode;
-  const toEmail = previewQuery.data?.toEmail ?? entry.vendorEmail ?? '';
 
   function handleResetTemplate() {
     if (previewQuery.data?.body) {
@@ -224,17 +243,33 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
                     To
                   </span>
                   <div className="vendor-bank-composer-field">
-                    {toEmail ? (
-                      <div className="vendor-bank-recipient-chip">
-                        <span className="vendor-bank-recipient-dot" />
-                        <span className="vendor-bank-recipient-email">{toEmail}</span>
-                        <span className="vendor-bank-recipient-tag">SmartPAL Master</span>
-                      </div>
-                    ) : (
-                      <div className="vendor-bank-recipient-warning">
-                        ⚠️ No email on file in SmartPAL for this vendor.
-                      </div>
-                    )}
+                    <input
+                      type="text"
+                      className="vendor-bank-input"
+                      value={to}
+                      placeholder="recipient@example.com"
+                      onChange={(e) => setTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Cc Row */}
+                <div className="vendor-bank-composer-row">
+                  <span className="vendor-bank-composer-label">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                      <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                    Cc
+                  </span>
+                  <div className="vendor-bank-composer-field">
+                    <input
+                      type="text"
+                      className="vendor-bank-input"
+                      value={cc}
+                      placeholder="cc@example.com (optional, comma-separated)"
+                      onChange={(e) => setCc(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -364,7 +399,7 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
                 sendMutation.isPending ||
                 !subject.trim() ||
                 !plainBody.trim() ||
-                !toEmail
+                toList.length === 0
               }
               onClick={() => sendMutation.mutate()}
             >

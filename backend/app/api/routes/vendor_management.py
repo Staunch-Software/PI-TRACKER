@@ -8,6 +8,7 @@ from app.api.deps import require_module_access, require_roles
 from app.core.enums import AuditAction, AuditEntityType, BankDetailsStatus, UserRole
 from app.db.session import get_db
 from app.models.user import User
+from app.models.vendor_bank_attachment import VendorBankAttachment
 from app.models.vendor_bank_detail import VendorBankDetail
 from app.models.vendor_master_entry import VendorMasterEntry
 from app.models.vendor_tracker_entry import VendorTrackerEntry
@@ -17,15 +18,18 @@ from app.schemas.vendor_management import (
     VendorBankRequestPreview,
     VendorBankRequestSend,
     VendorMasterLookupResult,
-    VendorTrackerEntryBankUpdate,
     VendorTrackerEntryCreate,
     VendorTrackerEntryDetailOut,
     VendorTrackerEntryOut,
+    VendorVerificationReminderPreview,
+    VendorVerificationReminderSend,
 )
 from app.services.audit import write_audit_log
-from app.services.pi_reminder_mailer import send_mail
-from app.services.pi_reminder_templates import bank_details_request_email
+from app.services.pi_reminder_mailer import ALWAYS_CC, send_mail
+from app.services.pi_reminder_templates import bank_details_request_email, verification_reminder_email
 from app.services.vendor_master_scraper.detail_scraper import scrape_vendor_detail
+
+VERIFICATION_REMINDER_DEFAULT_TO = "accountspayable@ozellar.com"
 
 # Module-level gate (can_access_vendor, Admin always passes) on every route; writes additionally
 # need Admin/Editor, same stance as every other module in this app.
@@ -83,36 +87,42 @@ def _pal_bank_completeness(bank_row: VendorBankDetail | None) -> tuple[bool, lis
 
 
 def _to_out(
-    entry: VendorTrackerEntry,
+    entry: VendorTrackerEntry | None,
     master: VendorMasterEntry | None,
     bank_row: VendorBankDetail | None,
     bank_count: int,
     db: Session,
 ) -> VendorTrackerEntryOut:
+    """entry is None for an "All Vendors" row with no vendor_tracker_entries row yet — every
+    tracker-owned field below falls back to its untracked default in that case (see
+    VendorTrackerEntryOut's nullable id/seq_no/created_at/updated_at). See
+    /vendor-management/by-vendor-code/{vendor_code}/ensure-tracking for how such a row becomes
+    real on first user action."""
     has_mandatory = bool(master and master.email and master.address and master.phone_1)
     pal_complete, pal_missing = _pal_bank_completeness(bank_row)
     return VendorTrackerEntryOut(
-        id=entry.id,
-        seq_no=entry.seq_no,
-        vendor_code=entry.vendor_code,
-        bank_details_status=entry.bank_details_status,
-        bank_request_sent_at=entry.bank_request_sent_at,
-        bank_request_sent_by_name=_actor_name(db, entry.bank_request_sent_by),
-        bank_details_received_at=entry.bank_details_received_at,
-        bank_details_received_by_name=_actor_name(db, entry.bank_details_received_by),
-        bank_details_updated_at=entry.bank_details_updated_at,
-        bank_details_updated_by_name=_actor_name(db, entry.bank_details_updated_by),
-        bank_beneficiary_name=entry.bank_beneficiary_name,
-        bank_name=entry.bank_name,
-        bank_branch_name=entry.bank_branch_name,
-        bank_account_number=entry.bank_account_number,
-        bank_iban=entry.bank_iban,
-        bank_swift_code=entry.bank_swift_code,
-        bank_verification_completed=entry.bank_verification_completed,
-        bank_verification_completed_by_name=_actor_name(db, entry.bank_verification_completed_by),
-        bank_verification_completed_at=entry.bank_verification_completed_at,
-        created_at=entry.created_at,
-        updated_at=entry.updated_at,
+        id=entry.id if entry else None,
+        seq_no=entry.seq_no if entry else None,
+        vendor_code=entry.vendor_code if entry else (master.vendor_code if master else ""),
+        is_dd_vendor=entry.is_dd_vendor if entry else False,
+        bank_details_status=entry.bank_details_status if entry else BankDetailsStatus.MISSING.value,
+        bank_request_sent_at=entry.bank_request_sent_at if entry else None,
+        bank_request_sent_by_name=_actor_name(db, entry.bank_request_sent_by) if entry else None,
+        bank_details_received_at=entry.bank_details_received_at if entry else None,
+        bank_details_received_by_name=_actor_name(db, entry.bank_details_received_by) if entry else None,
+        bank_details_updated_at=entry.bank_details_updated_at if entry else None,
+        bank_details_updated_by_name=_actor_name(db, entry.bank_details_updated_by) if entry else None,
+        bank_beneficiary_name=entry.bank_beneficiary_name if entry else None,
+        bank_name=entry.bank_name if entry else None,
+        bank_branch_name=entry.bank_branch_name if entry else None,
+        bank_account_number=entry.bank_account_number if entry else None,
+        bank_iban=entry.bank_iban if entry else None,
+        bank_swift_code=entry.bank_swift_code if entry else None,
+        bank_verification_completed=entry.bank_verification_completed if entry else False,
+        bank_verification_completed_by_name=_actor_name(db, entry.bank_verification_completed_by) if entry else None,
+        bank_verification_completed_at=entry.bank_verification_completed_at if entry else None,
+        created_at=entry.created_at if entry else None,
+        updated_at=entry.updated_at if entry else None,
         vendor_name=master.vendor_name if master else None,
         vendor_type=master.vendor_type if master else None,
         vendor_email=master.email if master else None,
@@ -129,26 +139,48 @@ def _to_out(
     )
 
 
+def _get_or_create_tracker_entry(
+    db: Session, vendor_code: str, current_user: User
+) -> tuple[VendorTrackerEntry, bool]:
+    """Returns (entry, was_created). Used by both the idempotent "+ Add DD Vendor" POST and the
+    "All Vendors" tab's ensure-tracking endpoint — the only difference between those two call
+    sites is whether is_dd_vendor gets flipped True afterward, not whether/how the row itself gets
+    created."""
+    entry = db.query(VendorTrackerEntry).filter(VendorTrackerEntry.vendor_code == vendor_code).first()
+    if entry:
+        return entry, False
+    entry = VendorTrackerEntry(vendor_code=vendor_code, created_by=current_user.id, updated_by=current_user.id)
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry, True
+
+
+def _bank_rep_map(db: Session, vendor_codes: set[str]) -> dict[str, tuple[VendorBankDetail | None, int]]:
+    """vendor_code -> (representative bank row, total row count), batch-loaded for a page of
+    vendor_codes at once — shared by the DD-only list, the All Vendors list, and anywhere else that
+    needs this for more than one vendor at a time."""
+    if not vendor_codes:
+        return {}
+    bank_rows_by_vendor: dict[str, list[VendorBankDetail]] = {}
+    for row in db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code.in_(vendor_codes)).all():
+        bank_rows_by_vendor.setdefault(row.vendor_code, []).append(row)
+    result: dict[str, tuple[VendorBankDetail | None, int]] = {}
+    for code, rows in bank_rows_by_vendor.items():
+        result[code] = (next((r for r in rows if r.is_default), rows[0]), len(rows))
+    return result
+
+
 def _attach_live_data(db: Session, entries: list[VendorTrackerEntry]) -> list[VendorTrackerEntryOut]:
     vendor_codes = {e.vendor_code for e in entries}
     masters = {
         m.vendor_code: m for m in db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code.in_(vendor_codes)).all()
     } if vendor_codes else {}
-
-    bank_rows_by_vendor: dict[str, list[VendorBankDetail]] = {}
-    if vendor_codes:
-        for row in db.query(VendorBankDetail).filter(VendorBankDetail.vendor_code.in_(vendor_codes)).all():
-            bank_rows_by_vendor.setdefault(row.vendor_code, []).append(row)
-
-    def rep_and_count(code: str) -> tuple[VendorBankDetail | None, int]:
-        rows = bank_rows_by_vendor.get(code, [])
-        if not rows:
-            return None, 0
-        return next((r for r in rows if r.is_default), rows[0]), len(rows)
+    bank_reps = _bank_rep_map(db, vendor_codes)
 
     out = []
     for e in entries:
-        rep, count = rep_and_count(e.vendor_code)
+        rep, count = bank_reps.get(e.vendor_code, (None, 0))
         out.append(_to_out(e, masters.get(e.vendor_code), rep, count, db))
     return out
 
@@ -160,7 +192,7 @@ def list_vendor_tracker_entries(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=1000),
 ) -> PaginatedResult[VendorTrackerEntryOut]:
-    query = db.query(VendorTrackerEntry)
+    query = db.query(VendorTrackerEntry).filter(VendorTrackerEntry.is_dd_vendor.is_(True))
     if search and search.strip():
         escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped}%"
@@ -170,6 +202,71 @@ def list_vendor_tracker_entries(
     total = query.count()
     rows = query.offset((page - 1) * page_size).limit(page_size).all()
     return PaginatedResult[VendorTrackerEntryOut](items=_attach_live_data(db, rows), total=total, page=page, page_size=page_size)
+
+
+@router.get("/all", response_model=PaginatedResult[VendorTrackerEntryOut])
+def list_all_vendors(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=1000),
+) -> PaginatedResult[VendorTrackerEntryOut]:
+    """Every vendor in the SmartPAL master, LEFT-joined to its vendor_tracker_entries row if one
+    exists — the "All Vendors" tab. Rows without a tracker entry yet come back with id=None; every
+    row action on the frontend calls ensure-tracking first to materialize one on demand (see
+    VendorManagementTable.tsx). Driven by VendorMasterEntry, not VendorTrackerEntry, since the
+    whole point of this tab is to show vendors that AREN'T tracked yet too."""
+    query = db.query(VendorMasterEntry)
+    if search and search.strip():
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.filter(
+            (VendorMasterEntry.vendor_code.ilike(pattern, escape="\\"))
+            | (VendorMasterEntry.vendor_name.ilike(pattern, escape="\\"))
+        )
+    query = query.order_by(VendorMasterEntry.vendor_name.asc())
+
+    total = query.count()
+    masters = query.offset((page - 1) * page_size).limit(page_size).all()
+    vendor_codes = {m.vendor_code for m in masters}
+
+    tracker_entries = {
+        e.vendor_code: e
+        for e in db.query(VendorTrackerEntry).filter(VendorTrackerEntry.vendor_code.in_(vendor_codes)).all()
+    } if vendor_codes else {}
+    bank_reps = _bank_rep_map(db, vendor_codes)
+
+    items = []
+    for m in masters:
+        rep, count = bank_reps.get(m.vendor_code, (None, 0))
+        items.append(_to_out(tracker_entries.get(m.vendor_code), m, rep, count, db))
+    return PaginatedResult[VendorTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/by-vendor-code/{vendor_code}/ensure-tracking", response_model=VendorTrackerEntryOut)
+def ensure_vendor_tracking(
+    vendor_code: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
+) -> VendorTrackerEntryOut:
+    """Get-or-create the vendor_tracker_entries row for vendor_code, WITHOUT changing is_dd_vendor
+    — called by every row action on an id-less "All Vendors" tab row before the actual action, so
+    it has a real id to act on. Defaults is_dd_vendor=False; only "+ Add DD Vendor" (create_
+    vendor_tracker_entry, below) ever sets it True."""
+    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == vendor_code).first()
+    if not master:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor not found in SmartPAL vendor master")
+
+    entry, was_created = _get_or_create_tracker_entry(db, vendor_code, current_user)
+    if was_created:
+        # See refresh_vendor_tracker_entry below for why this is cleared before scheduling.
+        master.detail_scraped_at = None
+        db.commit()
+        background_tasks.add_task(scrape_vendor_detail, vendor_code)
+
+    bank_row, bank_count = _bank_rep_row(db, vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
 
 
 @router.get("/vendor-options", response_model=list[VendorMasterLookupResult])
@@ -213,16 +310,22 @@ def create_vendor_tracker_entry(
     if not master:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor not found in SmartPAL vendor master")
 
-    existing = db.query(VendorTrackerEntry).filter(VendorTrackerEntry.vendor_code == payload.vendor_code).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This vendor is already being tracked")
+    # Idempotent "+ Add DD Vendor": a row may already exist with is_dd_vendor=False (lazily created
+    # by an action taken on this vendor from the All Vendors tab, see ensure_vendor_tracking above)
+    # — promote it instead of 409ing, since from the user's perspective they're just now
+    # classifying an already-tracked vendor as DD, not creating a duplicate.
+    entry, was_created = _get_or_create_tracker_entry(db, payload.vendor_code, current_user)
+    if not entry.is_dd_vendor:
+        entry.is_dd_vendor = True
+        entry.updated_by = current_user.id
+        db.commit()
+        db.refresh(entry)
 
-    entry = VendorTrackerEntry(vendor_code=payload.vendor_code, created_by=current_user.id, updated_by=current_user.id)
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
-
-    background_tasks.add_task(scrape_vendor_detail, payload.vendor_code)
+    if was_created:
+        # See refresh_vendor_tracker_entry below for why this is cleared before scheduling.
+        master.detail_scraped_at = None
+        db.commit()
+        background_tasks.add_task(scrape_vendor_detail, payload.vendor_code)
 
     bank_row, bank_count = _bank_rep_row(db, payload.vendor_code)
     return _to_out(entry, master, bank_row, bank_count, db)
@@ -239,46 +342,18 @@ def refresh_vendor_tracker_entry(
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
 
+    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
+    # Clear BEFORE scheduling the background scrape (not after it finishes) — detail_scrape_pending
+    # is computed as `not master.detail_scraped_at`, so clearing it here is what makes the
+    # response below (and the frontend's refetchInterval polling, which only re-engages while any
+    # row is pending) immediately reflect "refreshing" instead of silently showing stale data until
+    # a manual page reload. Fixed 2026-11-04 — see plan.
+    if master:
+        master.detail_scraped_at = None
+        db.commit()
+
     background_tasks.add_task(scrape_vendor_detail, entry.vendor_code)
 
-    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
-    return _to_out(entry, master, bank_row, bank_count, db)
-
-
-@router.patch("/{entry_id}/bank-details", response_model=VendorTrackerEntryOut)
-def update_bank_details(
-    entry_id: uuid.UUID,
-    payload: VendorTrackerEntryBankUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(_writers),
-) -> VendorTrackerEntryOut:
-    entry = db.get(VendorTrackerEntry, entry_id)
-    if not entry:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
-
-    # Normally gated on having gone through the request/receive workflow — but when SmartPAL
-    # already has the vendor's bank details on file, there's nothing to request, so keying in the
-    # verified fields is allowed straight away (see Verified Bank Fields column: the Send
-    # Request/Mark Received buttons only appear when PAL has none).
-    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
-    pal_complete, _ = _pal_bank_completeness(bank_row)
-    if entry.bank_details_status not in (BankDetailsStatus.RECEIVED.value, BankDetailsStatus.UPDATED.value) and not pal_complete:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mark the vendor's bank details as received before keying them in.",
-        )
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(entry, field, value)
-    entry.bank_details_status = BankDetailsStatus.UPDATED.value
-    entry.bank_details_updated_at = datetime.now()
-    entry.bank_details_updated_by = current_user.id
-    entry.updated_by = current_user.id
-    db.commit()
-    db.refresh(entry)
-
-    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
     bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
     return _to_out(entry, master, bank_row, bank_count, db)
 
@@ -298,8 +373,10 @@ def get_bank_request_preview(entry_id: uuid.UUID, db: Session = Depends(get_db))
             detail="This vendor has no email address on file in SmartPAL.",
         )
 
-    subject, body = bank_details_request_email(vendor_name=master.vendor_name or entry.vendor_code)
-    return VendorBankRequestPreview(to_email=master.email, subject=subject, body=body)
+    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
+    _, pal_missing = _pal_bank_completeness(bank_row)
+    subject, body = bank_details_request_email(vendor_name=master.vendor_name or entry.vendor_code, missing_fields=pal_missing)
+    return VendorBankRequestPreview(to_email=master.email, cc_emails=list(ALWAYS_CC), subject=subject, body=body)
 
 
 @router.post("/{entry_id}/send-bank-request", response_model=VendorTrackerEntryOut)
@@ -314,11 +391,8 @@ def send_bank_request(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
 
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
-    if not master or not master.email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This vendor has no email address on file in SmartPAL.",
-        )
+    if not master:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This vendor was not found in SmartPAL.")
 
     from_mailbox = payload.from_mailbox.strip().lower()
     sender_name = BANK_REQUEST_SENDERS.get(from_mailbox)
@@ -326,7 +400,7 @@ def send_bank_request(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown sender mailbox.")
 
     try:
-        send_mail([master.email], payload.subject, payload.body, from_mailbox=from_mailbox)
+        send_mail(payload.to, payload.subject, payload.body, from_mailbox=from_mailbox, cc_emails=payload.cc)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
 
@@ -342,12 +416,74 @@ def send_bank_request(
         entity_id=entry.id,
         action=AuditAction.SENT_BANK_REQUEST,
         changed_by=current_user.id,
-        summary=f"{current_user.full_name} sent a bank details request to {master.vendor_name or entry.vendor_code} ({master.email}) from {sender_name}",
+        summary=f"{current_user.full_name} sent a bank details request to {master.vendor_name or entry.vendor_code} ({', '.join(payload.to)}) from {sender_name}",
     )
     db.commit()
     db.refresh(entry)
 
     bank_row, bank_count = _bank_rep_row(db, entry.vendor_code)
+    return _to_out(entry, master, bank_row, bank_count, db)
+
+
+@router.get("/{entry_id}/verification-reminder-preview", response_model=VendorVerificationReminderPreview)
+def get_verification_reminder_preview(entry_id: uuid.UUID, db: Session = Depends(get_db)) -> VendorVerificationReminderPreview:
+    """Drafted subject/body for the "Send Verification Reminder" preview modal. Only meaningful
+    once SmartPAL's bank row is complete — matches the frontend's disabled-button gate, enforced
+    again here since this is also where the recipient/body actually get built."""
+    entry = db.get(VendorTrackerEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
+
+    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
+    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
+    pal_complete, pal_missing = _pal_bank_completeness(bank_row)
+    if not pal_complete:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
+        )
+
+    subject, body = verification_reminder_email(vendor_name=master.vendor_name if master else entry.vendor_code, bank_row=bank_row)
+    return VendorVerificationReminderPreview(to_email=VERIFICATION_REMINDER_DEFAULT_TO, cc_emails=[], subject=subject, body=body)
+
+
+@router.post("/{entry_id}/send-verification-reminder", response_model=VendorTrackerEntryOut)
+def send_verification_reminder(
+    entry_id: uuid.UUID,
+    payload: VendorVerificationReminderSend,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
+) -> VendorTrackerEntryOut:
+    entry = db.get(VendorTrackerEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
+
+    master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
+    bank_row, _ = _bank_rep_row(db, entry.vendor_code)
+    pal_complete, pal_missing = _pal_bank_completeness(bank_row)
+    if not pal_complete:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
+        )
+
+    try:
+        send_mail(payload.to, payload.subject, payload.body, cc_emails=payload.cc)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
+
+    write_audit_log(
+        db,
+        entity_type=AuditEntityType.VENDOR_TRACKER_ENTRY,
+        entity_id=entry.id,
+        action=AuditAction.SENT_VERIFICATION_REMINDER,
+        changed_by=current_user.id,
+        summary=f"{current_user.full_name} sent a bank verification reminder for {master.vendor_name if master else entry.vendor_code} to {', '.join(payload.to)}",
+    )
+    db.commit()
+    db.refresh(entry)
+
+    bank_count = _bank_rep_row(db, entry.vendor_code)[1]
     return _to_out(entry, master, bank_row, bank_count, db)
 
 
@@ -392,6 +528,19 @@ def mark_verification_completed(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
+        )
+
+    # Mandatory supporting attachment (confirmed 2026-11-04) — the frontend's
+    # VendorVerificationCompleteModal requires picking a file before it will even call this
+    # endpoint, but this check is the real enforcement: it holds even if something else ever calls
+    # this endpoint directly.
+    attachment_count = (
+        db.query(VendorBankAttachment).filter(VendorBankAttachment.vendor_tracker_entry_id == entry.id).count()
+    )
+    if attachment_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload a bank attachment before marking verification complete.",
         )
 
     entry.bank_verification_completed = True

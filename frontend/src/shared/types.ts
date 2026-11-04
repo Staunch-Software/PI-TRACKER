@@ -551,11 +551,15 @@ export interface VendorMasterLookupResult {
   state: string | null;
 }
 
-// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut.
+// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut. id/seqNo/createdAt/
+// updatedAt are null for an "All Vendors" tab row with no vendor_tracker_entries row yet — every
+// row action lazily materializes one via ensure-tracking on first use (see
+// VendorManagementPage.tsx's ensureTrackingId). A "DD Vendors" tab row always has real values.
 export interface VendorTrackerEntry {
-  id: string;
-  seqNo: number;
+  id: string | null;
+  seqNo: number | null;
   vendorCode: string;
+  isDdVendor: boolean;
 
   bankDetailsStatus: string;
   bankRequestSentAt: string | null;
@@ -576,8 +580,8 @@ export interface VendorTrackerEntry {
   bankVerificationCompletedByName: string | null;
   bankVerificationCompletedAt: string | null;
 
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 
   // Live-joined from vendor_master_entries by vendorCode — null until the on-demand detail
   // scrape completes (see detailScrapePending).
@@ -597,8 +601,27 @@ export interface VendorTrackerEntry {
   bankDetailsInPalMissingFields: string[];
 }
 
+// A VendorTrackerEntry known to have a real backing vendor_tracker_entries row — used by every
+// modal/action that needs an id to call its endpoint (Bank Request, Verification Reminder,
+// Verification Complete). The "All Vendors" tab's id-less rows are narrowed to this via
+// ensureTrackingId (VendorManagementPage.tsx) before any such modal opens.
+export type TrackedVendorEntry = VendorTrackerEntry & {
+  id: string;
+  seqNo: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export interface VendorBankRequestPreview {
   toEmail: string;
+  ccEmails: string[];
+  subject: string;
+  body: string;
+}
+
+export interface VendorVerificationReminderPreview {
+  toEmail: string;
+  ccEmails: string[];
   subject: string;
   body: string;
 }
@@ -606,16 +629,6 @@ export interface VendorBankRequestPreview {
 // Request body for adding a vendor to the tracker.
 export interface VendorTrackerEntryCreateInput {
   vendorCode: string;
-}
-
-// Request body for keying in the manually-reviewed bank fields.
-export interface VendorTrackerEntryBankUpdateInput {
-  bankBeneficiaryName?: string | null;
-  bankName?: string | null;
-  bankBranchName?: string | null;
-  bankAccountNumber?: string | null;
-  bankIban?: string | null;
-  bankSwiftCode?: string | null;
 }
 
 // Mirrors backend/app/schemas/vendor_management.py VendorBankDetailOut — a single SmartPAL Bank

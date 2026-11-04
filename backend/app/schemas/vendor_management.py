@@ -1,30 +1,11 @@
 import uuid
 from datetime import datetime
 
-from pydantic import Field, field_validator
+from pydantic import EmailStr, Field
 
 from app.schemas.base import CamelModel
 
 _TEXT_MAX = 500
-
-_MANUAL_TEXT_FIELDS = (
-    "bank_beneficiary_name",
-    "bank_name",
-    "bank_branch_name",
-    "bank_account_number",
-    "bank_iban",
-    "bank_swift_code",
-)
-
-
-class _TextFieldsMixin(CamelModel):
-    # Blank/whitespace-only text is stored as NULL, same convention as DdTrackerEntry.
-    @field_validator(*_MANUAL_TEXT_FIELDS, mode="before", check_fields=False)
-    @classmethod
-    def _strip_text(cls, value):
-        if isinstance(value, str):
-            return value.strip() or None
-        return value
 
 
 class VendorMasterLookupResult(CamelModel):
@@ -40,15 +21,6 @@ class VendorMasterLookupResult(CamelModel):
 
 class VendorTrackerEntryCreate(CamelModel):
     vendor_code: str = Field(min_length=1, max_length=_TEXT_MAX)
-
-
-class VendorTrackerEntryBankUpdate(_TextFieldsMixin):
-    bank_beneficiary_name: str | None = Field(default=None, max_length=_TEXT_MAX)
-    bank_name: str | None = Field(default=None, max_length=_TEXT_MAX)
-    bank_branch_name: str | None = Field(default=None, max_length=_TEXT_MAX)
-    bank_account_number: str | None = Field(default=None, max_length=_TEXT_MAX)
-    bank_iban: str | None = Field(default=None, max_length=_TEXT_MAX)
-    bank_swift_code: str | None = Field(default=None, max_length=_TEXT_MAX)
 
 
 class VendorBankDetailOut(CamelModel):
@@ -68,9 +40,13 @@ class VendorBankDetailOut(CamelModel):
 
 
 class VendorTrackerEntryOut(CamelModel):
-    id: uuid.UUID
-    seq_no: int
+    # Nullable: an "All Vendors" tab row for a vendor with no vendor_tracker_entries row yet has
+    # no id — every row action lazily creates one via ensure-tracking on first use (see
+    # api/routes/vendor_management.py). A "DD Vendors" tab row always has a real id.
+    id: uuid.UUID | None = None
+    seq_no: int | None = None
     vendor_code: str
+    is_dd_vendor: bool = False
 
     bank_details_status: str
     bank_request_sent_at: datetime | None
@@ -91,8 +67,9 @@ class VendorTrackerEntryOut(CamelModel):
     bank_verification_completed_by_name: str | None = None
     bank_verification_completed_at: datetime | None
 
-    created_at: datetime
-    updated_at: datetime
+    # Null for an id-less "All Vendors" row with no tracker entry yet, same reasoning as id above.
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     # ── Live-joined from vendor_master_entries by vendor_code (see api/routes/vendor_management.py)
     # — never stored on this row. None when the detail scrape hasn't completed yet (see
@@ -127,14 +104,33 @@ class VendorBankRequestPreview(CamelModel):
     """Editable draft shown in the "Send Bank Details Request" preview modal before it's sent."""
 
     to_email: str
+    cc_emails: list[str] = []
     subject: str
     body: str
 
 
 class VendorBankRequestSend(CamelModel):
+    to: list[EmailStr] = Field(min_length=1)
+    cc: list[EmailStr] = []
     subject: str = Field(min_length=1, max_length=300)
     body: str = Field(min_length=1)
     from_mailbox: str = Field(min_length=1, max_length=320)
+
+
+class VendorVerificationReminderPreview(CamelModel):
+    """Editable draft shown in the "Send Verification Reminder" preview modal before it's sent."""
+
+    to_email: str
+    cc_emails: list[str] = []
+    subject: str
+    body: str
+
+
+class VendorVerificationReminderSend(CamelModel):
+    to: list[EmailStr] = Field(min_length=1)
+    cc: list[EmailStr] = []
+    subject: str = Field(min_length=1, max_length=300)
+    body: str = Field(min_length=1)
 
 
 class VendorTrackerEntryDetailOut(CamelModel):
