@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, type DragEvent, type FocusEvent, type Keyb
 import type { DdTrackerEntry } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { TrashIcon } from '../common/TrashIcon';
 import { PrPoLookupInput } from './PrPoLookupInput';
 import type { DdTrackerFormState } from './ddTrackerForm';
 
-// Same sticky-column split as PiEntriesTable/LandingReportsTable, minus an Actions column — there
-// is no row-level edit button here; double-clicking an editable cell edits just that cell, with
-// its own inline Save/Cancel (see DdTrackerPage). Vessel is also not a column — it's filtered via
-// the capsule row above the table instead.
+// Same sticky-column split as PiEntriesTable/LandingReportsTable: an Actions column (Delete; Save
+// /Cancel while adding a new row) pinned first, then S.No. There's still no row-level Edit button
+// — double-clicking an editable cell edits just that cell, with its own inline auto-save (see
+// DdTrackerPage). Vessel is also not a column — it's filtered via the capsule row above the table
+// instead.
 const STICKY_COL_WIDTHS = {
   sno: 80,
 } as const;
@@ -369,6 +371,8 @@ interface Props {
   onSaveNew: () => void;
   onCancelNew: () => void;
 
+  onDelete: (entry: DdTrackerEntry) => void;
+
   columnOrder: ReorderableColumnKey[];
   columnWidths: Record<string, number>;
   layoutEditable: boolean;
@@ -399,6 +403,7 @@ export function DdTrackerTable({
   onNewRowChange,
   onSaveNew,
   onCancelNew,
+  onDelete,
   columnOrder,
   columnWidths,
   layoutEditable,
@@ -506,7 +511,8 @@ export function DdTrackerTable({
 
   const colgroup = (
     <colgroup>
-      <col className="col-dpr col-dpr-noactions" style={{ width: STICKY_COL_WIDTHS.sno }} />
+      {canEdit && <col className="col-actions" />}
+      <col className={`col-dpr${canEdit ? '' : ' col-dpr-noactions'}`} style={{ width: STICKY_COL_WIDTHS.sno }} />
       {columnOrder.map((key) => (
         <col key={key} style={{ width: columnWidths[key] ?? DEFAULT_COL_WIDTHS[key] }} />
       ))}
@@ -578,7 +584,7 @@ export function DdTrackerTable({
     );
   }
 
-  const totalCols = columnOrder.length + 1;
+  const totalCols = columnOrder.length + 1 + (canEdit ? 1 : 0);
 
   return (
     <>
@@ -587,8 +593,13 @@ export function DdTrackerTable({
           {colgroup}
           <thead>
             <tr className="dd-tracker-group-row">
+              {canEdit && (
+                <th className="sticky-col col-actions dd-tracker-sno-header" rowSpan={2}>
+                  Actions
+                </th>
+              )}
               <th
-                className="sticky-col col-dpr col-dpr-noactions sortable-col dd-tracker-sno-header"
+                className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'} sortable-col dd-tracker-sno-header`}
                 rowSpan={2}
                 onClick={() => onSort('seqNo')}
               >
@@ -622,14 +633,17 @@ export function DdTrackerTable({
           <tbody>
             {isAddingNew && (
               <tr className="row-editing">
-                <td className="sticky-col col-dpr col-dpr-noactions">
-                  <div className="row-actions">
-                    <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
-                      {isSavingNew ? '…' : '✓'}
-                    </button>
-                    <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>×</button>
-                  </div>
-                </td>
+                {canEdit && (
+                  <td className="sticky-col col-actions">
+                    <div className="row-actions">
+                      <button className="icon-btn icon-btn-success" title="Save" onClick={onSaveNew} disabled={isSavingNew}>
+                        {isSavingNew ? '…' : '✓'}
+                      </button>
+                      <button className="icon-btn icon-btn-muted" title="Cancel" onClick={onCancelNew}>×</button>
+                    </div>
+                  </td>
+                )}
+                <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>—</td>
                 {columnOrder.map((key, idx) => {
                   const def = COLUMNS[key];
                   const isLastInGroup = isLastColumnOfGroup(idx, columnOrder);
@@ -657,7 +671,21 @@ export function DdTrackerTable({
                 isEditingRow && editForm ? { form: editForm, onChange: onEditFormChange, onSelectAndSave, onClose: onCancelEdit } : null;
               return (
                 <tr key={entry.id} className={entry.invoiceType === 'Proforma Invoice' ? 'dd-tracker-row-proforma' : undefined}>
-                  <td className="sticky-col col-dpr col-dpr-noactions">{rowNumber}</td>
+                  {canEdit && (
+                    <td className="sticky-col col-actions">
+                      <div className="row-actions">
+                        <button
+                          className="icon-btn icon-btn-danger"
+                          title="Delete"
+                          onClick={() => onDelete(entry)}
+                          disabled={editingId !== null || isAddingNew || layoutEditable}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                  <td className={`sticky-col col-dpr${canEdit ? '' : ' col-dpr-noactions'}`}>{rowNumber}</td>
                   {columnOrder.map((key, idx) => {
                     const def = COLUMNS[key];
                     const isLastInGroup = isLastColumnOfGroup(idx, columnOrder);

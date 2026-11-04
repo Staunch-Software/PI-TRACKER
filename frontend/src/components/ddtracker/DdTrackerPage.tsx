@@ -13,6 +13,7 @@ import {
 import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
+import { ConfirmDialog } from '../modals/ConfirmDialog';
 
 import '../../pages/Tracker.css';
 import './DdTracker.css';
@@ -176,6 +177,7 @@ export function DdTrackerPage() {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newRowForm, setNewRowForm] = useState<DdTrackerFormState>(blankDdTrackerForm());
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<DdTrackerEntry | null>(null);
 
   const queryClient = useQueryClient();
   const initializedRef = useRef(false);
@@ -339,6 +341,19 @@ export function DdTrackerPage() {
     onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to add DD Tracker entry.'),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (entry: DdTrackerEntry) => api.delete(`/dd-tracker/${entry.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
+      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      setDeleting(null);
+    },
+    onError: (err) => {
+      setDeleting(null);
+      setSaveError(err instanceof ApiError ? err.message : 'Failed to delete DD Tracker entry.');
+    },
+  });
+
   return (
     <div className="tracker-page dd-tracker-page">
       <div className="tracker-page-header">
@@ -349,8 +364,9 @@ export function DdTrackerPage() {
         </div>
       </div>
       <p className="dd-tracker-auto-note">
-        Entries for every "DD" category PR/PO are added automatically from the SmartPAL scrape (twice daily). Use
-        "Add Entry" only for items that need tracking here but aren't DD-categorized in SmartPAL (e.g. OPEX).
+        Entries for every "DD" category PR/PO, plus any other PR/PO whose own title starts with "DD", are added
+        automatically from the SmartPAL scrape (twice daily). Use "Add Entry" — with the PR/PO Number lookup — only
+        for items that need tracking here but SmartPAL neither categorizes nor titles as DD.
       </p>
       <div className="dd-tracker-vessel-capsules">
         <div className="dd-tracker-vessel-label">
@@ -459,6 +475,10 @@ export function DdTrackerPage() {
               onNewRowChange={handleNewRowChange}
               onSaveNew={() => saveNewMutation.mutate()}
               onCancelNew={cancelAdd}
+              onDelete={(entry) => {
+                setSaveError(null);
+                setDeleting(entry);
+              }}
               columnOrder={columnOrder}
               columnWidths={columnWidths}
               layoutEditable={layoutEditable}
@@ -534,6 +554,16 @@ export function DdTrackerPage() {
       )}
 
       {saveError && <Toast type="error" message={saveError} onClose={() => setSaveError(null)} duration={5000} />}
+
+      {deleting && (
+        <ConfirmDialog
+          title="Delete DD Tracker Entry"
+          message={`Delete the entry for ${deleting.requisitionNo || deleting.poNo || 'this row'}${deleting.vesselName ? ` (${deleting.vesselName})` : ''}? This cannot be undone.`}
+          isConfirming={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 }

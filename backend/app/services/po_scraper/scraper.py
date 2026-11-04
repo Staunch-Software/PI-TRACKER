@@ -330,18 +330,41 @@ def _is_dd_category(category: str | None) -> bool:
     return bool(norm) and norm.startswith("DD")
 
 
-def _sync_dd_tracker_entries(db: Session) -> dict:
-    """Auto-populates dd_tracker_entries for every DD-category PR/PO the scraper just saw —
-    confirmed with the user 2026-10-28: DD Tracker rows must appear automatically based on
-    category, not be hand-created one at a time. Runs after _run_pr/_run_po on every scrape.
+# Matches "DD - ...", "DD- ...", "DD ..." or a bare "DD" title, case-insensitive, with a word
+# boundary right after "DD" so an unrelated title that merely starts with those two letters (e.g.
+# a vendor/item name) isn't swept in.
+_DD_TITLE_RE = re.compile(r"^DD(\s|-|$)", re.IGNORECASE)
 
-    PR-driven: any pr_entries row whose category is DD-flavored and not already tracked (matched
-    by requisition_no) gets a new dd_tracker_entries row, pulling in its matching PO (by
+
+def _is_dd_title(title: str | None) -> bool:
+    """True when the PR/PO's own free-text title is DD-prefixed even though SmartPAL's own
+    req_category says something else (e.g. "OPEX-OTHERS", "ADHOC SPARES") — confirmed with the
+    user 2026-11-04: purchase sometimes places what is really a DD order under a different
+    category, but still prefixes the title with "DD" by convention. Catching that here means the
+    DD Tracker picks these up automatically on every scrape, the same way a one-off manual
+    backfill had to for GCL TAPI/GCL Yamuna before this existed (see git history around
+    2026-11-03) — no more hand-linking via "Add Entry" needed for this specific pattern."""
+    if not title:
+        return False
+    return bool(_DD_TITLE_RE.match(title.strip()))
+
+
+def _sync_dd_tracker_entries(db: Session) -> dict:
+    """Auto-populates dd_tracker_entries for every DD PR/PO the scraper just saw — confirmed with
+    the user 2026-10-28: DD Tracker rows must appear automatically based on category, not be
+    hand-created one at a time. A PR/PO counts as DD when EITHER its req_category is DD-flavored
+    (_is_dd_category) OR its own title is DD-prefixed (_is_dd_title) even under some other
+    category — the latter added 2026-11-04 to also catch DD orders purchase placed under e.g.
+    OPEX by category but still titled "DD - ...", the same gap a one-off manual backfill had to
+    cover for GCL TAPI/GCL Yamuna before this existed. Runs after _run_pr/_run_po on every scrape.
+
+    PR-driven: any pr_entries row matching either signal and not already tracked (matched by
+    requisition_no) gets a new dd_tracker_entries row, pulling in its matching PO (by
     po_entries.requisition_no) if one already exists.
 
-    PO-driven (orphan Direct POs): a DD-category PO with no requisition_no (SmartPAL's own
-    "Direct PO" case, see po_entry.py docstring) is tracked by po_no instead, since there's no PR
-    to key off of.
+    PO-driven (orphan Direct POs): a matching PO with no requisition_no (SmartPAL's own "Direct
+    PO" case, see po_entry.py docstring) is tracked by po_no instead, since there's no PR to key
+    off of.
 
     Existing dd_tracker_entries rows are NEVER overwritten here — this only fills in po_no on an
     already-tracked PR row when it was previously missing (a PO created after the PR was first
@@ -351,9 +374,8 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
     tracked_req_nos = {r[0] for r in db.query(DdTrackerEntry.requisition_no).filter(DdTrackerEntry.requisition_no.isnot(None)).all()}
     tracked_po_nos = {r[0] for r in db.query(DdTrackerEntry.po_no).filter(DdTrackerEntry.po_no.isnot(None)).all()}
 
-    dd_prs = db.query(PrEntry).filter(PrEntry.req_category.isnot(None)).all()
-    for pr in dd_prs:
-        if not _is_dd_category(pr.req_category):
+    for pr in db.query(PrEntry).all():
+        if not (_is_dd_category(pr.req_category) or _is_dd_title(pr.title)):
             continue
         if pr.requisition_no in tracked_req_nos:
             continue
@@ -370,9 +392,9 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
         tracked_req_nos.add(pr.requisition_no)
         inserted += 1
 
-    dd_direct_pos = db.query(PoEntry).filter(PoEntry.req_category.isnot(None), PoEntry.requisition_no.is_(None)).all()
+    dd_direct_pos = db.query(PoEntry).filter(PoEntry.requisition_no.is_(None)).all()
     for po in dd_direct_pos:
-        if not _is_dd_category(po.req_category):
+        if not (_is_dd_category(po.req_category) or _is_dd_title(po.title)):
             continue
         if po.po_no in tracked_po_nos:
             continue
