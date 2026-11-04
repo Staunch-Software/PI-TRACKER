@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.models.vendor_bank_attachment import VendorBankAttachment
 from app.models.vendor_bank_detail import VendorBankDetail
+from app.models.vendor_detail_bulk_scrape_run import VendorDetailBulkScrapeRun
 from app.models.vendor_master_entry import VendorMasterEntry
 from app.models.vendor_tracker_entry import VendorTrackerEntry
 from app.schemas.common import PaginatedResult
@@ -17,6 +18,7 @@ from app.schemas.vendor_management import (
     VendorBankDetailOut,
     VendorBankRequestPreview,
     VendorBankRequestSend,
+    VendorDetailBulkScrapeRunOut,
     VendorMasterLookupResult,
     VendorTrackerEntryCreate,
     VendorTrackerEntryDetailOut,
@@ -27,7 +29,7 @@ from app.schemas.vendor_management import (
 from app.services.audit import write_audit_log
 from app.services.pi_reminder_mailer import ALWAYS_CC, send_mail
 from app.services.pi_reminder_templates import bank_details_request_email, verification_reminder_email
-from app.services.vendor_master_scraper.detail_scraper import scrape_vendor_detail
+from app.services.vendor_master_scraper.detail_scraper import run_bulk_detail_scrape, scrape_vendor_detail
 
 VERIFICATION_REMINDER_DEFAULT_TO = "accountspayable@ozellar.com"
 
@@ -267,6 +269,64 @@ def ensure_vendor_tracking(
 
     bank_row, bank_count = _bank_rep_row(db, vendor_code)
     return _to_out(entry, master, bank_row, bank_count, db)
+
+
+def _latest_bulk_scrape_run(db: Session) -> VendorDetailBulkScrapeRun | None:
+    return db.query(VendorDetailBulkScrapeRun).order_by(VendorDetailBulkScrapeRun.started_at.desc()).first()
+
+
+def _bulk_scrape_run_out(db: Session, run: VendorDetailBulkScrapeRun) -> VendorDetailBulkScrapeRunOut:
+    return VendorDetailBulkScrapeRunOut(
+        id=run.id,
+        status=run.status,
+        total=run.total,
+        completed=run.completed,
+        succeeded=run.succeeded,
+        failed=run.failed,
+        current_vendor_code=run.current_vendor_code,
+        started_at=run.started_at,
+        started_by_name=_actor_name(db, run.started_by),
+        finished_at=run.finished_at,
+    )
+
+
+@router.get("/all/bulk-refresh/status", response_model=VendorDetailBulkScrapeRunOut | None)
+def get_bulk_scrape_status(db: Session = Depends(get_db)) -> VendorDetailBulkScrapeRunOut | None:
+    """Most recent "Scrape All Vendor Details" run (All Vendors tab), or None if one's never been
+    started — polled by the frontend while a run is in progress."""
+    run = _latest_bulk_scrape_run(db)
+    return _bulk_scrape_run_out(db, run) if run else None
+
+
+@router.post("/all/bulk-refresh", response_model=VendorDetailBulkScrapeRunOut)
+def start_bulk_scrape(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
+) -> VendorDetailBulkScrapeRunOut:
+    """Starts a background job detail-scraping every vendor that's never been detail-scraped yet
+    (see run_bulk_detail_scrape) — one at a time, realistically 1-3+ hours for the fleet's first
+    run. 409s if one's already running rather than letting two pile up (SmartPAL only tolerates one
+    logged-in session at a time for this scraper)."""
+    existing = _latest_bulk_scrape_run(db)
+    if existing and existing.status == "running":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A bulk scrape is already running.")
+
+    total = db.query(VendorMasterEntry).filter(VendorMasterEntry.detail_scraped_at.is_(None)).count()
+    run = VendorDetailBulkScrapeRun(
+        status="completed" if total == 0 else "running",
+        total=total,
+        started_by=current_user.id,
+        finished_at=datetime.now() if total == 0 else None,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    if total > 0:
+        background_tasks.add_task(run_bulk_detail_scrape, run.id)
+
+    return _bulk_scrape_run_out(db, run)
 
 
 @router.get("/vendor-options", response_model=list[VendorMasterLookupResult])

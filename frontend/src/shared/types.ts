@@ -631,6 +631,21 @@ export interface VendorTrackerEntryCreateInput {
   vendorCode: string;
 }
 
+// Mirrors backend/app/schemas/vendor_management.py VendorDetailBulkScrapeRunOut — progress of a
+// "Scrape All Vendor Details" run (All Vendors tab).
+export interface VendorDetailBulkScrapeRun {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  succeeded: number;
+  failed: number;
+  currentVendorCode: string | null;
+  startedAt: string;
+  startedByName: string | null;
+  finishedAt: string | null;
+}
+
 // Mirrors backend/app/schemas/vendor_management.py VendorBankDetailOut — a single SmartPAL Bank
 // Details tab row, read-only.
 export interface VendorBankDetail {

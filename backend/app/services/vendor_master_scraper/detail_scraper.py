@@ -1,11 +1,14 @@
 # ===========================================================================
 # backend/app/services/vendor_master_scraper/detail_scraper.py
 #
-# On-demand detail scrape for ONE vendor — runs only when a vendor is added to the Vendor
-# Management tracker (or "Refresh from SmartPAL" is clicked), never proactively for all ~1,098
-# vendors (see scraper.py's module docstring for why). Pulls the "Vendor Contacts" tab (address/
-# phone/contacts sub-grid), the "Bank Details" tab (one or more bank rows), and the vendor's
-# attachment list (downloading each new file into our own Azure Blob storage).
+# On-demand detail scrape for ONE vendor — runs when a vendor is added to the Vendor Management
+# tracker, "Refresh from SmartPAL" is clicked, or as part of run_bulk_detail_scrape() below (one
+# vendor at a time, never concurrently — SmartPAL kicks out a session on a second concurrent
+# login). There is still no NIGHTLY schedule for this (confirmed with the user 2026-11-04: an
+# on-demand "scrape every never-detail-scraped vendor" button from the All Vendors tab is enough;
+# see api/routes/vendor_management.py's bulk-refresh endpoints). Pulls the "Vendor Contacts" tab
+# (address/phone/contacts sub-grid), the "Bank Details" tab (one or more bank rows), and the
+# vendor's attachment list (downloading each new file into our own Azure Blob storage).
 #
 # Runs as a FastAPI BackgroundTask (see api/routes/vendor_management.py) — opens its own
 # SessionLocal() since background tasks execute outside the request's DB session, same as
@@ -16,6 +19,7 @@
 # attachments), matching this app's established "real click over hand-built request" caution.
 # ===========================================================================
 import logging
+import uuid
 from datetime import date, datetime, timezone
 
 from playwright.sync_api import sync_playwright
@@ -23,6 +27,7 @@ from playwright.sync_api import sync_playwright
 from app.core.config import MARIAPPS_AUTH_JSON, settings
 from app.db.session import SessionLocal
 from app.models.vendor_bank_detail import VendorBankDetail
+from app.models.vendor_detail_bulk_scrape_run import VendorDetailBulkScrapeRun
 from app.models.vendor_master_attachment import VendorMasterAttachment
 from app.models.vendor_master_entry import VendorMasterEntry
 from app.services.blob_storage import upload_bytes_to_blob
@@ -277,9 +282,28 @@ def _scrape_attachments(page, vendor_code: str, existing_keys: set[tuple[str, in
     # later a 10s poll) both previously mistook "still loading" for "empty", silently losing real
     # attachments for any vendor with enough of them to be slow (WARTCHINA's 9 small files loaded
     # in under 2s and never exposed this; FGM OZM's 19 did).
+    # Added 2026-11-04 for the bulk "scrape every vendor" job, where the ~40s worst case above is
+    # too costly repeated ~1,098 times: an early exit for the common zero-attachment vendor,
+    # WITHOUT touching the 40-iteration fallback or its "break on real rows" condition above (that
+    # stays exactly as validated live for a vendor that does have attachments, up to the observed
+    # 21s worst case). Only breaks early once "No Attachments Found" has been the ONLY thing on
+    # screen for 3 consecutive 1-second checks with no real rows appearing in between — a vendor
+    # that's still loading real rows would have to sit on the placeholder for a full 3 straight
+    # seconds right as this runs for it to wrongly short-circuit, and even then the fallback here
+    # is identical to today's behavior (nothing new gets skipped, it just doesn't get the speedup).
+    # NEEDS a live check on the VM's first bulk run — watch for any vendor whose attachment count
+    # looks suspiciously low/zero that shouldn't be, the same "confirmed live" bar every other
+    # selector in this file already meets and this one specific timing change doesn't yet.
+    stable_empty_checks = 0
     for _ in range(40):
         if page.locator(f"{_ATTACHMENT_POPUP} tr:has(.download-icon)").count() > 0:
             break
+        if page.locator(f"{_ATTACHMENT_POPUP}:has-text('No Attachments Found')").count() > 0:
+            stable_empty_checks += 1
+            if stable_empty_checks >= 3:
+                break
+        else:
+            stable_empty_checks = 0
         page.wait_for_timeout(1000)
     else:
         if page.locator(f"{_ATTACHMENT_POPUP}:has-text('No Attachments Found')").count() == 0:
@@ -469,5 +493,70 @@ def scrape_vendor_detail(vendor_code: str) -> None:
     except Exception as e:
         db.rollback()
         log.error(f"[VENDOR]   Detail scrape failed for {vendor_code}: {e}")
+    finally:
+        db.close()
+
+
+def run_bulk_detail_scrape(run_id: uuid.UUID) -> None:
+    """Entry point for the "Scrape All Vendor Details" button (All Vendors tab) — called via
+    FastAPI BackgroundTasks, same fire-and-forget pattern as scrape_vendor_detail above. Walks
+    every vendor_master_entries row with no detail_scraped_at yet, one at a time (never
+    concurrently — see this module's own docstring on why), updating `run_id`'s
+    VendorDetailBulkScrapeRun row after each vendor so progress is visible mid-run to anyone
+    polling the status endpoint.
+
+    Deliberately reuses scrape_vendor_detail() unchanged rather than inlining its logic — that
+    function already opens/closes its own browser and DB session per vendor and never raises (its
+    own outer try/except always logs and returns cleanly on a per-vendor failure), so success vs.
+    failure here is detected the only way available without changing its signature: comparing
+    master.detail_scraped_at immediately before and after the call."""
+    db = SessionLocal()
+    try:
+        run = db.get(VendorDetailBulkScrapeRun, run_id)
+        if not run:
+            log.error(f"[VENDOR]   Bulk scrape run {run_id} not found — aborting.")
+            return
+
+        vendor_codes = [
+            r[0]
+            for r in db.query(VendorMasterEntry.vendor_code)
+            .filter(VendorMasterEntry.detail_scraped_at.is_(None))
+            .all()
+        ]
+        run.total = len(vendor_codes)
+        db.commit()
+
+        for vendor_code in vendor_codes:
+            run.current_vendor_code = vendor_code
+            db.commit()
+
+            before = db.query(VendorMasterEntry.detail_scraped_at).filter(VendorMasterEntry.vendor_code == vendor_code).scalar()
+            scrape_vendor_detail(vendor_code)
+            db.expire_all()  # scrape_vendor_detail committed via its own, separate session
+            after = db.query(VendorMasterEntry.detail_scraped_at).filter(VendorMasterEntry.vendor_code == vendor_code).scalar()
+
+            run.completed += 1
+            if after and after != before:
+                run.succeeded += 1
+            else:
+                run.failed += 1
+            db.commit()
+
+        run.status = "completed"
+        run.current_vendor_code = None
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        log.info(f"[VENDOR]   Bulk detail scrape complete: {run.succeeded} succeeded, {run.failed} failed, {run.total} total.")
+    except Exception as e:
+        db.rollback()
+        log.error(f"[VENDOR]   Bulk detail scrape run {run_id} failed: {e}")
+        try:
+            run = db.get(VendorDetailBulkScrapeRun, run_id)
+            if run:
+                run.status = "failed"
+                run.finished_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            db.rollback()
     finally:
         db.close()

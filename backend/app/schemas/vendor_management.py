@@ -139,3 +139,19 @@ class VendorTrackerEntryDetailOut(CamelModel):
 
     contacts: list[dict] = []
     bank_details: list[VendorBankDetailOut] = []
+
+
+class VendorDetailBulkScrapeRunOut(CamelModel):
+    """Progress of a "Scrape All Vendor Details" run (All Vendors tab) — see
+    services/vendor_master_scraper/detail_scraper.py's run_bulk_detail_scrape()."""
+
+    id: uuid.UUID
+    status: str
+    total: int
+    completed: int
+    succeeded: int
+    failed: int
+    current_vendor_code: str | None
+    started_at: datetime
+    started_by_name: str | None = None
+    finished_at: datetime | None

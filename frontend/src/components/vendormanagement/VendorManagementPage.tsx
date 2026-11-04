@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '../../auth/useRole';
 import { api, ApiError } from '../../lib/api';
-import type { PaginatedResult, TrackedVendorEntry, VendorMasterLookupResult, VendorTrackerEntry } from '../../shared';
+import type {
+  PaginatedResult,
+  TrackedVendorEntry,
+  VendorDetailBulkScrapeRun,
+  VendorMasterLookupResult,
+  VendorTrackerEntry,
+} from '../../shared';
 import { SearchableSelect, type SearchableSelectOption } from '../common/SearchableSelect';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
@@ -16,8 +22,17 @@ import '../../pages/Tracker.css';
 import './VendorManagement.css';
 
 const PAGE_SIZE = 50;
+// A tracked vendor's detail fields are still "Refreshing…" from the background scrape for a few
+// seconds after Add/Refresh — poll briefly rather than requiring a manual reload to see it
+// resolve. Restored 2026-11-04: the All/DD tabs rewrite had silently dropped this.
+const PENDING_REFETCH_MS = 4000;
+const BULK_SCRAPE_POLL_MS = 4000;
 
 type VendorTab = 'dd' | 'all';
+
+function anyRowPending(items: VendorTrackerEntry[]): boolean {
+  return items.some((e) => e.detailScrapePending);
+}
 
 function buildListUrl(path: string, search: string, page: number, pageSize: number = PAGE_SIZE): string {
   return `${path}?${new URLSearchParams({ search, page: String(page), page_size: String(pageSize) }).toString()}`;
@@ -71,6 +86,7 @@ export function VendorManagementPage() {
     queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management', search, page)),
     enabled: activeTab === 'dd',
     placeholderData: keepPreviousData,
+    refetchInterval: (query) => (anyRowPending(query.state.data?.items ?? []) ? PENDING_REFETCH_MS : false),
   });
 
   const allEntriesQuery = useQuery({
@@ -78,6 +94,7 @@ export function VendorManagementPage() {
     queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management/all', search, page)),
     enabled: activeTab === 'all',
     placeholderData: keepPreviousData,
+    refetchInterval: (query) => (anyRowPending(query.state.data?.items ?? []) ? PENDING_REFETCH_MS : false),
   });
 
   const entriesQuery = activeTab === 'dd' ? ddEntriesQuery : allEntriesQuery;
@@ -160,6 +177,35 @@ export function VendorManagementPage() {
     if (tracked) setAttachmentsEntry(tracked);
   }
 
+  // "Scrape All Vendor Details" (All Vendors tab only) — see detail_scraper.py's
+  // run_bulk_detail_scrape. Polls while a run is in progress so the button/progress readout stays
+  // live without the user doing anything, same polling style as the per-row pending state above.
+  const bulkScrapeStatusQuery = useQuery({
+    queryKey: ['vendor-bulk-scrape-status'],
+    queryFn: () => api.get<VendorDetailBulkScrapeRun | null>('/vendor-management/all/bulk-refresh/status'),
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? BULK_SCRAPE_POLL_MS : false),
+  });
+
+  const startBulkScrapeMutation = useMutation({
+    mutationFn: () => api.post<VendorDetailBulkScrapeRun>('/vendor-management/all/bulk-refresh', {}),
+    onSuccess: (run) => {
+      queryClient.setQueryData(['vendor-bulk-scrape-status'], run);
+      if (run.status === 'completed') invalidateLists();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to start bulk scrape.'),
+  });
+
+  const bulkRun = bulkScrapeStatusQuery.data;
+  const bulkRunning = bulkRun?.status === 'running';
+
+  // Once a polled-to-completion run flips away from "running", refresh the All Vendors list so
+  // newly-scraped vendor details actually show up without the user doing anything else.
+  const wasBulkRunningRef = useRef(false);
+  useEffect(() => {
+    if (wasBulkRunningRef.current && !bulkRunning) invalidateLists();
+    wasBulkRunningRef.current = bulkRunning;
+  }, [bulkRunning]);
+
   return (
     <div className="tracker-page vendor-management-page">
       <div className="tracker-page-header">
@@ -210,6 +256,26 @@ export function VendorManagementPage() {
             }}
             placeholder="+ Add DD Vendor"
           />
+        )}
+        {canEdit && activeTab === 'all' && (
+          bulkRunning && bulkRun ? (
+            <div className="vendor-bulk-scrape-progress" title={bulkRun.currentVendorCode ? `Currently: ${bulkRun.currentVendorCode}` : undefined}>
+              <div className="tracker-loading-spinner" style={{ width: 16, height: 16 }} />
+              <span>
+                Scraping vendor details… {bulkRun.completed} / {bulkRun.total}
+                {bulkRun.failed > 0 ? ` (${bulkRun.failed} failed)` : ''}
+              </span>
+            </div>
+          ) : (
+            <button
+              className="btn-tracker-action btn-tracker-secondary"
+              onClick={() => startBulkScrapeMutation.mutate()}
+              disabled={startBulkScrapeMutation.isPending}
+              title="Detail-scrapes every vendor that's never had its address/phone/bank details pulled from SmartPAL yet — can take a while for a large batch."
+            >
+              Scrape All Vendor Details
+            </button>
+          )
         )}
       </div>
 

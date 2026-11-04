@@ -609,6 +609,22 @@ table.data-table.vendor-management-table td.col-center {
 }
 
 /* ── Full Documents Column Button ── */
+/* "Scrape All Vendor Details" button's in-progress readout (All Vendors tab toolbar) — replaces
+   the button itself while a bulk scrape run is in progress, see VendorManagementPage.tsx. */
+.vendor-bulk-scrape-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #0f4c81;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .vendor-full-docs-btn {
   display: inline-flex;
   margin: 0 auto;
