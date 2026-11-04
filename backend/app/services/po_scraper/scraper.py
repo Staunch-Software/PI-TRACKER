@@ -289,6 +289,7 @@ def _run_po(page, db) -> dict:
             "approved_date": _parse_date(r.get("approvedDate")),
             "confirmed_date": _parse_date(r.get("confirmedDate")),
             "schd_del_port": r.get("schd_Del_port"),
+            "expected_delivery_date": _parse_date(r.get("schd_Del_Date")),
             "agent_name": r.get("agentName"),
             "warehouse_name": r.get("warehouseName"),
             "grn_nos": r.get("grnNos"),

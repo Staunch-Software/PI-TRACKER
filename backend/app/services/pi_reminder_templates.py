@@ -88,33 +88,57 @@ def bank_details_request_email(*, vendor_name: str, missing_fields: list[str]) -
     return subject, body
 
 
-def verification_reminder_email(*, vendor_name: str, bank_row: "VendorBankDetail | None") -> tuple[str, str]:
+def verification_reminder_email(
+    *,
+    vendor_name: str,
+    bank_row: "VendorBankDetail | None",
+    vendor_email: str | None = None,
+    vendor_phone: str | None = None,
+    vendor_address: str | None = None,
+) -> tuple[str, str]:
     """Returns (subject, html_body). Goes to accounts payable — these are the bank details we
     received FROM the vendor (already scraped into vendor_bank_details from SmartPAL's own Bank
     Details tab), asking them to verify it from their side before any payment is processed against
     it. Only ever called once that bank row is confirmed complete (see
     api/routes/vendor_management.py's _pal_bank_completeness / the "Send Verification Reminder"
     button's disabled state), so bank_row is never None in practice, but the fallback below keeps
-    this safe to call defensively."""
+    this safe to call defensively.
+
+    Deliberately NOT an HTML <table> (confirmed 2026-11-04 the prior version broke once sent): the
+    frontend's editable preview/edit modal round-trips this body through a plain-text conversion
+    before sending (same pattern as bank_details_request_email's modal), and <tr>/<td> don't
+    survive that round trip as a table — they degrade to bare label-then-value text with no
+    separator. Plain "Label : Value" lines joined by <br> survive that round trip intact and read
+    the same editable/sent either way."""
     subject = f"Bank Details Verification Required – {vendor_name}"
+
+    vendor_lines = [
+        f"Email : {vendor_email or '—'}",
+        f"Phone : {vendor_phone or '—'}",
+        f"Address : {vendor_address or '—'}",
+    ]
     if bank_row:
-        rows = f"""
-        <tr><td><b>Beneficiary Name</b></td><td>{bank_row.beneficiary_name or '—'}</td></tr>
-        <tr><td><b>Bank Name</b></td><td>{bank_row.bank_name or '—'}</td></tr>
-        <tr><td><b>Branch Name</b></td><td>{bank_row.branch_name or '—'}</td></tr>
-        <tr><td><b>Account Number</b></td><td>{bank_row.account_number or '—'}</td></tr>
-        <tr><td><b>IBAN</b></td><td>{bank_row.iban or '—'}</td></tr>
-        <tr><td><b>Swift Code</b></td><td>{bank_row.swift_code or '—'}</td></tr>
-        """
+        bank_lines = [
+            f"Beneficiary Name : {bank_row.beneficiary_name or '—'}",
+            f"Bank Name : {bank_row.bank_name or '—'}",
+            f"Branch Name : {bank_row.branch_name or '—'}",
+            f"Account Number : {bank_row.account_number or '—'}",
+            f"IBAN : {bank_row.iban or '—'}",
+            f"Swift Code : {bank_row.swift_code or '—'}",
+        ]
     else:
-        rows = "<tr><td colspan=\"2\">No bank details on file.</td></tr>"
+        bank_lines = ["No bank details on file."]
+
+    vendor_block = "<br>".join(vendor_lines)
+    bank_block = "<br>".join(bank_lines)
     body = f"""
     <p>Dear Team,</p>
     <p>These are the bank details we received from <b>{vendor_name}</b>. Kindly verify them from
     your side before they are used for any payment.</p>
-    <table cellpadding="4" cellspacing="0" style="border-collapse:collapse">
-{rows}
-    </table>
+    <p><b>Vendor Details</b><br>
+    {vendor_block}</p>
+    <p><b>Bank Details</b><br>
+    {bank_block}</p>
     <p>Thank you,<br>Purchase Team</p>
     """
     return subject, body

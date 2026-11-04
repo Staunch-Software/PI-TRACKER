@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import String, cast, or_
@@ -59,6 +59,15 @@ def _effective_pr_status(pr: PrEntry | None) -> str | None:
     return pr.status
 
 
+def _effective_readiness_date(entry: DdTrackerEntry, po: PoEntry | None) -> date | None:
+    """Readiness Date defaults to the PO's own expected_delivery_date (SmartPAL's "Scheduled
+    Delivery Date") when the team hasn't typed one in — confirmed with the user 2026-11-04 — but
+    an explicit entry.readiness_date always wins, same "live value, optional override" pattern as
+    po_schd_del_port/supply_port below. Never writes back to entry.readiness_date; purely a display
+    /computation fallback, so editing the cell still only ever touches the override."""
+    return entry.readiness_date or (po.expected_delivery_date if po else None)
+
+
 def _to_out(
     entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None, invoice: SmartpalInvoiceEntry | None
 ) -> DdTrackerEntryOut:
@@ -72,7 +81,7 @@ def _to_out(
         title=entry.title,
         pr_status=entry.pr_status,
         order_status=entry.order_status,
-        readiness_date=entry.readiness_date,
+        readiness_date=_effective_readiness_date(entry, po),
         ex_stock=entry.ex_stock,
         supply_confirmation=entry.supply_confirmation,
         remarks=entry.remarks,
@@ -124,10 +133,13 @@ def _compute_lead_days(entry: DdTrackerEntry, po: PoEntry | None) -> int | None:
     approvedDate is populated on 100% of rows and genuinely differs from createdDate/effectiveDate
     on ~88% of them (not just a rubber-stamped duplicate). po_confirmed_date in the API response
     (the wire field "PO Acknowledged date" already used) was repointed at po.approved_date to
-    match, rather than introducing a new field name. None whenever either date is missing."""
-    if not entry.readiness_date or not po or not po.approved_date:
+    match, rather than introducing a new field name. None whenever either date is missing.
+    Uses the same live-or-override readiness date _effective_readiness_date computes, so Lead
+    Days stays consistent with whatever Readiness Date the row is actually displaying."""
+    readiness = _effective_readiness_date(entry, po)
+    if not readiness or not po or not po.approved_date:
         return None
-    return (entry.readiness_date - po.approved_date).days
+    return (readiness - po.approved_date).days
 
 
 def _fetch_live(db: Session, entry: DdTrackerEntry) -> tuple[PrEntry | None, PoEntry | None, SmartpalInvoiceEntry | None]:

@@ -92,13 +92,19 @@ export function VendorVerificationReminderModal({ entry, onSent, onClose }: Prop
   const toList = parseEmailList(to);
   const ccList = parseEmailList(cc);
 
+  // Same fix as VendorBankRequestModal.tsx: send the backend's original HTML verbatim when the
+  // draft hasn't been edited, instead of unconditionally re-deriving it from the plain-text
+  // textarea (which only ever preserves plain paragraphs — "what you previewed is what gets sent").
+  const isBodyEdited = plainBody !== htmlToPlainText(previewQuery.data?.body ?? '');
+  const bodyToSend = isBodyEdited || !previewQuery.data ? plainTextToHtml(plainBody) : previewQuery.data.body;
+
   const sendMutation = useMutation({
     mutationFn: () =>
       api.post(`/vendor-management/${entry.id}/send-verification-reminder`, {
         to: toList,
         cc: ccList,
         subject,
-        body: plainTextToHtml(plainBody),
+        body: bodyToSend,
       }),
     onSuccess: onSent,
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to send email.'),

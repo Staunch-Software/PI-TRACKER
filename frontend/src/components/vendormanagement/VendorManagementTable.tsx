@@ -194,9 +194,20 @@ export function VendorManagementTable({
                 </td>
                 <td className="col-bank-status">
                   <div style={{ marginBottom: 6 }}>
-                    <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`}>
-                      {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
-                    </span>
+                    {palComplete ? (
+                      // Confirmed 2026-11-04: the stored bank_details_status only ever advances
+                      // via the request/receive workflow (missing -> requested -> received) — a
+                      // vendor whose bank details were already complete in SmartPAL from the start
+                      // never goes through that workflow at all, so the badge would otherwise say
+                      // "Missing" forever even with every field present below it. Once SmartPAL's
+                      // own data is complete, that's what actually matters — show that instead of
+                      // the stale workflow status.
+                      <span className="vendor-badge vendor-badge-ok">Complete</span>
+                    ) : (
+                      <span className={`vendor-badge vendor-badge-status-${entry.bankDetailsStatus}`}>
+                        {BANK_DETAILS_STATUS_LABELS[entry.bankDetailsStatus as BankDetailsStatus] ?? entry.bankDetailsStatus}
+                      </span>
+                    )}
                   </div>
                   <FieldChecklist items={BANK_FIELD_LABELS.map((label) => ({ label, present: !palMissing.includes(label) }))} />
                   {canEdit && !palComplete && (

@@ -62,6 +62,11 @@ BANK_REQUEST_SENDERS: dict[str, str] = {
     "gayathri.p@ozellar.com": "Gayathri Sarvanan",
 }
 
+# Added 2026-11-04 (confirmed with the user): both vendor-bank mail drafts should default-CC this
+# address, on top of send_mail's own ALWAYS_CC — these are editable defaults, not enforced, so the
+# user can still remove it in the modal before sending.
+VENDOR_MANAGEMENT_DEFAULT_CC = "vrm@ozellar.com"
+
 
 def _actor_name(db: Session, user_id: uuid.UUID | None) -> str | None:
     if not user_id:
@@ -436,7 +441,7 @@ def get_bank_request_preview(entry_id: uuid.UUID, db: Session = Depends(get_db))
     bank_row, _ = _bank_rep_row(db, entry.vendor_code)
     _, pal_missing = _pal_bank_completeness(bank_row)
     subject, body = bank_details_request_email(vendor_name=master.vendor_name or entry.vendor_code, missing_fields=pal_missing)
-    return VendorBankRequestPreview(to_email=master.email, cc_emails=list(ALWAYS_CC), subject=subject, body=body)
+    return VendorBankRequestPreview(to_email=master.email, cc_emails=[*ALWAYS_CC, VENDOR_MANAGEMENT_DEFAULT_CC], subject=subject, body=body)
 
 
 @router.post("/{entry_id}/send-bank-request", response_model=VendorTrackerEntryOut)
@@ -503,8 +508,16 @@ def get_verification_reminder_preview(entry_id: uuid.UUID, db: Session = Depends
             detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
         )
 
-    subject, body = verification_reminder_email(vendor_name=master.vendor_name if master else entry.vendor_code, bank_row=bank_row)
-    return VendorVerificationReminderPreview(to_email=VERIFICATION_REMINDER_DEFAULT_TO, cc_emails=[], subject=subject, body=body)
+    subject, body = verification_reminder_email(
+        vendor_name=master.vendor_name if master else entry.vendor_code,
+        bank_row=bank_row,
+        vendor_email=master.email if master else None,
+        vendor_phone=master.phone_1 if master else None,
+        vendor_address=master.address if master else None,
+    )
+    return VendorVerificationReminderPreview(
+        to_email=VERIFICATION_REMINDER_DEFAULT_TO, cc_emails=[VENDOR_MANAGEMENT_DEFAULT_CC], subject=subject, body=body
+    )
 
 
 @router.post("/{entry_id}/send-verification-reminder", response_model=VendorTrackerEntryOut)

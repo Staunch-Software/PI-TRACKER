@@ -120,13 +120,24 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
   const toList = parseEmailList(to);
   const ccList = parseEmailList(cc);
 
+  // The editable textarea only ever holds PLAIN text, converted from the backend's real HTML
+  // draft on load — sending plainTextToHtml(plainBody) unconditionally (regardless of which tab
+  // the user is looking at) meant every send was really built from that degraded round-trip, not
+  // from whatever the Preview tab actually showed. Confirmed 2026-11-04 as a real bug: nothing the
+  // backend's own template does beyond plain paragraphs/bullets survives that conversion. Fix:
+  // when the user hasn't touched the draft, send the backend's original body verbatim — "what you
+  // previewed is what gets sent" — and only fall back to the lossy plainTextToHtml conversion once
+  // they've actually edited the text (there's no other way to turn freehand edits into HTML).
+  const isBodyEdited = plainBody !== htmlToPlainText(previewQuery.data?.body ?? '');
+  const bodyToSend = isBodyEdited || !previewQuery.data ? plainTextToHtml(plainBody) : previewQuery.data.body;
+
   const sendMutation = useMutation({
     mutationFn: () =>
       api.post(`/vendor-management/${entry.id}/send-bank-request`, {
         to: toList,
         cc: ccList,
         subject,
-        body: plainTextToHtml(plainBody),
+        body: bodyToSend,
         fromMailbox,
       }),
     onSuccess: onSent,
