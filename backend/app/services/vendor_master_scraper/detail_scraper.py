@@ -58,18 +58,17 @@ def _open_vendor(page, vendor_code: str) -> bool:
     page.wait_for_timeout(2000)
 
     try:
-        # Confirmed live 2026-11-04: for a short/common vendor_code (e.g. "MARI", "OCE"), SmartPAL's
-        # own Code filter does a CONTAINS search server-side, so it returns every vendor whose code
-        # contains this one as a substring (20 rows for "MARI", 11 for "OCE", ...) — and the old
-        # `a:has-text(vendor_code)` selector matched all of those rows too (same substring logic),
-        # so `.first.click()` timed out, almost certainly because that many matched rows kept the
-        # grid re-rendering/settling under it. An exact match on the link's own trimmed text only
-        # ever matches the one row whose code truly equals vendor_code, sidestepping the ambiguity
-        # entirely. Falls back to the original substring locator if no exact match is found, since
-        # that's still what works for the ~1097 vendors already confirmed fine with it (their link
-        # text may not be the bare code alone).
-        exact_link = page.get_by_role("link", name=vendor_code, exact=True)
-        link = exact_link if exact_link.count() > 0 else page.locator(f"a:has-text('{vendor_code}')")
+        # Confirmed live 2026-11-04 (DevTools DOM dump on the real page, filtered to "UPI"): the
+        # page always carries a hidden <a role="option">...</a> list for a dropdown (country/port/
+        # category — e.g. "Palestinian Territory, Occupied" contains "upi"), sitting in the DOM
+        # with display:none regardless of which dropdown is open. `a:has-text()` is case-insensitive
+        # and matches that hidden list too whenever a short/common vendor_code happens to be a
+        # substring of one of those option labels — Playwright then hangs trying to click
+        # whichever invisible match comes first. `get_by_role("link", ...)` doesn't help here either
+        # (confirmed): the real vendor-code anchors have no `href`, so they carry no implicit ARIA
+        # "link" role to match against. Restricting to `:visible` excludes the whole hidden-dropdown
+        # category directly, which is the only actual case that needs excluding.
+        link = page.locator(f"a:visible:has-text('{vendor_code}')")
         match_count = link.count()
         if match_count == 0:
             # Added 2026-11-04 diagnosing the bulk scrape's persistent 8-vendor failure set
