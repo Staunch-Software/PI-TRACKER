@@ -271,16 +271,10 @@ export function VendorVerificationReminderModal({ entry, onSent, onClose }: Prop
               </div>
 
               {activeTab === 'preview' ? (
+                // No letterhead/branding chrome here deliberately — see VendorBankRequestModal's
+                // matching fix (2026-11-05): that header never existed in the actual email, it was
+                // only ever this app's own CSS, so the preview should show exactly what gets sent.
                 <div className="vendor-bank-email-preview-wrapper">
-                  <div className="vendor-bank-email-preview-header">
-                    <div className="vendor-bank-preview-brand">
-                      <span className="vendor-bank-brand-title">Ozellar Marine</span>
-                      <span className="vendor-bank-brand-badge">Internal Notice</span>
-                    </div>
-                    <div className="vendor-bank-preview-date">
-                      {new Date().toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </div>
-                  </div>
                   <div
                     className="vendor-bank-email-preview-content"
                     dangerouslySetInnerHTML={{ __html: plainTextToHtml(plainBody) }}

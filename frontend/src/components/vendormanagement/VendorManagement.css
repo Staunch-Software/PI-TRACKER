@@ -1481,43 +1481,6 @@ table.data-table.vendor-management-table td.col-center {
   max-height: 360px;
 }
 
-.vendor-bank-email-preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
-
-.vendor-bank-preview-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.vendor-bank-brand-title {
-  font-weight: 700;
-  font-size: 12.5px;
-  color: #0f4c81;
-  letter-spacing: -0.01em;
-}
-
-.vendor-bank-brand-badge {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #64748b;
-  background: #e2e8f0;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.vendor-bank-preview-date {
-  font-size: 11.5px;
-  color: #94a3b8;
-}
-
 .vendor-bank-email-preview-content {
   padding: 20px 24px;
   color: #1e293b;
@@ -1551,34 +1514,18 @@ table.data-table.vendor-management-table td.col-center {
   margin: 0 0 12px 0;
 }
 
+/* Deliberately plain — confirmed 2026-11-05 this used to render as a grid of checkmark chip
+   boxes, styling that lives only in this stylesheet and never reaches the actual email. A real
+   <ul><li> delivered via Microsoft Graph renders with the recipient's own default bullet/list
+   styling, so the preview should match that instead of showing a mockup that can't actually
+   arrive. */
 .vendor-bank-email-preview-content ul {
-  list-style: none !important;
-  padding: 0 !important;
-  margin: 12px 0 16px !important;
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
-  gap: 8px !important;
+  margin: 12px 0 16px;
+  padding-left: 22px;
 }
 
 .vendor-bank-email-preview-content li {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 7px !important;
-  padding: 6px 12px !important;
-  border-radius: 7px !important;
-  background: #f0f7ff !important;
-  border: 1px solid #bfdbfe !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  color: #0f4c81 !important;
-  margin: 0 !important;
-}
-
-.vendor-bank-email-preview-content li::before {
-  content: '✓' !important;
-  color: #0284c7 !important;
-  font-weight: 800 !important;
-  font-size: 11px !important;
+  margin: 0 0 4px 0;
 }
 
 /* Editor Wrapper */
@@ -1965,9 +1912,6 @@ table.data-table.vendor-management-table td.col-center {
     max-height: 90vh;
   }
 
-  .vendor-bank-email-preview-content ul {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
 }
 
 /* ── 4. Mobile Smartphones (< 768px) ── */
@@ -2348,26 +2292,10 @@ table.data-table.vendor-management-table td.col-center {
     max-height: 280px;
   }
 
-  .vendor-bank-email-preview-header {
-    padding: 8px 12px;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
   .vendor-bank-email-preview-content {
     padding: 14px 16px;
     font-size: 12.5px;
     line-height: 1.55;
-  }
-
-  .vendor-bank-email-preview-content ul {
-    grid-template-columns: 1fr !important;
-    gap: 6px !important;
-  }
-
-  .vendor-bank-email-preview-content li {
-    font-size: 11.5px !important;
-    padding: 5px 10px !important;
   }
 
   .vendor-bank-editor-toolbar {
@@ -3042,37 +2970,10 @@ table.data-table.vendor-management-table td.col-center {
     max-height: 480px;
   }
 
-  .vendor-bank-email-preview-header {
-    padding: 14px 24px;
-  }
-
-  .vendor-bank-brand-title {
-    font-size: 15px;
-  }
-
-  .vendor-bank-brand-badge {
-    font-size: 12px;
-    padding: 2px 8px;
-  }
-
-  .vendor-bank-preview-date {
-    font-size: 13.5px;
-  }
-
   .vendor-bank-email-preview-content {
     padding: 26px 32px;
     font-size: 15.5px;
     line-height: 1.7;
-  }
-
-  .vendor-bank-email-preview-content ul {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
-    gap: 12px !important;
-  }
-
-  .vendor-bank-email-preview-content li {
-    font-size: 13.5px !important;
-    padding: 10px 16px !important;
   }
 
   .vendor-bank-editor-toolbar {

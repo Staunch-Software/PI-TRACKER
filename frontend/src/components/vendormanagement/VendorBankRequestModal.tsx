@@ -340,16 +340,13 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
 
               {/* Message Content Area */}
               {activeTab === 'preview' ? (
+                // No letterhead/branding chrome here deliberately — confirmed 2026-11-05 this used
+                // to show a fake "Ozellar Marine / Official Communication" header and styled the
+                // <ul><li> list as checkmark boxes, neither of which exists in the actual email:
+                // that styling lives only in this app's own stylesheet, so the HTML Microsoft
+                // Graph actually delivers renders as a bare bulleted list with no such decoration.
+                // This tab should show exactly what the recipient will see, not a nicer mockup of it.
                 <div className="vendor-bank-email-preview-wrapper">
-                  <div className="vendor-bank-email-preview-header">
-                    <div className="vendor-bank-preview-brand">
-                      <span className="vendor-bank-brand-title">Ozellar Marine</span>
-                      <span className="vendor-bank-brand-badge">Official Communication</span>
-                    </div>
-                    <div className="vendor-bank-preview-date">
-                      {new Date().toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </div>
-                  </div>
                   <div
                     className="vendor-bank-email-preview-content"
                     dangerouslySetInnerHTML={{ __html: plainTextToHtml(plainBody) }}
