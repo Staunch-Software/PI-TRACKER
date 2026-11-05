@@ -541,7 +541,13 @@ def send_verification_reminder(
         )
 
     try:
-        send_mail(payload.to, payload.subject, payload.body, cc_emails=payload.cc)
+        # Sends "as" the logged-in user, not a fixed shared mailbox — confirmed 2026-11-05: unlike
+        # send_bank_request (which deliberately offers a fixed choice of 2 authorized senders), the
+        # verification reminder should read as coming from whoever on the Purchase team actually
+        # reviewed and sent it, not always DEFAULT_FROM_MAILBOX (sunilkumar.s@ozellar.com). Mail.Send
+        # is an application permission, so sending "as" any real tenant mailbox works the same way
+        # the PI reminder senders already do for a vessel's assigned TA.
+        send_mail(payload.to, payload.subject, payload.body, from_mailbox=current_user.email, cc_emails=payload.cc)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
 
