@@ -11,6 +11,7 @@ import {
   type SortColumn,
 } from './DdTrackerTable';
 import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
+import { DdAccountCodeTable } from './DdAccountCodeTable';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 import { TrashIcon } from '../common/TrashIcon';
@@ -138,7 +139,7 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
 
 function buildQueryParams(
   search: string,
-  selectedVessel: string,
+  selectedVessel: string | null,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
   page: number,
@@ -158,8 +159,9 @@ function buildQueryParams(
 
 export function DdTrackerPage() {
   const { canEdit } = useRole();
+  const [showPoItemsView, setShowPoItemsView] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedVessel, setSelectedVessel] = useState<string>(DEFAULT_VESSEL);
+  const [selectedVessel, setSelectedVessel] = useState<string | null>(DEFAULT_VESSEL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
@@ -286,7 +288,7 @@ export function DdTrackerPage() {
     setPage(1);
   }
 
-  function selectVessel(vessel: string) {
+  function selectVessel(vessel: string | null) {
     setPage(1);
     setSelectedVessel(vessel);
   }
@@ -386,16 +388,26 @@ export function DdTrackerPage() {
           <span className="count-label">Entries</span>
         </div>
       </div>
+
       <p className="dd-tracker-auto-note">
         Entries for every "DD" category PR/PO, plus any other PR/PO whose own title starts with "DD", are added
         automatically from the SmartPAL scrape (twice daily). Use "Add Entry" — with the PR/PO Number lookup — only
         for items that need tracking here but SmartPAL neither categorizes nor titles as DD.
       </p>
+
+      {/* Vessel Filter Capsules - Always available at top */}
       <div className="dd-tracker-vessel-capsules">
         <div className="dd-tracker-vessel-label">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a6 6 0 0 0 12 0 6 6 0 0 0 10 0"/><path d="m4 16 1.5-6h13l1.5 6"/><path d="M10 10V4h4v6"/></svg>
           <span>Vessels</span>
         </div>
+        <button
+          type="button"
+          className={`dd-tracker-vessel-capsule${selectedVessel === null ? ' active' : ''}`}
+          onClick={() => selectVessel(null)}
+        >
+          All Vessels
+        </button>
         {vesselList.map((vessel) => {
           const colorIndex = vesselColorMap[vessel.trim().toUpperCase()] ?? 0;
           const colorClass = colorIndex < TOTAL_PALETTES ? `vessel-color-${colorIndex}` : '';
@@ -419,7 +431,7 @@ export function DdTrackerPage() {
           <SearchIcon />
           <input
             type="search"
-            placeholder="Search PR/PO number, vessel, title, remarks…"
+            placeholder={showPoItemsView ? 'Search PO number, account code, item description…' : 'Search PR/PO number, vessel, title, remarks…'}
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -428,7 +440,7 @@ export function DdTrackerPage() {
           />
         </div>
         <div className="tracker-toolbar-spacer" />
-        {canEdit && (
+        {!showPoItemsView && canEdit && (
           <>
             {selectedIds.size > 0 && (
               <button
@@ -469,9 +481,33 @@ export function DdTrackerPage() {
             )}
           </>
         )}
+
+        {/* Tab switch near Edit Layout button */}
+        <div className="tracker-view-tabs">
+          <button
+            type="button"
+            className={`tracker-view-tab ${!showPoItemsView ? 'active' : ''}`}
+            onClick={() => setShowPoItemsView(false)}
+          >
+            By PO
+          </button>
+          <button
+            type="button"
+            className={`tracker-view-tab ${showPoItemsView ? 'active' : ''}`}
+            onClick={() => setShowPoItemsView(true)}
+          >
+            By Account Code
+          </button>
+        </div>
       </div>
 
-      {entriesQuery.isLoading ? (
+      {showPoItemsView ? (
+        <DdAccountCodeTable
+          canEdit={canEdit}
+          selectedVessel={selectedVessel}
+          search={search}
+        />
+      ) : entriesQuery.isLoading ? (
         <div className="tracker-table-card">
           <div className="tracker-loading">
             <div className="tracker-loading-spinner" />

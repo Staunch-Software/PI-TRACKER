@@ -18,6 +18,7 @@ from app.models import (  # noqa: E402,F401
     pi_entry,
     pir_entry,
     po_entry,
+    po_item_entry,
     pr_entry,
     smartpal_invoice_entry,
     soa_document,

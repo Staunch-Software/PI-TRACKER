@@ -39,7 +39,10 @@ from app.core.config import MARIAPPS_AUTH_JSON, settings
 from app.db.session import SessionLocal
 from app.models.dd_tracker_entry import DdTrackerEntry
 from app.models.po_entry import PoEntry
+from app.models.po_item_entry import PoItemEntry
 from app.models.pr_entry import PrEntry
+import urllib.parse
+import json as _json
 from app.services.pir_scraper.generate_auth import run_automated_login
 
 log = logging.getLogger(__name__)
@@ -424,6 +427,235 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
     return {"inserted": inserted, "linked": linked}
 
 
+_FETCH_PO_ITEMS_JS = """async ({ pData, poHdId }) => {
+    const origin = window.location.origin;
+    const itemsUrl = origin + '/PurchasePALApp/api/ServiceRouter/GET?pData=' + pData;
+    const r1 = await fetch(itemsUrl, {
+        headers: {'servicepath': 'Purchase/POCreation/GetPOItems', 'app_code': 'SPS', 'x-requested-with': 'XMLHttpRequest'},
+        credentials: 'include'
+    });
+    const t1 = await r1.text();
+
+    const addUrl = origin + '/PurchasePALApp/api/ServiceRouter/GET?pData=' + encodeURIComponent(`PoHdId=${poHdId}&RevisionNo=0&CopyPo=N&selectedCategoryIdForCopyPo=0`);
+    const r2 = await fetch(addUrl, {
+        headers: {'servicepath': 'Purchase/poCreation/GetPoAddAmountDetails', 'app_code': 'SPS', 'x-requested-with': 'XMLHttpRequest'},
+        credentials: 'include'
+    });
+    const t2 = await r2.text();
+
+    return { itemsText: t1, addText: t2, status1: r1.status, status2: r2.status };
+}"""
+
+
+def _sync_dd_po_items(page, db: Session, target_po_nos: list[str] | None = None, force: bool = False) -> dict:
+    """Scrapes line items and additional amounts from SmartPAL's POCreation page for DD POs.
+    On first run or scheduled runs, processes DD POs.
+    If target_po_nos is provided, restricts to those specific POs.
+    If force is False, only scrapes POs not already present in po_item_entries.
+    """
+    if target_po_nos is not None:
+        po_query = (
+            db.query(DdTrackerEntry.po_no, DdTrackerEntry.vessel_name)
+            .filter(DdTrackerEntry.po_no.in_(target_po_nos))
+            .distinct()
+            .all()
+        )
+    else:
+        po_query = (
+            db.query(DdTrackerEntry.po_no, DdTrackerEntry.vessel_name)
+            .filter(DdTrackerEntry.po_no.isnot(None), DdTrackerEntry.deleted_at.is_(None))
+            .distinct()
+            .all()
+        )
+
+    if not force and target_po_nos is None:
+        already_scraped = {r[0] for r in db.query(PoItemEntry.po_no).distinct().all()}
+        po_query = [p for p in po_query if p[0] not in already_scraped]
+
+    log.info(f"[PO ITEMS] {len(po_query)} DD PO(s) to scrape for item details.")
+    scraped_pos = total_items = total_adds = errors = 0
+
+    for po_no, vessel_name in po_query:
+        po = db.query(PoEntry).filter(PoEntry.po_no == po_no).first()
+        if not po or not po.smartpal_id:
+            log.warning(f"[PO ITEMS] PO entry missing or no smartpal_id for {po_no}")
+            continue
+
+        po_hd_id = po.smartpal_id
+        vessel_obj_id = po.raw_json.get("vesselObjectId", 0) if po.raw_json else 0
+        p_data = urllib.parse.quote(
+            f"vesselObjectId={vessel_obj_id}&poHdId={po_hd_id}&isCopy=false&revisionNo=0&selectedCategoryIdForCopyPo=0"
+        )
+
+        try:
+            res = page.evaluate(_FETCH_PO_ITEMS_JS, {"pData": p_data, "poHdId": po_hd_id})
+            items_data = []
+            add_data = []
+
+            try:
+                items_json = _json.loads(res["itemsText"])
+                items_data = items_json.get("poDetEntity", []) or []
+            except Exception as e:
+                log.warning(f"[PO ITEMS] Could not parse items JSON for {po_no}: {e}")
+
+            try:
+                add_json = _json.loads(res["addText"])
+                add_data = add_json.get("result", []) or []
+            except Exception as e:
+                log.warning(f"[PO ITEMS] Could not parse add amounts JSON for {po_no}: {e}")
+
+            # Remove previous rows for this po_no to avoid duplicates
+            db.query(PoItemEntry).filter(PoItemEntry.po_no == po_no).delete()
+
+            now = datetime.now(timezone.utc)
+            resolved_vessel = po.vessel_name or vessel_name
+
+            for item in items_data:
+                acct_code = (item.get("accountCode") or "").strip()
+                acct_name = (item.get("accountName") or "").strip()
+                full_acct = f"{acct_code} - {acct_name}" if acct_code and acct_name else (acct_code or "Uncategorized")
+
+                db.add(
+                    PoItemEntry(
+                        smartpal_po_id=po_hd_id,
+                        po_no=po_no,
+                        vessel_name=resolved_vessel,
+                        item_type="ITEM",
+                        account_code=full_acct,
+                        account_code_desc=acct_name or None,
+                        part_number=(str(item.get("partNumber")).strip() or None) if item.get("partNumber") is not None else None,
+                        item_description=item.get("itemDescription"),
+                        rob=_num(item.get("robQuantity")),
+                        unit_price=_num(item.get("unitPrice")),
+                        quantity=_num(item.get("quantity")),
+                        discount_pct=_num(item.get("discountPercentage")),
+                        total_amount_inr=_num(item.get("totalPoCurrency")),
+                        total_amount_usd=_num(item.get("totalVesselCurrency")),
+                        sub_account_code=item.get("subAccountCode"),
+                        analysis_code=item.get("analysisCode"),
+                        client_code=item.get("clientCode"),
+                        drawing_no=item.get("drawingNo") or item.get("drawingNumber"),
+                        raw_json=item,
+                        first_scraped_at=now,
+                        last_scraped_at=now,
+                    )
+                )
+                total_items += 1
+
+            for add in add_data:
+                acct_code = (add.get("accountCode") or "").strip()
+                acct_name = (add.get("accountName") or "").strip()
+                full_acct = f"{acct_code} - {acct_name}" if acct_code and acct_name else (acct_code or "Uncategorized")
+                desc = add.get("additionalAmtDesc") or add.get("description") or "Additional Amount"
+
+                db.add(
+                    PoItemEntry(
+                        smartpal_po_id=po_hd_id,
+                        po_no=po_no,
+                        vessel_name=resolved_vessel,
+                        item_type="ADDITIONAL",
+                        account_code=full_acct,
+                        account_code_desc=acct_name or None,
+                        part_number=None,
+                        item_description=desc,
+                        rob=None,
+                        unit_price=_num(add.get("amount")),
+                        quantity=Decimal(1),
+                        discount_pct=_num(add.get("discountPercentage")),
+                        total_amount_inr=_num(add.get("netAmount")),
+                        total_amount_usd=_num(add.get("netAmountVsl")),
+                        vat_key=add.get("vatKeyName"),
+                        vat_pct=_num(add.get("vatPercentage")),
+                        sub_account_code=add.get("subAccountCode"),
+                        analysis_code=add.get("analysisCode"),
+                        client_code=add.get("clientCode"),
+                        drawing_no=None,
+                        raw_json=add,
+                        first_scraped_at=now,
+                        last_scraped_at=now,
+                    )
+                )
+                total_adds += 1
+
+            db.commit()
+            scraped_pos += 1
+        except Exception as e:
+            db.rollback()
+            errors += 1
+            log.error(f"[PO ITEMS] Failed scraping items for {po_no}: {e}")
+
+    return {"scraped_pos": scraped_pos, "items": total_items, "add_amounts": total_adds, "errors": errors}
+
+
+def scrape_dd_po_items(target_po_nos: list[str] | None = None, force: bool = False) -> dict:
+    """Entrypoint to scrape item details for DD POs on-demand or as part of a background task.
+    If target_po_nos is None and force is False, only scrapes newly added DD POs that do not
+    yet exist in po_item_entries. If no new POs exist, returns immediately without launching browser.
+    """
+    db = SessionLocal()
+    try:
+        if target_po_nos is not None:
+            needed_pos = target_po_nos
+        else:
+            all_dd_pos = [
+                r[0]
+                for r in db.query(DdTrackerEntry.po_no)
+                .filter(DdTrackerEntry.po_no.isnot(None), DdTrackerEntry.deleted_at.is_(None))
+                .distinct()
+                .all()
+            ]
+            if not force:
+                already_scraped = {r[0] for r in db.query(PoItemEntry.po_no).distinct().all()}
+                needed_pos = [p for p in all_dd_pos if p not in already_scraped]
+            else:
+                needed_pos = all_dd_pos
+
+        if not needed_pos:
+            log.info("[PO ITEMS] All DD PO items already up to date. No new POs to scrape.")
+            return {
+                "scraped_pos": 0,
+                "items": 0,
+                "add_amounts": 0,
+                "errors": 0,
+                "message": "All DD PO items are already up to date. No new POs found."
+            }
+
+        log.info(f"[PO ITEMS] Scraping item details for {len(needed_pos)} new DD PO(s): {needed_pos}")
+
+        if not MARIAPPS_AUTH_JSON.exists():
+            log.info("[AUTH]     No saved session found — running automated login first.")
+            run_automated_login()
+
+        result = {}
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=settings.mariapps_headless)
+                context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                page.goto(settings.po_overview_url, wait_until="load", timeout=60000)
+                page.wait_for_timeout(3000)
+                if "login" in page.url.lower() or "SIGN IN" in (page.content() or ""):
+                    raise RuntimeError("Session expired / not authenticated")
+                result = _sync_dd_po_items(page, db, target_po_nos=needed_pos, force=True)
+                browser.close()
+        except RuntimeError as e:
+            if "expired" not in str(e).lower() and "not authenticated" not in str(e).lower():
+                raise
+            log.warning(f"[AUTH]     {e} Re-authenticating and retrying once.")
+            run_automated_login()
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=settings.mariapps_headless)
+                context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                page.goto(settings.po_overview_url, wait_until="load", timeout=60000)
+                page.wait_for_timeout(3000)
+                result = _sync_dd_po_items(page, db, target_po_nos=needed_pos, force=True)
+                browser.close()
+        return result
+    finally:
+        db.close()
+
+
 def run() -> None:
     if not MARIAPPS_AUTH_JSON.exists():
         log.info("[AUTH]     No saved session found — running automated login first.")
@@ -455,10 +687,19 @@ def run() -> None:
     finally:
         db.close()
 
+    # Scrape PO items for DD POs (isolated so any item scrape issue never affects PR/PO completion)
+    po_items_counters = {}
+    try:
+        po_items_counters = scrape_dd_po_items()
+    except Exception as e:
+        log.error(f"[PO ITEMS] Background DD PO items scrape encountered error: {e}")
+        po_items_counters = {"error": str(e)}
+
     log.info("=" * 60)
     log.info(f"  PR scrape complete — {pr_counters}")
     log.info(f"  PO scrape complete — {po_counters}")
     log.info(f"  DD Tracker auto-sync complete — {dd_sync_counters}")
+    log.info(f"  DD PO Items scrape complete — {po_items_counters}")
     log.info("=" * 60)
 
 

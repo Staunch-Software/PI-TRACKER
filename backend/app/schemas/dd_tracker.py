@@ -138,3 +138,99 @@ class DdTrackerBulkDeleteRequest(CamelModel):
 
 class DdTrackerBulkDeleteResult(CamelModel):
     deleted_count: int
+
+
+class PoItemDetailOut(CamelModel):
+    id: uuid.UUID
+    po_no: str
+    vessel_name: str | None = None
+    item_type: str = "ITEM"
+    account_code: str | None = None
+    account_code_desc: str | None = None
+    part_number: str | None = None
+    item_description: str | None = None
+    rob: Decimal | None = None
+    unit_price: Decimal | None = None
+    quantity: Decimal | None = None
+    discount_pct: Decimal | None = None
+    total_amount_inr: Decimal | None = None
+    total_amount_usd: Decimal | None = None
+    vat_key: str | None = None
+    vat_pct: Decimal | None = None
+    sub_account_code: str | None = None
+    analysis_code: str | None = None
+    client_code: str | None = None
+    drawing_no: str | None = None
+    scraped_at: datetime
+
+
+class AccountCodeSpendForPo(CamelModel):
+    account_code: str
+    account_code_desc: str | None = None
+    total_spend_inr: Decimal = Decimal(0)
+    total_spend_usd: Decimal = Decimal(0)
+    item_count: int = 0
+    items: list[PoItemDetailOut] = []
+
+
+class PoAccountGroup(CamelModel):
+    po_no: str
+    vessel_name: str | None = None
+    po_title: str | None = None
+    vendor: str | None = None
+    currency: str | None = None
+    po_base_amount: Decimal | None = None
+    total_spend_inr: Decimal = Decimal(0)
+    total_spend_usd: Decimal = Decimal(0)
+    total_account_codes: int = 0
+    total_items: int = 0
+    account_codes: list[AccountCodeSpendForPo] = []
+
+
+class PoSpendForAccountCode(CamelModel):
+    po_no: str
+    vessel_name: str | None = None
+    po_title: str | None = None
+    vendor: str | None = None
+    currency: str | None = None
+    po_base_amount: Decimal | None = None
+    total_spend_inr: Decimal = Decimal(0)
+    total_spend_usd: Decimal = Decimal(0)
+    item_count: int = 0
+    items: list[PoItemDetailOut] = []
+
+
+class AccountCodeGroup(CamelModel):
+    account_code: str
+    account_code_desc: str | None = None
+    total_spend_inr: Decimal = Decimal(0)
+    total_spend_usd: Decimal = Decimal(0)
+    total_pos: int = 0
+    total_items: int = 0
+    pos: list[PoSpendForAccountCode] = []
+
+
+class AccountCodeAnalysisResponse(CamelModel):
+    account_codes: list[AccountCodeGroup] = []
+    pos: list[PoAccountGroup] = []
+    total_pos: int = 0
+    total_vessels: int = 0
+    total_account_codes: int = 0
+    total_items: int = 0
+    grand_total_spend_inr: Decimal = Decimal(0)
+    grand_total_spend_usd: Decimal = Decimal(0)
+    vessel_options: list[str] = []
+
+
+class SyncPoItemsRequest(CamelModel):
+    po_nos: list[str] | None = None
+    force: bool = False
+
+
+class SyncPoItemsResponse(CamelModel):
+    scraped_pos: int
+    items: int
+    add_amounts: int
+    errors: int
+    message: str | None = None
+

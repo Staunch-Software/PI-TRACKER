@@ -694,3 +694,95 @@ export interface VendorMasterAttachment {
   smartpalUploadedAt: string | null;
   downloadUrl: string;
 }
+
+// Mirrors backend/app/schemas/dd_tracker.py AccountCodeAnalysisResponse and hierarchy.
+export interface PoItemDetail {
+  id: string;
+  poNo: string;
+  vesselName: string | null;
+  itemType: 'ITEM' | 'ADDITIONAL' | string;
+  accountCode: string | null;
+  accountCodeDesc: string | null;
+  partNumber: string | null;
+  itemDescription: string | null;
+  rob: number | null;
+  unitPrice: number | null;
+  quantity: number | null;
+  discountPct: number | null;
+  totalAmountInr: number | null;
+  totalAmountUsd: number | null;
+  vatKey: string | null;
+  vatPct: number | null;
+  subAccountCode: string | null;
+  analysisCode: string | null;
+  clientCode: string | null;
+  drawingNo: string | null;
+  scrapedAt: string;
+}
+
+export interface AccountCodeSpendForPo {
+  accountCode: string;
+  accountCodeDesc: string | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  itemCount: number;
+  items: PoItemDetail[];
+}
+
+export interface PoAccountGroup {
+  poNo: string;
+  vesselName: string | null;
+  poTitle: string | null;
+  vendor: string | null;
+  currency: string | null;
+  poBaseAmount: number | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  totalAccountCodes: number;
+  totalItems: number;
+  accountCodes: AccountCodeSpendForPo[];
+}
+
+export interface PoSpendForAccountCode {
+  poNo: string;
+  vesselName: string | null;
+  poTitle: string | null;
+  vendor: string | null;
+  currency: string | null;
+  poBaseAmount: number | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  itemCount: number;
+  items: PoItemDetail[];
+}
+
+export interface AccountCodeGroup {
+  accountCode: string;
+  accountCodeDesc: string | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  totalPos: number;
+  totalItems: number;
+  pos: PoSpendForAccountCode[];
+}
+
+export interface AccountCodeAnalysisResponse {
+  accountCodes?: AccountCodeGroup[];
+  pos: PoAccountGroup[];
+  totalPos: number;
+  totalVessels: number;
+  totalAccountCodes: number;
+  totalItems: number;
+  grandTotalSpendInr: number;
+  grandTotalSpendUsd: number;
+  vesselOptions: string[];
+}
+
+
+export interface SyncPoItemsResponse {
+  scrapedPos: number;
+  items: number;
+  addAmounts: number;
+  errors: number;
+  message?: string | null;
+}

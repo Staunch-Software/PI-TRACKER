@@ -9,21 +9,33 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_module_access, require_roles
 from app.core.enums import UserRole
 from app.db.session import get_db
+from decimal import Decimal
+from fastapi import BackgroundTasks
 from app.models.dd_tracker_entry import DdTrackerEntry
 from app.models.po_entry import PoEntry
+from app.models.po_item_entry import PoItemEntry
 from app.models.pr_entry import PrEntry
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.user import User
 from app.schemas.common import PaginatedResult
 from app.schemas.dd_tracker import (
+    AccountCodeAnalysisResponse,
+    AccountCodeGroup,
+    AccountCodeSpendForPo,
+    PoSpendForAccountCode,
     DdTrackerBulkDeleteRequest,
     DdTrackerBulkDeleteResult,
     DdTrackerEntryCreate,
     DdTrackerEntryOut,
     DdTrackerEntryUpdate,
+    PoAccountGroup,
+    PoItemDetailOut,
     PoLookupResult,
     PrLookupResult,
+    SyncPoItemsRequest,
+    SyncPoItemsResponse,
 )
+from app.services.po_scraper.scraper import scrape_dd_po_items
 
 # Module-level gate (can_access_dd, Admin always passes) on every route; writes additionally
 # need Admin/Editor, same stance as every other module in this app.
@@ -166,8 +178,9 @@ def _filtered_query(
 ) -> OrmQuery:
     query = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None))
 
-    if search and search.strip():
-        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    s_clean = search.strip() if isinstance(search, str) and search.strip() else None
+    if s_clean:
+        escaped = s_clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped}%"
         query = query.filter(
             or_(
@@ -186,10 +199,12 @@ def _filtered_query(
                 ]
             )
         )
-    if entry_type:
-        query = query.filter(DdTrackerEntry.entry_type.in_(entry_type))
-    if vessel_name:
-        query = query.filter(DdTrackerEntry.vessel_name.in_(vessel_name))
+    e_clean = [entry_type] if isinstance(entry_type, str) else entry_type if isinstance(entry_type, (list, tuple)) and entry_type else None
+    if e_clean:
+        query = query.filter(DdTrackerEntry.entry_type.in_(e_clean))
+    v_clean = [vessel_name] if isinstance(vessel_name, str) else vessel_name if isinstance(vessel_name, (list, tuple)) and vessel_name else None
+    if v_clean:
+        query = query.filter(DdTrackerEntry.vessel_name.in_(v_clean))
 
     sort_column = _SORTABLE_COLUMNS.get(sort_by) if sort_by else None
     if sort_column is not None:
@@ -307,6 +322,7 @@ def lookup_po_entries(
 @router.post("", response_model=DdTrackerEntryOut, status_code=status.HTTP_201_CREATED)
 def create_dd_tracker_entry(
     payload: DdTrackerEntryCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(_writers),
 ) -> DdTrackerEntryOut:
@@ -314,6 +330,10 @@ def create_dd_tracker_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    if entry.po_no:
+        has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
+        if not has_items:
+            background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
     pr, po, invoice = _fetch_live(db, entry)
     return _to_out(entry, pr, po, invoice)
 
@@ -322,6 +342,7 @@ def create_dd_tracker_entry(
 def update_dd_tracker_entry(
     entry_id: uuid.UUID,
     payload: DdTrackerEntryUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(_writers),
 ) -> DdTrackerEntryOut:
@@ -335,6 +356,10 @@ def update_dd_tracker_entry(
     entry.updated_at = datetime.now()
     db.commit()
     db.refresh(entry)
+    if entry.po_no:
+        has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
+        if not has_items:
+            background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
     pr, po, invoice = _fetch_live(db, entry)
     return _to_out(entry, pr, po, invoice)
 
@@ -370,3 +395,244 @@ def delete_dd_tracker_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DD Tracker entry not found")
     entry.deleted_at = datetime.now()
     db.commit()
+
+
+@router.get("/account-code-analysis", response_model=AccountCodeAnalysisResponse)
+def get_account_code_analysis(
+    db: Session = Depends(get_db),
+    vessel_name: list[str] | None = Query(default=None),
+    account_code: list[str] | None = Query(default=None),
+    search: str | None = Query(default=None),
+) -> AccountCodeAnalysisResponse:
+    """Grouped analysis of PO line items and additional charges:
+    Grouped by PO, with each PO showing its account codes and line items.
+    If a PO has 2 or more account codes, each account code has its own spend & items.
+    """
+    vessel_options = [
+        r[0]
+        for r in db.query(PoItemEntry.vessel_name)
+        .filter(PoItemEntry.vessel_name.isnot(None))
+        .distinct()
+        .order_by(PoItemEntry.vessel_name)
+        .all()
+    ]
+
+    query = db.query(PoItemEntry)
+
+    # Safely handle FastAPI Query default objects if called directly
+    v_clean = vessel_name if isinstance(vessel_name, (list, str)) and vessel_name else None
+    a_clean = account_code if isinstance(account_code, (list, str)) and account_code else None
+    s_clean = search if isinstance(search, str) and search.strip() else None
+
+    if v_clean:
+        v_list = v_clean if isinstance(v_clean, list) else [v_clean]
+        query = query.filter(PoItemEntry.vessel_name.in_(v_list))
+    if a_clean:
+        a_list = a_clean if isinstance(a_clean, list) else [a_clean]
+        query = query.filter(PoItemEntry.account_code.in_(a_list))
+    if s_clean:
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.filter(
+            or_(
+                PoItemEntry.account_code.ilike(pattern, escape="\\"),
+                PoItemEntry.item_description.ilike(pattern, escape="\\"),
+                PoItemEntry.part_number.ilike(pattern, escape="\\"),
+                PoItemEntry.po_no.ilike(pattern, escape="\\"),
+                PoItemEntry.vessel_name.ilike(pattern, escape="\\"),
+            )
+        )
+
+    rows = query.order_by(
+        PoItemEntry.po_no.asc(),
+        PoItemEntry.account_code.asc(),
+        PoItemEntry.item_type.asc(),
+    ).all()
+
+    po_nos = {r.po_no for r in rows}
+    pos_map = {p.po_no: p for p in db.query(PoEntry).filter(PoEntry.po_no.in_(po_nos)).all()} if po_nos else {}
+
+    accts_dict: dict[str, dict] = {}
+    pos_dict: dict[str, dict] = {}
+    distinct_vessels = set()
+    distinct_accounts = set()
+    grand_total_inr = Decimal(0)
+    grand_total_usd = Decimal(0)
+
+    for r in rows:
+        po_key = r.po_no
+        acct_key = r.account_code or "Uncategorized"
+        distinct_vessels.add(r.vessel_name)
+        distinct_accounts.add(acct_key)
+
+        spend_inr = r.total_amount_inr or Decimal(0)
+        spend_usd = r.total_amount_usd or Decimal(0)
+        grand_total_inr += spend_inr
+        grand_total_usd += spend_usd
+
+        po_info = pos_map.get(po_key)
+        item_out = PoItemDetailOut(
+            id=r.id,
+            po_no=r.po_no,
+            vessel_name=r.vessel_name,
+            item_type=r.item_type,
+            account_code=r.account_code,
+            account_code_desc=r.account_code_desc,
+            part_number=r.part_number,
+            item_description=r.item_description,
+            rob=r.rob,
+            unit_price=r.unit_price,
+            quantity=r.quantity,
+            discount_pct=r.discount_pct,
+            total_amount_inr=r.total_amount_inr,
+            total_amount_usd=r.total_amount_usd,
+            vat_key=r.vat_key,
+            vat_pct=r.vat_pct,
+            sub_account_code=r.sub_account_code,
+            analysis_code=r.analysis_code,
+            client_code=r.client_code,
+            drawing_no=r.drawing_no,
+            scraped_at=r.last_scraped_at,
+        )
+
+        # 1. Group by Account Code (Primary flow: Account Code -> POs)
+        if acct_key not in accts_dict:
+            accts_dict[acct_key] = {
+                "account_code": acct_key,
+                "account_code_desc": r.account_code_desc,
+                "total_spend_inr": Decimal(0),
+                "total_spend_usd": Decimal(0),
+                "total_pos": 0,
+                "total_items": 0,
+                "pos_map": {},
+            }
+        acct_entry = accts_dict[acct_key]
+        acct_entry["total_spend_inr"] += spend_inr
+        acct_entry["total_spend_usd"] += spend_usd
+        acct_entry["total_items"] += 1
+
+        if po_key not in acct_entry["pos_map"]:
+            acct_entry["pos_map"][po_key] = {
+                "po_no": po_key,
+                "vessel_name": r.vessel_name or (po_info.vessel_name if po_info else None),
+                "po_title": po_info.title if po_info else None,
+                "vendor": po_info.vendor if po_info else None,
+                "currency": po_info.base_currency if po_info else None,
+                "po_base_amount": po_info.base_amount if po_info else None,
+                "total_spend_inr": Decimal(0),
+                "total_spend_usd": Decimal(0),
+                "item_count": 0,
+                "items": [],
+            }
+        po_in_acct = acct_entry["pos_map"][po_key]
+        po_in_acct["total_spend_inr"] += spend_inr
+        po_in_acct["total_spend_usd"] += spend_usd
+        po_in_acct["item_count"] += 1
+        po_in_acct["items"].append(item_out)
+
+        # 2. Group by PO (for backward compatibility if needed)
+        if po_key not in pos_dict:
+            pos_dict[po_key] = {
+                "po_no": po_key,
+                "vessel_name": r.vessel_name or (po_info.vessel_name if po_info else None),
+                "po_title": po_info.title if po_info else None,
+                "vendor": po_info.vendor if po_info else None,
+                "currency": po_info.base_currency if po_info else None,
+                "po_base_amount": po_info.base_amount if po_info else None,
+                "total_spend_inr": Decimal(0),
+                "total_spend_usd": Decimal(0),
+                "total_items": 0,
+                "account_codes_map": {},
+            }
+        po_entry_data = pos_dict[po_key]
+        po_entry_data["total_spend_inr"] += spend_inr
+        po_entry_data["total_spend_usd"] += spend_usd
+        po_entry_data["total_items"] += 1
+
+        if acct_key not in po_entry_data["account_codes_map"]:
+            po_entry_data["account_codes_map"][acct_key] = {
+                "account_code": acct_key,
+                "account_code_desc": r.account_code_desc,
+                "total_spend_inr": Decimal(0),
+                "total_spend_usd": Decimal(0),
+                "item_count": 0,
+                "items": [],
+            }
+        acct_data = po_entry_data["account_codes_map"][acct_key]
+        acct_data["total_spend_inr"] += spend_inr
+        acct_data["total_spend_usd"] += spend_usd
+        acct_data["item_count"] += 1
+        acct_data["items"].append(item_out)
+
+    # Build account_groups (Account Code -> POs)
+    account_groups = []
+    for acct_data in accts_dict.values():
+        po_list = [PoSpendForAccountCode(**p) for p in acct_data["pos_map"].values()]
+        po_list.sort(key=lambda p: p.total_spend_usd, reverse=True)
+        account_groups.append(
+            AccountCodeGroup(
+                account_code=acct_data["account_code"],
+                account_code_desc=acct_data["account_code_desc"],
+                total_spend_inr=acct_data["total_spend_inr"],
+                total_spend_usd=acct_data["total_spend_usd"],
+                total_pos=len(po_list),
+                total_items=acct_data["total_items"],
+                pos=po_list,
+            )
+        )
+    account_groups.sort(key=lambda a: a.total_spend_usd, reverse=True)
+
+    # Build po_groups (PO -> Account Codes)
+    po_groups = []
+    for po_data in pos_dict.values():
+        acct_list = [AccountCodeSpendForPo(**a) for a in po_data["account_codes_map"].values()]
+        acct_list.sort(key=lambda a: a.total_spend_usd, reverse=True)
+        po_groups.append(
+            PoAccountGroup(
+                po_no=po_data["po_no"],
+                vessel_name=po_data["vessel_name"],
+                po_title=po_data["po_title"],
+                vendor=po_data["vendor"],
+                currency=po_data["currency"],
+                po_base_amount=po_data["po_base_amount"],
+                total_spend_inr=po_data["total_spend_inr"],
+                total_spend_usd=po_data["total_spend_usd"],
+                total_account_codes=len(acct_list),
+                total_items=po_data["total_items"],
+                account_codes=acct_list,
+            )
+        )
+    po_groups.sort(key=lambda p: p.total_spend_usd, reverse=True)
+
+    return AccountCodeAnalysisResponse(
+        account_codes=account_groups,
+        pos=po_groups,
+        total_pos=len(po_groups),
+        total_vessels=len(distinct_vessels),
+        total_account_codes=len(account_groups),
+        total_items=len(rows),
+        grand_total_spend_inr=grand_total_inr,
+        grand_total_spend_usd=grand_total_usd,
+        vessel_options=vessel_options,
+    )
+
+
+@router.post("/sync-items", response_model=SyncPoItemsResponse)
+def sync_po_items(
+    payload: SyncPoItemsRequest | None = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+    _: User = Depends(_writers),
+) -> SyncPoItemsResponse:
+    """Trigger PO line items & additional charges scraping from SmartPAL for DD POs."""
+    target_pos = payload.po_nos if payload else None
+    force = payload.force if payload else False
+    result = scrape_dd_po_items(target_po_nos=target_pos, force=force)
+    return SyncPoItemsResponse(
+        scraped_pos=result.get("scraped_pos", 0),
+        items=result.get("items", 0),
+        add_amounts=result.get("add_amounts", 0),
+        errors=result.get("errors", 0),
+        message=result.get("message"),
+    )
+
