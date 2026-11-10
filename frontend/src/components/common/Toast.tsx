@@ -29,39 +29,48 @@ export function Toast({ message, type = 'error', onClose, duration = 4500 }: Toa
   const isSuccess = type === 'success';
   const isError = type === 'error';
 
-  // Palette configuration matching project theme
+  // Project Brand Color Theme (Maritime Deep Navy #0f4c81, Ocean Teal #14919b, Harbor Blue #0369a1)
   const theme = isSuccess
     ? {
-        label: 'Success',
-        accentColor: '#10b981',
-        iconBg: '#ecfdf5',
-        iconBorder: '#a7f3d0',
-        iconColor: '#059669',
-        progressBarBg: 'linear-gradient(90deg, #10b981, #059669)',
+        label: 'System Update',
+        accentColor: '#0f4c81',
+        iconBg: '#e0f2fe',
+        iconBorder: '#bae6fd',
+        iconColor: '#0f4c81',
+        badgeColor: '#0f4c81',
+        cardBorder: 'rgba(15, 76, 129, 0.22)',
+        cardShadow: '0 16px 36px -6px rgba(15, 76, 129, 0.18), 0 4px 12px -2px rgba(15, 76, 129, 0.08)',
+        progressBarBg: 'linear-gradient(90deg, #0f4c81 0%, #14919b 100%)',
       }
     : isError
     ? {
         label: 'Notice',
-        accentColor: '#ef4444',
-        iconBg: '#fef2f2',
-        iconBorder: '#fecaca',
+        accentColor: '#dc2626',
+        iconBg: '#fee2e2',
+        iconBorder: '#fca5a5',
         iconColor: '#dc2626',
-        progressBarBg: 'linear-gradient(90deg, #ef4444, #b91c1c)',
+        badgeColor: '#dc2626',
+        cardBorder: 'rgba(220, 38, 38, 0.22)',
+        cardShadow: '0 16px 36px -6px rgba(220, 38, 38, 0.16), 0 4px 12px -2px rgba(220, 38, 38, 0.06)',
+        progressBarBg: 'linear-gradient(90deg, #dc2626, #b91c1c)',
       }
     : {
-        label: 'Update',
-        accentColor: '#0284c7',
-        iconBg: '#f0f9ff',
-        iconBorder: '#bae6fd',
-        iconColor: '#0284c7',
-        progressBarBg: 'linear-gradient(90deg, #38bdf8, #0284c7)',
+        label: 'Notification',
+        accentColor: '#14919b',
+        iconBg: '#f0fdfa',
+        iconBorder: '#99f6e4',
+        iconColor: '#14919b',
+        badgeColor: '#14919b',
+        cardBorder: 'rgba(20, 145, 155, 0.22)',
+        cardShadow: '0 16px 36px -6px rgba(20, 145, 155, 0.16), 0 4px 12px -2px rgba(20, 145, 155, 0.06)',
+        progressBarBg: 'linear-gradient(90deg, #14919b 0%, #0ea5e9 100%)',
       };
 
   return createPortal(
     <div
       role="status"
       aria-live="polite"
-      className={`modern-toast-card ${isClosing ? 'toast-fade-out' : 'toast-slide-in'}`}
+      className={`project-theme-toast ${isClosing ? 'toast-fade-out' : 'toast-slide-in'}`}
       style={{
         position: 'fixed',
         top: 20,
@@ -70,24 +79,24 @@ export function Toast({ message, type = 'error', onClose, duration = 4500 }: Toa
         zIndex: 10000,
         background: '#ffffff',
         borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        boxShadow:
-          '0 16px 36px -6px rgba(15, 23, 42, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.03)',
+        border: `1px solid ${theme.cardBorder}`,
+        borderLeft: `4px solid ${theme.accentColor}`,
+        boxShadow: theme.cardShadow,
         display: 'flex',
         alignItems: 'center',
         gap: 12,
         padding: '10px 14px 10px 12px',
         minWidth: 320,
-        maxWidth: 480,
+        maxWidth: 500,
         overflow: 'hidden',
         pointerEvents: 'auto',
       }}
     >
-      {/* Status Icon Badge */}
+      {/* Brand Status Icon Badge */}
       <div
         style={{
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           borderRadius: 8,
           background: theme.iconBg,
           border: `1px solid ${theme.iconBorder}`,
@@ -99,17 +108,17 @@ export function Toast({ message, type = 'error', onClose, duration = 4500 }: Toa
         }}
       >
         {isSuccess ? (
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         ) : isError ? (
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         ) : (
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -119,7 +128,7 @@ export function Toast({ message, type = 'error', onClose, duration = 4500 }: Toa
 
       {/* Message Text Content */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: theme.iconColor }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: theme.badgeColor }}>
           {theme.label}
         </div>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#0f172a', lineHeight: 1.38, wordBreak: 'break-word' }}>
@@ -162,7 +171,7 @@ export function Toast({ message, type = 'error', onClose, duration = 4500 }: Toa
         </svg>
       </button>
 
-      {/* Modern Auto-Dismiss Progress Bar at bottom */}
+      {/* Brand Gradient Progress Bar */}
       {duration > 0 && (
         <div
           style={{
