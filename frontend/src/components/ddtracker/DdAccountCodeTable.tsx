@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { AccountCodeAnalysisResponse, PoItemDetail, PoSpendForAccountCode, SyncPoItemsResponse } from '../../shared';
 import { SpinnerIcon } from '../common/SpinnerIcon';
+import { Toast } from '../common/Toast';
 
 interface DdAccountCodeTableProps {
   canEdit: boolean;
@@ -742,7 +743,7 @@ export function DdAccountCodeTable({
 }: DdAccountCodeTableProps) {
   const queryClient = useQueryClient();
   const [selectedDetail, setSelectedDetail] = useState<PoItemModalData | null>(null);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncToast, setSyncToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Fetch PO items analysis data using parent selectedVessel and search
   const { data, isLoading, isError, error, isFetching } = useQuery({
@@ -761,19 +762,15 @@ export function DdAccountCodeTable({
     mutationFn: () =>
       api.post<SyncPoItemsResponse>('/dd-tracker/sync-items', {}),
     onSuccess: (res) => {
-      if (res.scrapedPos === 0) {
-        setSyncStatus(res.message || 'All DD PO items are already up to date. No new POs found.');
-      } else {
-        setSyncStatus(
-          `Successfully synced ${res.scrapedPos} newly added PO(s) (${res.items} items, ${res.addAmounts} additional charges).`
-        );
-      }
+      const msg = res.scrapedPos === 0
+        ? (res.message || 'All DD PO items are already up to date. No new POs found.')
+        : `Successfully synced ${res.scrapedPos} newly added PO(s) (${res.items} items, ${res.addAmounts} additional charges).`;
+      setSyncToast({ message: msg, type: 'success' });
       queryClient.invalidateQueries({ queryKey: ['dd-account-code-analysis'] });
-      setTimeout(() => setSyncStatus(null), 6000);
     },
     onError: (err) => {
-      setSyncStatus(err instanceof ApiError ? err.message : 'Failed to sync items from SmartPAL.');
-      setTimeout(() => setSyncStatus(null), 6000);
+      const errMsg = err instanceof ApiError ? err.message : 'Failed to sync items from SmartPAL.';
+      setSyncToast({ message: errMsg, type: 'error' });
     },
   });
 
@@ -837,10 +834,13 @@ export function DdAccountCodeTable({
         </div>
       </div>
 
-      {syncStatus && (
-        <div className={`dd-sync-feedback ${syncMutation.isError ? 'error' : 'success'}`}>
-          {syncStatus}
-        </div>
+      {syncToast && (
+        <Toast
+          message={syncToast.message}
+          type={syncToast.type}
+          onClose={() => setSyncToast(null)}
+          duration={4500}
+        />
       )}
 
       {/* Main Table Content */}
