@@ -4,11 +4,22 @@ import { api, ApiError } from '../../lib/api';
 import type { AccountCodeAnalysisResponse, PoItemDetail, PoSpendForAccountCode, SyncPoItemsResponse } from '../../shared';
 import { SpinnerIcon } from '../common/SpinnerIcon';
 import { Toast } from '../common/Toast';
+import { ColumnFilterMenu } from '../table/ColumnFilterMenu';
+
+// "accountCode"/"totalItems"/"totalSpendInr"/"totalSpendUsd" reorder the account-code GROUPS
+// (see backend's _apply_account_code_sort); "vesselName"/"poNo" instead reorder the POs within
+// each group, leaving the grouping itself intact either way.
+export type AcctSortColumn = 'accountCode' | 'vesselName' | 'poNo' | 'totalItems' | 'totalSpendInr' | 'totalSpendUsd';
 
 interface DdAccountCodeTableProps {
   canEdit: boolean;
   selectedVessel: string | null;
   search: string;
+  sortBy: AcctSortColumn | null;
+  sortDir: 'asc' | 'desc';
+  onSort: (column: AcctSortColumn) => void;
+  accountCodeFilter: string[];
+  onAccountCodeFilterChange: (values: string[]) => void;
 }
 
 interface VesselGroupUnderAccount {
@@ -740,6 +751,11 @@ export function DdAccountCodeTable({
   canEdit,
   selectedVessel,
   search,
+  sortBy,
+  sortDir,
+  onSort,
+  accountCodeFilter,
+  onAccountCodeFilterChange,
 }: DdAccountCodeTableProps) {
   const queryClient = useQueryClient();
   const [selectedDetail, setSelectedDetail] = useState<PoItemModalData | null>(null);
@@ -747,11 +763,16 @@ export function DdAccountCodeTable({
 
   // Fetch PO items analysis data using parent selectedVessel and search
   const { data, isLoading, isError, error, isFetching } = useQuery({
-    queryKey: ['dd-account-code-analysis', selectedVessel, search],
+    queryKey: ['dd-account-code-analysis', selectedVessel, search, accountCodeFilter, sortBy, sortDir],
     queryFn: () => {
       const params = new URLSearchParams();
       if (selectedVessel) params.set('vessel_name', selectedVessel);
       if (search && search.trim()) params.set('search', search.trim());
+      accountCodeFilter.forEach((v) => params.append('account_code', v));
+      if (sortBy) {
+        params.set('sort_by', sortBy);
+        params.set('sort_dir', sortDir);
+      }
       const qs = params.toString();
       return api.get<AccountCodeAnalysisResponse>(`/dd-tracker/account-code-analysis${qs ? `?${qs}` : ''}`);
     },
@@ -873,12 +894,48 @@ export function DdAccountCodeTable({
           <table className={`dd-po-acct-table ${selectedVessel ? 'table-single-vessel' : ''}`}>
             <thead>
               <tr>
-                <th style={{ width: '28%', minWidth: '220px' }}>Account Code</th>
-                <th style={{ width: '16%', minWidth: '130px' }}>Vessel</th>
-                <th style={{ width: '24%', minWidth: '180px' }}>PO Number</th>
-                <th style={{ width: '10%', minWidth: '70px', textAlign: 'center' }}>Items</th>
-                <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Spend (INR)</th>
-                <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Spend (USD)</th>
+                <th
+                  style={{ width: '28%', minWidth: '220px' }}
+                  className="sortable-col col-has-filter"
+                  onClick={() => onSort('accountCode')}
+                >
+                  Account Code{' '}
+                  <span className="sort-arrow">{sortBy === 'accountCode' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <ColumnFilterMenu
+                      options={(data?.accountCodeOptions ?? []).map((c) => ({ value: c, label: c }))}
+                      selected={accountCodeFilter}
+                      onChange={onAccountCodeFilterChange}
+                    />
+                  </span>
+                </th>
+                <th style={{ width: '16%', minWidth: '130px' }} className="sortable-col" onClick={() => onSort('vesselName')}>
+                  Vessel <span className="sort-arrow">{sortBy === 'vesselName' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                </th>
+                <th style={{ width: '24%', minWidth: '180px' }} className="sortable-col" onClick={() => onSort('poNo')}>
+                  PO Number <span className="sort-arrow">{sortBy === 'poNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                </th>
+                <th
+                  style={{ width: '10%', minWidth: '70px', textAlign: 'center' }}
+                  className="sortable-col"
+                  onClick={() => onSort('totalItems')}
+                >
+                  Items <span className="sort-arrow">{sortBy === 'totalItems' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                </th>
+                <th
+                  style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}
+                  className="sortable-col"
+                  onClick={() => onSort('totalSpendInr')}
+                >
+                  Spend (INR) <span className="sort-arrow">{sortBy === 'totalSpendInr' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                </th>
+                <th
+                  style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}
+                  className="sortable-col"
+                  onClick={() => onSort('totalSpendUsd')}
+                >
+                  Spend (USD) <span className="sort-arrow">{sortBy === 'totalSpendUsd' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                </th>
               </tr>
             </thead>
             <tbody>

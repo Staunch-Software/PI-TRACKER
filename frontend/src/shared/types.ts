@@ -776,6 +776,7 @@ export interface AccountCodeAnalysisResponse {
   grandTotalSpendInr: number;
   grandTotalSpendUsd: number;
   vesselOptions: string[];
+  accountCodeOptions: string[];
 }
 
 

@@ -1,7 +1,11 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Query as OrmQuery
 from sqlalchemy.orm import Session
@@ -175,6 +179,10 @@ def _filtered_query(
     vessel_name: list[str] | None,
     sort_by: str | None,
     sort_dir: str,
+    requisition_no: str | None = None,
+    po_no: str | None = None,
+    readiness_date_from: date | None = None,
+    readiness_date_to: date | None = None,
 ) -> OrmQuery:
     query = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None))
 
@@ -205,6 +213,23 @@ def _filtered_query(
     v_clean = [vessel_name] if isinstance(vessel_name, str) else vessel_name if isinstance(vessel_name, (list, tuple)) and vessel_name else None
     if v_clean:
         query = query.filter(DdTrackerEntry.vessel_name.in_(v_clean))
+
+    # Per-column Excel-style filters, added 2026-11-11 alongside the matching column-header sort —
+    # deliberately scoped to the same columns _SORTABLE_COLUMNS already covers (plain
+    # DdTrackerEntry fields), not the PR/PO/invoice columns that only ever get joined in Python
+    # after this query runs (see _attach_live_data) — confirmed with the user as out of scope here.
+    rn_clean = requisition_no.strip() if isinstance(requisition_no, str) and requisition_no.strip() else None
+    if rn_clean:
+        escaped = rn_clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(DdTrackerEntry.requisition_no.ilike(f"%{escaped}%", escape="\\"))
+    pn_clean = po_no.strip() if isinstance(po_no, str) and po_no.strip() else None
+    if pn_clean:
+        escaped = pn_clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(DdTrackerEntry.po_no.ilike(f"%{escaped}%", escape="\\"))
+    if readiness_date_from:
+        query = query.filter(DdTrackerEntry.readiness_date >= readiness_date_from)
+    if readiness_date_to:
+        query = query.filter(DdTrackerEntry.readiness_date < (readiness_date_to + timedelta(days=1)))
 
     sort_column = _SORTABLE_COLUMNS.get(sort_by) if sort_by else None
     if sort_column is not None:
@@ -243,16 +268,110 @@ def list_dd_tracker_entries(
     search: str | None = Query(default=None),
     entry_type: list[str] | None = Query(default=None),
     vessel_name: list[str] | None = Query(default=None),
+    requisition_no: str | None = Query(default=None),
+    po_no: str | None = Query(default=None),
+    readiness_date_from: date | None = Query(default=None),
+    readiness_date_to: date | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=1000),
 ) -> PaginatedResult[DdTrackerEntryOut]:
-    query = _filtered_query(db, search, entry_type, vessel_name, sort_by, sort_dir)
+    query = _filtered_query(
+        db, search, entry_type, vessel_name, sort_by, sort_dir,
+        requisition_no, po_no, readiness_date_from, readiness_date_to,
+    )
     total = query.order_by(None).count()
     rows = query.offset((page - 1) * page_size).limit(page_size).all()
     return PaginatedResult[DdTrackerEntryOut](
         items=_attach_live_data(db, rows), total=total, page=page, page_size=page_size
+    )
+
+
+# Column order/labels mirror DdTrackerTable.tsx's DEFAULT_COLUMN_ORDER (frontend) so the exported
+# file reads the same as what's on screen. Vessel isn't a table column there (filtered via the
+# capsule row instead) but is included here since the file stands alone once downloaded.
+_EXPORT_COLUMNS: list[tuple[str, str]] = [
+    ("S.No.", "seq_no"),
+    ("Type", "entry_type"),
+    ("Title", "title"),
+    ("Vessel", "vessel_name"),
+    ("PR Number", "requisition_no"),
+    ("PR Status", "pr_status_live"),
+    ("PO Number", "po_no"),
+    ("PO Status", "po_approved_status"),
+    ("Vendor", "po_vendor"),
+    ("PO Amount", "po_base_amount"),
+    ("PO Currency", "po_base_currency"),
+    ("Supply Port", "po_schd_del_port"),
+    ("Order Status", "order_status"),
+    ("Lead Days", "lead_days"),
+    ("Readiness Date", "readiness_date"),
+    ("Ex-Stock", "ex_stock"),
+    ("Delivery Status", "supply_confirmation"),
+    ("Remarks", "remarks"),
+    ("Invoice Number", "invoice_number"),
+    ("Invoice Type", "invoice_type"),
+    ("Invoice Amount", "invoice_amount"),
+    ("Invoice Currency", "invoice_currency"),
+    ("Invoice Status", "invoice_status"),
+    ("Payment Status", "payment_status"),
+]
+
+
+@router.get("/export")
+def export_dd_tracker_entries(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    entry_type: list[str] | None = Query(default=None),
+    vessel_name: list[str] | None = Query(default=None),
+    requisition_no: str | None = Query(default=None),
+    po_no: str | None = Query(default=None),
+    readiness_date_from: date | None = Query(default=None),
+    readiness_date_to: date | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
+) -> StreamingResponse:
+    """Exports every row matching the current "By PO" filters (no pagination) as an .xlsx
+    workbook — same filter params the list endpoint takes, so "export" always means "export
+    exactly what's on screen right now"."""
+    query = _filtered_query(
+        db, search, entry_type, vessel_name, sort_by, sort_dir,
+        requisition_no, po_no, readiness_date_from, readiness_date_to,
+    )
+    rows = _attach_live_data(db, query.all())
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "DD Tracker"
+
+    header_fill = PatternFill("solid", fgColor="0F4C81")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+    headers = [label for label, _ in _EXPORT_COLUMNS]
+    sheet.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for row in rows:
+        data = row.model_dump()
+        values = []
+        for _label, field in _EXPORT_COLUMNS:
+            value = data.get(field)
+            if isinstance(value, datetime):
+                value = value.replace(tzinfo=None)
+            values.append(value)
+        sheet.append(values)
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=DD_Tracker_By_PO.xlsx"},
     )
 
 
@@ -397,12 +516,11 @@ def delete_dd_tracker_entry(
     db.commit()
 
 
-@router.get("/account-code-analysis", response_model=AccountCodeAnalysisResponse)
-def get_account_code_analysis(
-    db: Session = Depends(get_db),
-    vessel_name: list[str] | None = Query(default=None),
-    account_code: list[str] | None = Query(default=None),
-    search: str | None = Query(default=None),
+def _compute_account_code_analysis(
+    db: Session,
+    vessel_name: list[str] | None,
+    account_code: list[str] | None,
+    search: str | None,
 ) -> AccountCodeAnalysisResponse:
     """Grouped analysis of PO line items and additional charges:
     Grouped by PO, with each PO showing its account codes and line items.
@@ -414,6 +532,14 @@ def get_account_code_analysis(
         .filter(PoItemEntry.vessel_name.isnot(None))
         .distinct()
         .order_by(PoItemEntry.vessel_name)
+        .all()
+    ]
+    account_code_options = [
+        r[0]
+        for r in db.query(PoItemEntry.account_code)
+        .filter(PoItemEntry.account_code.isnot(None))
+        .distinct()
+        .order_by(PoItemEntry.account_code)
         .all()
     ]
 
@@ -614,6 +740,101 @@ def get_account_code_analysis(
         grand_total_spend_inr=grand_total_inr,
         grand_total_spend_usd=grand_total_usd,
         vessel_options=vessel_options,
+        account_code_options=account_code_options,
+    )
+
+
+# Column-header sort for the "By Account Code" view, added 2026-11-11 alongside the matching
+# Excel-style filter. The table's rows are (account_code, po) pairs grouped visually under their
+# account code (see DdAccountCodeTable.tsx), so a naive flat sort across everything would scramble
+# that grouping. Instead: "accountCode"/"totalItems"/"totalSpendInr"/"totalSpendUsd" reorder the
+# account-code GROUPS themselves (overriding the default total_spend_usd-desc order); "vesselName"/
+# "poNo" instead reorder the POs WITHIN each group, leaving the groups' own order untouched —
+# either way the account-code grouping itself never gets interleaved.
+_ACCOUNT_GROUP_SORT_KEYS = {
+    "accountCode": lambda g: (g.account_code or "").lower(),
+    "totalItems": lambda g: g.total_items,
+    "totalSpendInr": lambda g: g.total_spend_inr,
+    "totalSpendUsd": lambda g: g.total_spend_usd,
+}
+_PO_WITHIN_GROUP_SORT_KEYS = {
+    "vesselName": lambda p: (p.vessel_name or "").lower(),
+    "poNo": lambda p: p.po_no or "",
+}
+
+
+def _apply_account_code_sort(response: AccountCodeAnalysisResponse, sort_by: str | None, sort_dir: str) -> None:
+    reverse = sort_dir == "desc"
+    if sort_by in _ACCOUNT_GROUP_SORT_KEYS:
+        response.account_codes.sort(key=_ACCOUNT_GROUP_SORT_KEYS[sort_by], reverse=reverse)
+    elif sort_by in _PO_WITHIN_GROUP_SORT_KEYS:
+        key = _PO_WITHIN_GROUP_SORT_KEYS[sort_by]
+        for group in response.account_codes:
+            group.pos.sort(key=key, reverse=reverse)
+
+
+@router.get("/account-code-analysis", response_model=AccountCodeAnalysisResponse)
+def get_account_code_analysis(
+    db: Session = Depends(get_db),
+    vessel_name: list[str] | None = Query(default=None),
+    account_code: list[str] | None = Query(default=None),
+    search: str | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
+) -> AccountCodeAnalysisResponse:
+    response = _compute_account_code_analysis(db, vessel_name, account_code, search)
+    _apply_account_code_sort(response, sort_by, sort_dir)
+    return response
+
+
+# Flattened (account_code, po) row per line, matching exactly what DdAccountCodeTable.tsx renders
+# — confirmed with the user 2026-11-11 this summary level (not every individual PO line item) is
+# what the export should contain.
+_ACCOUNT_CODE_EXPORT_COLUMNS = [
+    "Account Code", "Account Code Description", "Vessel", "PO Number", "Vendor",
+    "Currency", "Item Count", "Spend (INR)", "Spend (USD)",
+]
+
+
+@router.get("/account-code-analysis/export")
+def export_account_code_analysis(
+    db: Session = Depends(get_db),
+    vessel_name: list[str] | None = Query(default=None),
+    account_code: list[str] | None = Query(default=None),
+    search: str | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
+) -> StreamingResponse:
+    response = _compute_account_code_analysis(db, vessel_name, account_code, search)
+    _apply_account_code_sort(response, sort_by, sort_dir)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "DD Tracker - By Account Code"
+
+    header_fill = PatternFill("solid", fgColor="0F4C81")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+    sheet.append(_ACCOUNT_CODE_EXPORT_COLUMNS)
+    for col_idx in range(1, len(_ACCOUNT_CODE_EXPORT_COLUMNS) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for group in response.account_codes:
+        for po in group.pos:
+            sheet.append([
+                group.account_code, group.account_code_desc, po.vessel_name, po.po_no, po.vendor,
+                po.currency, po.item_count, po.total_spend_inr, po.total_spend_usd,
+            ])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=DD_Tracker_By_Account_Code.xlsx"},
     )
 
 

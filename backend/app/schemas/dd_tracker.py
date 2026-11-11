@@ -220,6 +220,7 @@ class AccountCodeAnalysisResponse(CamelModel):
     grand_total_spend_inr: Decimal = Decimal(0)
     grand_total_spend_usd: Decimal = Decimal(0)
     vessel_options: list[str] = []
+    account_code_options: list[str] = []
 
 
 class SyncPoItemsRequest(CamelModel):

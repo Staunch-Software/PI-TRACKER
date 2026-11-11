@@ -4,6 +4,8 @@ import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { PrPoLookupInput } from './PrPoLookupInput';
 import type { DdTrackerFormState } from './ddTrackerForm';
+import { ColumnFilterMenu } from '../table/ColumnFilterMenu';
+import { ColumnValueFilter } from '../table/ColumnValueFilter';
 
 // Same sticky-column split as PiEntriesTable/LandingReportsTable: an Actions column (a per-row
 // select checkbox, used for bulk delete via the toolbar's "Delete Selected"; Save/Cancel while
@@ -70,7 +72,7 @@ export const DEFAULT_COLUMN_ORDER = [
 const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 1000;
 
-export type SortColumn = 'seqNo' | 'vesselName';
+export type SortColumn = 'seqNo' | 'vesselName' | 'entryType' | 'requisitionNo' | 'poNo' | 'readinessDate';
 
 interface EditCellCtx {
   form: DdTrackerFormState;
@@ -108,6 +110,12 @@ interface ColumnDef {
   // Dropdown columns (Type, Invoice Type): no inline Save/Cancel at all — selecting an option
   // commits immediately via onSelectAndSave.
   immediateCommit?: boolean;
+  // Column-header sort + Excel-style filter, added 2026-11-11 — deliberately only on the columns
+  // backend/app/api/routes/dd_tracker.py's _SORTABLE_COLUMNS already covers (plain DdTrackerEntry
+  // fields); the PR/PO/invoice-derived columns are display-only here, same as their lack of
+  // renderEditCell above.
+  sortColumn?: SortColumn;
+  filter?: { kind: 'multi'; options: { value: string; label: string }[] } | { kind: 'text' } | { kind: 'date' };
 }
 
 const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
@@ -119,11 +127,15 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     renderEditCell: ({ form, onSelectAndSave, onClose }) => (
       <SearchableSelect options={ENTRY_TYPE_OPTIONS} value={form.entryType} onChange={(v) => onSelectAndSave('entryType', v)} onClose={onClose} />
     ),
+    sortColumn: 'entryType',
+    filter: { kind: 'multi', options: ENTRY_TYPE_OPTIONS.filter((o) => o.value) },
   },
   prNumber: {
     label: 'PR Number',
     group: 'Requisition',
     renderCell: (e) => e.requisitionNo ?? '—',
+    sortColumn: 'requisitionNo',
+    filter: { kind: 'text' },
     renderEditCell: ({ form, onChange }) => (
       <PrPoLookupInput
         kind="pr"
@@ -147,6 +159,8 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'PO Number',
     group: 'Purchase Order',
     renderCell: (e) => e.poNo ?? '—',
+    sortColumn: 'poNo',
+    filter: { kind: 'text' },
     renderEditCell: ({ form, onChange }) => (
       <PrPoLookupInput
         kind="po"
@@ -222,6 +236,8 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     headerClassName: 'col-center',
     cellClassName: 'col-center',
     renderCell: (e) => formatDate(e.readinessDate),
+    sortColumn: 'readinessDate',
+    filter: { kind: 'date' },
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus type="date" value={form.readinessDate} onChange={(ev) => onChange('readinessDate', ev.target.value)} />
     ),
@@ -350,6 +366,17 @@ interface Props {
   sortDir: 'asc' | 'desc';
   onSort: (column: SortColumn) => void;
 
+  // Excel-style per-column filters — see DdTrackerPage for how these feed into the list/export
+  // query params. Scoped to the same columns sortColumn already covers (see ColumnDef).
+  entryTypeFilter: string[];
+  onEntryTypeFilterChange: (values: string[]) => void;
+  requisitionNoFilter: string;
+  onRequisitionNoFilterChange: (value: string) => void;
+  poNoFilter: string;
+  onPoNoFilterChange: (value: string) => void;
+  readinessDateFilter: { from: string; to: string };
+  onReadinessDateFilterChange: (value: { from: string; to: string }) => void;
+
   // Cell-level editing: editingId identifies the row, editingField identifies which single cell
   // in it is showing an input right now. editForm holds the whole row's current values (prefilled
   // when editing starts) so switching which field is active within the same row never loses an
@@ -393,6 +420,14 @@ export function DdTrackerTable({
   sortBy,
   sortDir,
   onSort,
+  entryTypeFilter,
+  onEntryTypeFilterChange,
+  requisitionNoFilter,
+  onRequisitionNoFilterChange,
+  poNoFilter,
+  onPoNoFilterChange,
+  readinessDateFilter,
+  onReadinessDateFilterChange,
   editingId,
   editingField,
   editForm,
@@ -564,18 +599,59 @@ export function DdTrackerTable({
     ]
       .filter(Boolean)
       .join(' ');
+    const isSortable = !layoutEditable && !!def.sortColumn;
+    const hasFilter = !layoutEditable && !!def.filter;
+
+    // Per-column filter value/onChange this column actually wires to — a small lookup rather
+    // than a generic dict since each filter's shape (string[] vs string vs {from,to}) differs by
+    // column, same reasoning as DdTrackerPage's own separate pieces of filter state.
+    let filterNode: ReactNode = null;
+    if (hasFilter && def.filter) {
+      if (key === 'entryType' && def.filter.kind === 'multi') {
+        filterNode = (
+          <ColumnFilterMenu options={def.filter.options} selected={entryTypeFilter} onChange={onEntryTypeFilterChange} />
+        );
+      } else if (key === 'prNumber' && def.filter.kind === 'text') {
+        filterNode = (
+          <ColumnValueFilter
+            kind="text"
+            value={{ text: requisitionNoFilter }}
+            onChange={(v) => onRequisitionNoFilterChange(v.text ?? '')}
+          />
+        );
+      } else if (key === 'poNumber' && def.filter.kind === 'text') {
+        filterNode = (
+          <ColumnValueFilter kind="text" value={{ text: poNoFilter }} onChange={(v) => onPoNoFilterChange(v.text ?? '')} />
+        );
+      } else if (key === 'readinessDate' && def.filter.kind === 'date') {
+        filterNode = (
+          <ColumnValueFilter
+            kind="date"
+            value={readinessDateFilter}
+            onChange={(v) => onReadinessDateFilterChange({ from: v.from ?? '', to: v.to ?? '' })}
+          />
+        );
+      }
+    }
+
     return (
       <th
         key={key}
-        className={classNames || undefined}
+        className={[classNames, isSortable ? 'sortable-col' : undefined, hasFilter ? 'col-has-filter' : undefined]
+          .filter(Boolean)
+          .join(' ') || undefined}
         draggable={layoutEditable}
         onDragStart={layoutEditable ? () => handleDragStart(key) : undefined}
         onDragOver={layoutEditable ? (e) => handleDragOver(key, e) : undefined}
         onDrop={layoutEditable ? () => handleDrop(key) : undefined}
         onDragEnd={layoutEditable ? handleDragEnd : undefined}
+        onClick={isSortable ? () => onSort(def.sortColumn!) : undefined}
       >
         <span className="th-label-wrap">
           {def.label}
+          {isSortable && (
+            <span className="sort-arrow">{sortBy === def.sortColumn ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}</span>
+          )}
           {isEditable && (
             <span className="col-editable-badge" title="Editable column (double-click cell to edit)">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -583,6 +659,7 @@ export function DdTrackerTable({
               </svg>
             </span>
           )}
+          {filterNode && <span onClick={(e) => e.stopPropagation()}>{filterNode}</span>}
         </span>
         {layoutEditable && (
           <span className="col-resize-handle" onMouseDown={(e) => handleResizeStart(key, e)} title="Drag to resize" />

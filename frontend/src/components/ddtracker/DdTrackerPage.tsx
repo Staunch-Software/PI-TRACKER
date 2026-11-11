@@ -11,7 +11,7 @@ import {
   type SortColumn,
 } from './DdTrackerTable';
 import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
-import { DdAccountCodeTable } from './DdAccountCodeTable';
+import { DdAccountCodeTable, type AcctSortColumn } from './DdAccountCodeTable';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 import { TrashIcon } from '../common/TrashIcon';
@@ -137,9 +137,18 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
   return result;
 }
 
+interface DdTrackerColumnFilters {
+  entryType: string[];
+  requisitionNo: string;
+  poNo: string;
+  readinessDateFrom: string;
+  readinessDateTo: string;
+}
+
 function buildQueryParams(
   search: string,
   selectedVessel: string | null,
+  columnFilters: DdTrackerColumnFilters,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
   page: number,
@@ -148,6 +157,11 @@ function buildQueryParams(
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (selectedVessel) params.append('vessel_name', selectedVessel);
+  columnFilters.entryType.forEach((v) => params.append('entry_type', v));
+  if (columnFilters.requisitionNo) params.set('requisition_no', columnFilters.requisitionNo);
+  if (columnFilters.poNo) params.set('po_no', columnFilters.poNo);
+  if (columnFilters.readinessDateFrom) params.set('readiness_date_from', columnFilters.readinessDateFrom);
+  if (columnFilters.readinessDateTo) params.set('readiness_date_to', columnFilters.readinessDateTo);
   if (sortBy) {
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
@@ -167,6 +181,17 @@ export function DdTrackerPage() {
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [entryTypeFilter, setEntryTypeFilter] = useState<string[]>([]);
+  const [requisitionNoFilter, setRequisitionNoFilter] = useState('');
+  const [poNoFilter, setPoNoFilter] = useState('');
+  const [readinessDateFilter, setReadinessDateFilter] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const columnFilters: DdTrackerColumnFilters = {
+    entryType: entryTypeFilter,
+    requisitionNo: requisitionNoFilter,
+    poNo: poNoFilter,
+    readinessDateFrom: readinessDateFilter.from,
+    readinessDateTo: readinessDateFilter.to,
+  };
 
   const [layoutEditable, setLayoutEditable] = useState(false);
   const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
@@ -245,9 +270,11 @@ export function DdTrackerPage() {
   const vesselColorMap = useMemo(() => computeVesselColorAssignment(vesselList), [vesselList]);
 
   const entriesQuery = useQuery({
-    queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page, pageSize],
+    queryKey: ['dd-tracker', search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize],
     queryFn: () =>
-      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, selectedVessel, sortBy, sortDir, page, pageSize).toString()}`),
+      api.get<PaginatedResult<DdTrackerEntry>>(
+        `/dd-tracker?${buildQueryParams(search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize).toString()}`
+      ),
     placeholderData: keepPreviousData,
   });
 
@@ -259,7 +286,12 @@ export function DdTrackerPage() {
   // since scrolled off-screen under a different filter/page/sort.
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [search, selectedVessel, sortBy, sortDir, page, pageSize]);
+  }, [search, selectedVessel, entryTypeFilter, requisitionNoFilter, poNoFilter, readinessDateFilter, sortBy, sortDir, page, pageSize]);
+
+  function updateColumnFilter<T>(setter: (v: T) => void, value: T) {
+    setPage(1);
+    setter(value);
+  }
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -291,6 +323,71 @@ export function DdTrackerPage() {
   function selectVessel(vessel: string | null) {
     setPage(1);
     setSelectedVessel(vessel);
+  }
+
+  // Account Code view's own sort + Account Code column filter — lifted up here (rather than kept
+  // local to DdAccountCodeTable) so the shared toolbar's "Export" button below can read them when
+  // building that view's export URL, same reason "By PO"'s sort state already lives here.
+  const [acctSortBy, setAcctSortBy] = useState<AcctSortColumn | null>(null);
+  const [acctSortDir, setAcctSortDir] = useState<'asc' | 'desc'>('asc');
+  const [acctAccountCodeFilter, setAcctAccountCodeFilter] = useState<string[]>([]);
+
+  function handleAcctSort(column: AcctSortColumn) {
+    if (acctSortBy === column) {
+      if (acctSortDir === 'asc') {
+        setAcctSortDir('desc');
+      } else {
+        setAcctSortBy(null);
+        setAcctSortDir('asc');
+      }
+    } else {
+      setAcctSortBy(column);
+      setAcctSortDir('asc');
+    }
+  }
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Exports exactly the rows the current view's filters would return — same query params as that
+  // view's own list fetch, minus pagination (the By PO view) since export returns every matching
+  // row in one file. Each tab gets its own endpoint/filename, per the user's request for separate
+  // download options for "By PO" vs. "By Account Code".
+  async function handleExport() {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      let blob: Blob;
+      let filename: string | null;
+      if (showPoItemsView) {
+        const params = new URLSearchParams();
+        if (selectedVessel) params.append('vessel_name', selectedVessel);
+        if (search) params.set('search', search);
+        acctAccountCodeFilter.forEach((v) => params.append('account_code', v));
+        if (acctSortBy) {
+          params.set('sort_by', acctSortBy);
+          params.set('sort_dir', acctSortDir);
+        }
+        ({ blob, filename } = await api.getBlob(`/dd-tracker/account-code-analysis/export?${params.toString()}`));
+      } else {
+        const params = buildQueryParams(search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize);
+        params.delete('page');
+        params.delete('page_size');
+        ({ blob, filename } = await api.getBlob(`/dd-tracker/export?${params.toString()}`));
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename ?? (showPoItemsView ? 'DD_Tracker_By_Account_Code.xlsx' : 'DD_Tracker_By_PO.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : 'Failed to export.');
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   // Cell-level edit: double-clicking a different field within the SAME row just switches which
@@ -440,6 +537,10 @@ export function DdTrackerPage() {
           />
         </div>
         <div className="tracker-toolbar-spacer" />
+        <button className="btn-tracker-action btn-tracker-secondary" onClick={handleExport} disabled={isExporting}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          {isExporting ? 'Exporting…' : showPoItemsView ? 'Export By Account Code' : 'Export By PO'}
+        </button>
         {!showPoItemsView && canEdit && (
           <>
             {selectedIds.size > 0 && (
@@ -506,6 +607,11 @@ export function DdTrackerPage() {
           canEdit={canEdit}
           selectedVessel={selectedVessel}
           search={search}
+          sortBy={acctSortBy}
+          sortDir={acctSortDir}
+          onSort={handleAcctSort}
+          accountCodeFilter={acctAccountCodeFilter}
+          onAccountCodeFilterChange={(values) => setAcctAccountCodeFilter(values)}
         />
       ) : entriesQuery.isLoading ? (
         <div className="tracker-table-card">
@@ -529,6 +635,14 @@ export function DdTrackerPage() {
               sortBy={sortBy}
               sortDir={sortDir}
               onSort={handleSort}
+              entryTypeFilter={entryTypeFilter}
+              onEntryTypeFilterChange={(values) => updateColumnFilter(setEntryTypeFilter, values)}
+              requisitionNoFilter={requisitionNoFilter}
+              onRequisitionNoFilterChange={(value) => updateColumnFilter(setRequisitionNoFilter, value)}
+              poNoFilter={poNoFilter}
+              onPoNoFilterChange={(value) => updateColumnFilter(setPoNoFilter, value)}
+              readinessDateFilter={readinessDateFilter}
+              onReadinessDateFilterChange={(value) => updateColumnFilter(setReadinessDateFilter, value)}
               editingId={editingId}
               editingField={editingField}
               editForm={editForm}
@@ -622,6 +736,7 @@ export function DdTrackerPage() {
       )}
 
       {saveError && <Toast type="error" message={saveError} onClose={() => setSaveError(null)} duration={5000} />}
+      {exportError && <Toast type="error" message={exportError} onClose={() => setExportError(null)} duration={5000} />}
 
       {confirmingBulkDelete && (
         <ConfirmDialog
