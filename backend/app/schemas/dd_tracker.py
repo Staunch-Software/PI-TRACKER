@@ -115,6 +115,21 @@ class DdTrackerEntryOut(CamelModel):
     lead_days: int | None = None
 
 
+class DdTrackerFilterOptions(CamelModel):
+    """Distinct values for the Excel-style column filters on fields computed live in
+    api/routes/dd_tracker.py's _attach_live_data (see get_dd_tracker_filter_options) — Supply
+    Port and Remarks are free-text "contains" filters on the frontend instead, so they have no
+    bounded option list here."""
+    pr_status: list[str] = []
+    po_status: list[str] = []
+    vendor: list[str] = []
+    order_status: list[str] = []
+    delivery_status: list[str] = []
+    invoice_type: list[str] = []
+    invoice_status: list[str] = []
+    payment_status: list[str] = []
+
+
 class PrLookupResult(CamelModel):
     requisition_no: str
     title: str | None

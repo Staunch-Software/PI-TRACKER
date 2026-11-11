@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '../../auth/useRole';
 import { api, ApiError } from '../../lib/api';
-import type { DdTrackerEntry, PaginatedResult } from '../../shared';
+import type { DdTrackerEntry, DdTrackerFilterOptions, PaginatedResult } from '../../shared';
 import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COL_WIDTHS,
   DdTrackerTable,
+  type DdTrackerColumnFilters,
   type ReorderableColumnKey,
   type SortColumn,
 } from './DdTrackerTable';
@@ -137,13 +138,38 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
   return result;
 }
 
-interface DdTrackerColumnFilters {
-  entryType: string[];
-  requisitionNo: string;
-  poNo: string;
-  readinessDateFrom: string;
-  readinessDateTo: string;
-}
+const EMPTY_COLUMN_FILTERS: DdTrackerColumnFilters = {
+  entryType: [],
+  requisitionNo: '',
+  poNo: '',
+  readinessDate: { from: '', to: '' },
+  prStatus: [],
+  poStatus: [],
+  vendor: [],
+  supplyPort: '',
+  orderStatus: [],
+  supplyConfirmation: [],
+  remarks: '',
+  invoiceType: [],
+  invoiceStatus: [],
+  paymentStatus: [],
+};
+
+// Column-key field -> backend query-param name, for every field that ISN'T already a plain
+// snake_case of itself (handled by the fallback below). Keeps buildQueryParams a one-line loop
+// instead of a 14-branch if/else as this list keeps growing.
+const FILTER_PARAM_NAME: Partial<Record<keyof DdTrackerColumnFilters, string>> = {
+  requisitionNo: 'requisition_no',
+  poNo: 'po_no',
+  prStatus: 'pr_status',
+  poStatus: 'po_status',
+  supplyPort: 'supply_port',
+  orderStatus: 'order_status',
+  supplyConfirmation: 'delivery_status',
+  invoiceType: 'invoice_type',
+  invoiceStatus: 'invoice_status',
+  paymentStatus: 'payment_status',
+};
 
 function buildQueryParams(
   search: string,
@@ -157,11 +183,20 @@ function buildQueryParams(
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (selectedVessel) params.append('vessel_name', selectedVessel);
-  columnFilters.entryType.forEach((v) => params.append('entry_type', v));
-  if (columnFilters.requisitionNo) params.set('requisition_no', columnFilters.requisitionNo);
-  if (columnFilters.poNo) params.set('po_no', columnFilters.poNo);
-  if (columnFilters.readinessDateFrom) params.set('readiness_date_from', columnFilters.readinessDateFrom);
-  if (columnFilters.readinessDateTo) params.set('readiness_date_to', columnFilters.readinessDateTo);
+  for (const [key, value] of Object.entries(columnFilters) as [keyof DdTrackerColumnFilters, unknown][]) {
+    if (key === 'readinessDate') {
+      const range = value as { from: string; to: string };
+      if (range.from) params.set('readiness_date_from', range.from);
+      if (range.to) params.set('readiness_date_to', range.to);
+      continue;
+    }
+    const paramName = FILTER_PARAM_NAME[key] ?? key;
+    if (Array.isArray(value)) {
+      value.forEach((v) => params.append(paramName, v));
+    } else if (typeof value === 'string' && value) {
+      params.set(paramName, value);
+    }
+  }
   if (sortBy) {
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
@@ -181,16 +216,19 @@ export function DdTrackerPage() {
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [entryTypeFilter, setEntryTypeFilter] = useState<string[]>([]);
-  const [requisitionNoFilter, setRequisitionNoFilter] = useState('');
-  const [poNoFilter, setPoNoFilter] = useState('');
-  const [readinessDateFilter, setReadinessDateFilter] = useState<{ from: string; to: string }>({ from: '', to: '' });
-  const columnFilters: DdTrackerColumnFilters = {
-    entryType: entryTypeFilter,
-    requisitionNo: requisitionNoFilter,
-    poNo: poNoFilter,
-    readinessDateFrom: readinessDateFilter.from,
-    readinessDateTo: readinessDateFilter.to,
+  const [columnFilters, setColumnFilters] = useState<DdTrackerColumnFilters>(EMPTY_COLUMN_FILTERS);
+
+  function handleFilterChange<K extends keyof DdTrackerColumnFilters>(key: K, value: DdTrackerColumnFilters[K]) {
+    setPage(1);
+    setColumnFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const filterOptionsQuery = useQuery({
+    queryKey: ['dd-tracker-filter-options'],
+    queryFn: () => api.get<DdTrackerFilterOptions>('/dd-tracker/filter-options'),
+  });
+  const filterOptions: DdTrackerFilterOptions = filterOptionsQuery.data ?? {
+    prStatus: [], poStatus: [], vendor: [], orderStatus: [], deliveryStatus: [], invoiceType: [], invoiceStatus: [], paymentStatus: [],
   };
 
   const [layoutEditable, setLayoutEditable] = useState(false);
@@ -286,12 +324,7 @@ export function DdTrackerPage() {
   // since scrolled off-screen under a different filter/page/sort.
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [search, selectedVessel, entryTypeFilter, requisitionNoFilter, poNoFilter, readinessDateFilter, sortBy, sortDir, page, pageSize]);
-
-  function updateColumnFilter<T>(setter: (v: T) => void, value: T) {
-    setPage(1);
-    setter(value);
-  }
+  }, [search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -635,14 +668,9 @@ export function DdTrackerPage() {
               sortBy={sortBy}
               sortDir={sortDir}
               onSort={handleSort}
-              entryTypeFilter={entryTypeFilter}
-              onEntryTypeFilterChange={(values) => updateColumnFilter(setEntryTypeFilter, values)}
-              requisitionNoFilter={requisitionNoFilter}
-              onRequisitionNoFilterChange={(value) => updateColumnFilter(setRequisitionNoFilter, value)}
-              poNoFilter={poNoFilter}
-              onPoNoFilterChange={(value) => updateColumnFilter(setPoNoFilter, value)}
-              readinessDateFilter={readinessDateFilter}
-              onReadinessDateFilterChange={(value) => updateColumnFilter(setReadinessDateFilter, value)}
+              filters={columnFilters}
+              onFilterChange={handleFilterChange}
+              filterOptions={filterOptions}
               editingId={editingId}
               editingField={editingField}
               editForm={editForm}

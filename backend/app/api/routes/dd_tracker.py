@@ -32,6 +32,7 @@ from app.schemas.dd_tracker import (
     DdTrackerEntryCreate,
     DdTrackerEntryOut,
     DdTrackerEntryUpdate,
+    DdTrackerFilterOptions,
     PoAccountGroup,
     PoItemDetailOut,
     PoLookupResult,
@@ -238,6 +239,106 @@ def _filtered_query(
     return query.order_by(DdTrackerEntry.seq_no.asc())
 
 
+class _LiveFilters:
+    """Excel-style filters for the columns computed live in _attach_live_data (PR Status, PO
+    Status, Vendor, Invoice Status, Payment Status) plus a few plain DdTrackerEntry columns that
+    weren't in the first round (Supply Port, Order Status, Delivery Status, Remarks, Invoice
+    Type) — added 2026-11-11 per direct purchaser feedback relayed by the user. These can't be
+    pushed into _filtered_query's SQL WHERE clause the way requisition_no/po_no are: PR Status/PO
+    Status/Vendor/Invoice Status/Payment Status only exist after the PR/PO/Invoice join in
+    _attach_live_data runs, and Supply Port/Readiness Date already follow the same "live value,
+    optional override" pattern (po.schd_del_port when entry.supply_port is blank) rather than
+    being pure DB columns either. So filtering (and therefore counting/paginating) can only happen
+    AFTER _attach_live_data, on the enriched DdTrackerEntryOut list — see
+    _filter_and_paginate_enriched below, which fetches every row matching the cheap SQL-level
+    filters first, then applies these here before slicing the page."""
+
+    def __init__(
+        self,
+        pr_status: list[str] | None,
+        po_status: list[str] | None,
+        vendor: list[str] | None,
+        supply_port: str | None,
+        order_status: list[str] | None,
+        delivery_status: list[str] | None,
+        remarks: str | None,
+        invoice_type: list[str] | None,
+        invoice_status: list[str] | None,
+        payment_status: list[str] | None,
+    ):
+        def _clean_list(v: list[str] | str | None) -> list[str] | None:
+            if isinstance(v, str):
+                return [v] if v else None
+            if isinstance(v, (list, tuple)) and v:
+                return list(v)
+            return None
+
+        def _clean_text(v: str | None) -> str | None:
+            return v.strip() if isinstance(v, str) and v.strip() else None
+
+        self.pr_status = _clean_list(pr_status)
+        self.po_status = _clean_list(po_status)
+        self.vendor = _clean_list(vendor)
+        self.supply_port = _clean_text(supply_port)
+        self.order_status = _clean_list(order_status)
+        self.delivery_status = _clean_list(delivery_status)
+        self.remarks = _clean_text(remarks)
+        self.invoice_type = _clean_list(invoice_type)
+        self.invoice_status = _clean_list(invoice_status)
+        self.payment_status = _clean_list(payment_status)
+
+    def is_empty(self) -> bool:
+        return not any(
+            (
+                self.pr_status, self.po_status, self.vendor, self.supply_port, self.order_status,
+                self.delivery_status, self.remarks, self.invoice_type, self.invoice_status, self.payment_status,
+            )
+        )
+
+    def matches(self, item: DdTrackerEntryOut) -> bool:
+        if self.pr_status and item.pr_status_live not in self.pr_status:
+            return False
+        if self.po_status and item.po_approved_status not in self.po_status:
+            return False
+        if self.vendor and item.po_vendor not in self.vendor:
+            return False
+        if self.supply_port and self.supply_port.lower() not in (item.po_schd_del_port or "").lower():
+            return False
+        if self.order_status and item.order_status not in self.order_status:
+            return False
+        if self.delivery_status and item.supply_confirmation not in self.delivery_status:
+            return False
+        if self.remarks and self.remarks.lower() not in (item.remarks or "").lower():
+            return False
+        if self.invoice_type and item.invoice_type not in self.invoice_type:
+            return False
+        if self.invoice_status and item.invoice_status not in self.invoice_status:
+            return False
+        if self.payment_status and item.payment_status not in self.payment_status:
+            return False
+        return True
+
+
+def _filter_and_paginate_enriched(
+    db: Session,
+    query: OrmQuery,
+    live_filters: "_LiveFilters",
+    page: int | None,
+    page_size: int | None,
+) -> tuple[list[DdTrackerEntryOut], int]:
+    """Runs the (unpaginated) SQL-level query, enriches every matching row with live PR/PO/invoice
+    data, applies the live-field filters, and only THEN paginates — see _LiveFilters' docstring
+    for why this can't happen at the SQL level. page=None returns every filtered row (export)."""
+    enriched = _attach_live_data(db, query.all())
+    if not live_filters.is_empty():
+        enriched = [item for item in enriched if live_filters.matches(item)]
+    total = len(enriched)
+    if page is None or page_size is None:
+        return enriched, total
+    start = (page - 1) * page_size
+    return enriched[start : start + page_size], total
+
+
 def _attach_live_data(db: Session, entries: list[DdTrackerEntry]) -> list[DdTrackerEntryOut]:
     req_nos = {e.requisition_no for e in entries if e.requisition_no}
     po_nos = {e.po_no for e in entries if e.po_no}
@@ -272,6 +373,16 @@ def list_dd_tracker_entries(
     po_no: str | None = Query(default=None),
     readiness_date_from: date | None = Query(default=None),
     readiness_date_to: date | None = Query(default=None),
+    pr_status: list[str] | None = Query(default=None),
+    po_status: list[str] | None = Query(default=None),
+    vendor: list[str] | None = Query(default=None),
+    supply_port: str | None = Query(default=None),
+    order_status: list[str] | None = Query(default=None),
+    delivery_status: list[str] | None = Query(default=None),
+    remarks: str | None = Query(default=None),
+    invoice_type: list[str] | None = Query(default=None),
+    invoice_status: list[str] | None = Query(default=None),
+    payment_status: list[str] | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -281,11 +392,12 @@ def list_dd_tracker_entries(
         db, search, entry_type, vessel_name, sort_by, sort_dir,
         requisition_no, po_no, readiness_date_from, readiness_date_to,
     )
-    total = query.order_by(None).count()
-    rows = query.offset((page - 1) * page_size).limit(page_size).all()
-    return PaginatedResult[DdTrackerEntryOut](
-        items=_attach_live_data(db, rows), total=total, page=page, page_size=page_size
+    live_filters = _LiveFilters(
+        pr_status, po_status, vendor, supply_port, order_status,
+        delivery_status, remarks, invoice_type, invoice_status, payment_status,
     )
+    items, total = _filter_and_paginate_enriched(db, query, live_filters, page, page_size)
+    return PaginatedResult[DdTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
 
 
 # Column order/labels mirror DdTrackerTable.tsx's DEFAULT_COLUMN_ORDER (frontend) so the exported
@@ -329,6 +441,16 @@ def export_dd_tracker_entries(
     po_no: str | None = Query(default=None),
     readiness_date_from: date | None = Query(default=None),
     readiness_date_to: date | None = Query(default=None),
+    pr_status: list[str] | None = Query(default=None),
+    po_status: list[str] | None = Query(default=None),
+    vendor: list[str] | None = Query(default=None),
+    supply_port: str | None = Query(default=None),
+    order_status: list[str] | None = Query(default=None),
+    delivery_status: list[str] | None = Query(default=None),
+    remarks: str | None = Query(default=None),
+    invoice_type: list[str] | None = Query(default=None),
+    invoice_status: list[str] | None = Query(default=None),
+    payment_status: list[str] | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
@@ -339,7 +461,11 @@ def export_dd_tracker_entries(
         db, search, entry_type, vessel_name, sort_by, sort_dir,
         requisition_no, po_no, readiness_date_from, readiness_date_to,
     )
-    rows = _attach_live_data(db, query.all())
+    live_filters = _LiveFilters(
+        pr_status, po_status, vendor, supply_port, order_status,
+        delivery_status, remarks, invoice_type, invoice_status, payment_status,
+    )
+    rows, _total = _filter_and_paginate_enriched(db, query, live_filters, None, None)
 
     workbook = Workbook()
     sheet = workbook.active
@@ -388,6 +514,30 @@ def list_vessel_options(db: Session = Depends(get_db)) -> list[str]:
         .all()
     )
     return [r[0] for r in rows]
+
+
+@router.get("/filter-options", response_model=DdTrackerFilterOptions)
+def get_dd_tracker_filter_options(db: Session = Depends(get_db)) -> DdTrackerFilterOptions:
+    """Distinct values for every new Excel-style column filter (2026-11-11, direct purchaser
+    feedback) — computed from the full, unfiltered enriched row set (same as vessel-options
+    above), not from whatever's currently filtered, so narrowing one filter never shrinks the
+    choices available in another."""
+    rows = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None)).all()
+    enriched = _attach_live_data(db, rows)
+
+    def _distinct(values: list[str | None]) -> list[str]:
+        return sorted({v for v in values if v})
+
+    return DdTrackerFilterOptions(
+        pr_status=_distinct([e.pr_status_live for e in enriched]),
+        po_status=_distinct([e.po_approved_status for e in enriched]),
+        vendor=_distinct([e.po_vendor for e in enriched]),
+        order_status=_distinct([e.order_status for e in enriched]),
+        delivery_status=_distinct([e.supply_confirmation for e in enriched]),
+        invoice_type=_distinct([e.invoice_type for e in enriched]),
+        invoice_status=_distinct([e.invoice_status for e in enriched]),
+        payment_status=_distinct([e.payment_status for e in enriched]),
+    )
 
 
 @router.get("/pr-lookup", response_model=list[PrLookupResult])

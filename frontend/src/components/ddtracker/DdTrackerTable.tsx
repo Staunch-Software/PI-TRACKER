@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
-import type { DdTrackerEntry } from '../../shared';
+import type { DdTrackerEntry, DdTrackerFilterOptions } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { PrPoLookupInput } from './PrPoLookupInput';
@@ -73,6 +73,28 @@ const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 1000;
 
 export type SortColumn = 'seqNo' | 'vesselName' | 'entryType' | 'requisitionNo' | 'poNo' | 'readinessDate';
+
+// One field per filterable column (added to 2026-11-11 for PR/PO Status, Vendor, Supply Port,
+// Order/Delivery Status, Remarks, Invoice Type/Status, Payment Status, on top of the original 4).
+// Keyed by column key (not by the backend's query-param name, which sometimes differs — e.g.
+// this column is `supplyConfirmation`, the query param is `delivery_status`; DdTrackerPage's own
+// buildQueryParams is where that translation happens).
+export interface DdTrackerColumnFilters {
+  entryType: string[];
+  requisitionNo: string;
+  poNo: string;
+  readinessDate: { from: string; to: string };
+  prStatus: string[];
+  poStatus: string[];
+  vendor: string[];
+  supplyPort: string;
+  orderStatus: string[];
+  supplyConfirmation: string[];
+  remarks: string;
+  invoiceType: string[];
+  invoiceStatus: string[];
+  paymentStatus: string[];
+}
 
 interface EditCellCtx {
   form: DdTrackerFormState;
@@ -154,6 +176,9 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'PR Status',
     group: 'Requisition',
     renderCell: (e) => e.prStatusLive ?? '—',
+    // Dynamic multi-select — real options come from DdTrackerPage's filterOptions query (distinct
+    // live-computed values), not a static list here; see renderHeaderCell below.
+    filter: { kind: 'multi', options: [] },
   },
   poNumber: {
     label: 'PO Number',
@@ -179,6 +204,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'PO Status',
     group: 'Purchase Order',
     renderCell: (e) => e.poApprovedStatus ?? '—',
+    filter: { kind: 'multi', options: [] },
   },
   title: {
     label: 'Title',
@@ -193,6 +219,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Vendor',
     group: 'Purchase Order',
     renderCell: (e) => e.poVendor ?? '—',
+    filter: { kind: 'multi', options: [] },
   },
   poAmount: {
     label: 'PO Amount',
@@ -210,6 +237,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Supply Port',
     group: 'Purchase Order',
     renderCell: (e) => e.poSchdDelPort ?? '—',
+    filter: { kind: 'text' },
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus value={form.supplyPort} onChange={(ev) => onChange('supplyPort', ev.target.value)} />
     ),
@@ -218,6 +246,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Order Status',
     group: 'Tracking',
     renderCell: (e) => e.orderStatus ?? '—',
+    filter: { kind: 'multi', options: [] },
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus value={form.orderStatus} onChange={(ev) => onChange('orderStatus', ev.target.value)} />
     ),
@@ -255,6 +284,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Delivery Status',
     group: 'Tracking',
     renderCell: (e) => e.supplyConfirmation ?? '—',
+    filter: { kind: 'multi', options: [] },
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus value={form.supplyConfirmation} onChange={(ev) => onChange('supplyConfirmation', ev.target.value)} />
     ),
@@ -263,6 +293,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Remarks',
     group: 'Tracking',
     renderCell: (e) => e.remarks ?? '—',
+    filter: { kind: 'text' },
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus value={form.remarks} onChange={(ev) => onChange('remarks', ev.target.value)} />
     ),
@@ -281,6 +312,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Invoice',
     renderCell: (e) => e.invoiceType ?? '—',
     immediateCommit: true,
+    filter: { kind: 'multi', options: [] },
     renderEditCell: ({ form, onSelectAndSave, onClose }) => (
       <SearchableSelect options={INVOICE_TYPE_OPTIONS} value={form.invoiceType} onChange={(v) => onSelectAndSave('invoiceType', v)} onClose={onClose} />
     ),
@@ -301,6 +333,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Invoice Status',
     group: 'Invoice',
     renderCell: (e) => e.invoiceStatus ?? '—',
+    filter: { kind: 'multi', options: [] },
   },
   // Live-joined from smartpal_invoice_entries.paid_status (see backend/app/api/routes/dd_tracker.py)
   // — never editable here, same stance as Invoice Number/Amount/Currency/Status.
@@ -308,7 +341,42 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     label: 'Payment Status',
     group: 'Invoice',
     renderCell: (e) => e.paymentStatus ?? '—',
+    filter: { kind: 'multi', options: [] },
   },
+};
+
+// Maps a column key to its DdTrackerColumnFilters field — not always the same name (prNumber's
+// filter field is requisitionNo, poNumber's is poNo) since the column key follows this table's own
+// naming while the filter field follows the backend query param it feeds (see DdTrackerPage).
+const COLUMN_FILTER_FIELD: Partial<Record<ReorderableColumnKey, keyof DdTrackerColumnFilters>> = {
+  entryType: 'entryType',
+  prNumber: 'requisitionNo',
+  prStatus: 'prStatus',
+  poNumber: 'poNo',
+  poStatus: 'poStatus',
+  vendor: 'vendor',
+  supplyPort: 'supplyPort',
+  orderStatus: 'orderStatus',
+  readinessDate: 'readinessDate',
+  supplyConfirmation: 'supplyConfirmation',
+  remarks: 'remarks',
+  invoiceType: 'invoiceType',
+  invoiceStatus: 'invoiceStatus',
+  paymentStatus: 'paymentStatus',
+};
+
+// Which distinct-value list a 'multi' filter column reads from the /dd-tracker/filter-options
+// response — only the live-computed columns need this (entryType/invoiceType's options are a
+// small static list defined above instead, since those are this app's own fixed enum values, not
+// something read live off SmartPAL).
+const COLUMN_FILTER_OPTIONS_KEY: Partial<Record<ReorderableColumnKey, keyof DdTrackerFilterOptions>> = {
+  prStatus: 'prStatus',
+  poStatus: 'poStatus',
+  vendor: 'vendor',
+  orderStatus: 'orderStatus',
+  supplyConfirmation: 'deliveryStatus',
+  invoiceStatus: 'invoiceStatus',
+  paymentStatus: 'paymentStatus',
 };
 
 function isLastColumnOfGroup(index: number, order: ReorderableColumnKey[]): boolean {
@@ -367,16 +435,17 @@ interface Props {
   sortDir: 'asc' | 'desc';
   onSort: (column: SortColumn) => void;
 
-  // Excel-style per-column filters — see DdTrackerPage for how these feed into the list/export
-  // query params. Scoped to the same columns sortColumn already covers (see ColumnDef).
-  entryTypeFilter: string[];
-  onEntryTypeFilterChange: (values: string[]) => void;
-  requisitionNoFilter: string;
-  onRequisitionNoFilterChange: (value: string) => void;
-  poNoFilter: string;
-  onPoNoFilterChange: (value: string) => void;
-  readinessDateFilter: { from: string; to: string };
-  onReadinessDateFilterChange: (value: { from: string; to: string }) => void;
+  // Excel-style per-column filters — one object instead of a prop pair per column now that this
+  // covers 14 of them (added to 2026-11-11 per direct purchaser feedback). See DdTrackerPage for
+  // how these feed into the list/export query params, and DdTrackerColumnFilters for the shape.
+  filters: DdTrackerColumnFilters;
+  onFilterChange: <K extends keyof DdTrackerColumnFilters>(key: K, value: DdTrackerColumnFilters[K]) => void;
+  // Distinct values for the live-computed columns' multi-select filters (PR/PO Status, Vendor,
+  // Order/Delivery Status, Invoice Type/Status, Payment Status) — fetched once from
+  // /dd-tracker/filter-options, not derived from whatever's currently on screen, so narrowing one
+  // filter never shrinks another's choices. Supply Port and Remarks are free-text instead (no
+  // bounded option list), same reasoning as PR/PO Number.
+  filterOptions: DdTrackerFilterOptions;
 
   // Cell-level editing: editingId identifies the row, editingField identifies which single cell
   // in it is showing an input right now. editForm holds the whole row's current values (prefilled
@@ -421,14 +490,9 @@ export function DdTrackerTable({
   sortBy,
   sortDir,
   onSort,
-  entryTypeFilter,
-  onEntryTypeFilterChange,
-  requisitionNoFilter,
-  onRequisitionNoFilterChange,
-  poNoFilter,
-  onPoNoFilterChange,
-  readinessDateFilter,
-  onReadinessDateFilterChange,
+  filters,
+  onFilterChange,
+  filterOptions,
   editingId,
   editingField,
   editForm,
@@ -602,34 +666,40 @@ export function DdTrackerTable({
       .join(' ');
     const isSortable = !layoutEditable && !!def.sortColumn;
     const hasFilter = !layoutEditable && !!def.filter;
+    const filterField = COLUMN_FILTER_FIELD[key];
 
-    // Per-column filter value/onChange this column actually wires to — a small lookup rather
-    // than a generic dict since each filter's shape (string[] vs string vs {from,to}) differs by
-    // column, same reasoning as DdTrackerPage's own separate pieces of filter state.
+    // Per-column filter value/onChange — filterField maps this column to its DdTrackerColumnFilters
+    // key (they're not always the same name, e.g. this column is `supplyConfirmation`, its filter
+    // field is also `supplyConfirmation`, but `prNumber`'s is `requisitionNo`); dynamicOptionsKey
+    // does the same for which distinct-value list a 'multi' filter reads from filterOptions.
     let filterNode: ReactNode = null;
-    if (hasFilter && def.filter) {
-      if (key === 'entryType' && def.filter.kind === 'multi') {
+    if (hasFilter && def.filter && filterField) {
+      if (def.filter.kind === 'multi') {
+        const optionsKey = COLUMN_FILTER_OPTIONS_KEY[key];
+        const options = optionsKey ? filterOptions[optionsKey].map((v) => ({ value: v, label: v })) : def.filter.options;
         filterNode = (
-          <ColumnFilterMenu options={def.filter.options} selected={entryTypeFilter} onChange={onEntryTypeFilterChange} />
+          <ColumnFilterMenu
+            options={options}
+            selected={filters[filterField] as string[]}
+            onChange={(values) => onFilterChange(filterField, values as DdTrackerColumnFilters[typeof filterField])}
+          />
         );
-      } else if (key === 'prNumber' && def.filter.kind === 'text') {
+      } else if (def.filter.kind === 'text') {
         filterNode = (
           <ColumnValueFilter
             kind="text"
-            value={{ text: requisitionNoFilter }}
-            onChange={(v) => onRequisitionNoFilterChange(v.text ?? '')}
+            value={{ text: filters[filterField] as string }}
+            onChange={(v) => onFilterChange(filterField, (v.text ?? '') as DdTrackerColumnFilters[typeof filterField])}
           />
         );
-      } else if (key === 'poNumber' && def.filter.kind === 'text') {
-        filterNode = (
-          <ColumnValueFilter kind="text" value={{ text: poNoFilter }} onChange={(v) => onPoNoFilterChange(v.text ?? '')} />
-        );
-      } else if (key === 'readinessDate' && def.filter.kind === 'date') {
+      } else if (def.filter.kind === 'date') {
         filterNode = (
           <ColumnValueFilter
             kind="date"
-            value={readinessDateFilter}
-            onChange={(v) => onReadinessDateFilterChange({ from: v.from ?? '', to: v.to ?? '' })}
+            value={filters[filterField] as { from: string; to: string }}
+            onChange={(v) =>
+              onFilterChange(filterField, { from: v.from ?? '', to: v.to ?? '' } as DdTrackerColumnFilters[typeof filterField])
+            }
           />
         );
       }

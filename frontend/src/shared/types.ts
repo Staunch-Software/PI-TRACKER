@@ -447,6 +447,17 @@ export interface LandingReportInput {
 // Mirrors backend/app/schemas/dd_tracker.py DdTrackerEntryOut. Manual fields are team-entered;
 // pr*/po* fields are live-joined from pr_entries/po_entries at read time (see
 // backend/app/api/routes/dd_tracker.py) — null when the linked requisitionNo/poNo has no match.
+export interface DdTrackerFilterOptions {
+  prStatus: string[];
+  poStatus: string[];
+  vendor: string[];
+  orderStatus: string[];
+  deliveryStatus: string[];
+  invoiceType: string[];
+  invoiceStatus: string[];
+  paymentStatus: string[];
+}
+
 export interface DdTrackerEntry {
   id: string;
   seqNo: number;
