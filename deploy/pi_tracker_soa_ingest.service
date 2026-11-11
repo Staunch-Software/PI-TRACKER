@@ -1,0 +1,11 @@
+[Unit]
+Description=PI Follow-up Tracker - SOA mailbox ingestion (Graph + Ollama extraction)
+After=network.target ollama.service
+
+[Service]
+Type=oneshot
+User=Deployer
+Group=www-data
+WorkingDirectory=/opt/pi_tracker/current/backend
+EnvironmentFile=/opt/pi_tracker/current/backend/.env
+ExecStart=/opt/pi_tracker/current/backend/venv/bin/python -m app.services.soa_scraper.ingest

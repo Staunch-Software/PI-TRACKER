@@ -61,25 +61,42 @@ GRANT ALL PRIVILEGES ON DATABASE pi_tracker TO pi_tracker_app;
 \q
 ```
 
-## 5. Clone the repo
+## 5. Set up the release layout
 
-```bash
-sudo mkdir -p /opt/pi-tracker
-sudo chown pitracker:pitracker /opt/pi-tracker
-sudo -u pitracker git clone https://github.com/Staunch-Software/PI-TRACKER.git /opt/pi-tracker
-cd /opt/pi-tracker
+Production no longer runs out of a single `git pull`-in-place checkout. Everything lives under
+`/opt/pi_tracker`:
+
+```
+/opt/pi_tracker/repo       git clone used only to fetch code — nothing runs out of here directly
+/opt/pi_tracker/releases   one directory per deploy (code + its own venv + built frontend)
+/opt/pi_tracker/shared     state that survives every deploy: backend/.env, the two scraper
+                           auth.json files, constraints.txt (pinned dependency versions)
+/opt/pi_tracker/current    symlink to whichever release directory is live
 ```
 
-## 6. Backend: virtualenv, dependencies, env file
+`deploy/deploy.sh` (installed as `/opt/pi_tracker/deploy.sh`, see step 6) builds a new release
+into `releases/`, runs `alembic upgrade head` against it, flips `current` to point at it, restarts
+the service, and health-checks it — auto-rolling back the symlink if the health check fails.
+Anything that fails before the flip leaves the running app untouched.
 
 ```bash
-sudo -u pitracker python3 -m venv /opt/pi-tracker/backend/.venv
-sudo -u pitracker /opt/pi-tracker/backend/.venv/bin/pip install -r /opt/pi-tracker/backend/requirements.txt
-sudo -u pitracker cp /opt/pi-tracker/backend/.env.example /opt/pi-tracker/backend/.env
-sudo -u pitracker nano /opt/pi-tracker/backend/.env
+sudo mkdir -p /opt/pi_tracker/{repo,releases,shared}
+sudo chown -R pitracker:pitracker /opt/pi_tracker
+sudo -u pitracker git clone https://github.com/Staunch-Software/PI-TRACKER.git /opt/pi_tracker/repo
 ```
 
-Fill in `.env`:
+Create the files that live in `shared/` and are symlinked into every release (paths are relative
+to the repo root — see `SHARED_FILES` in `deploy/deploy.sh` if this list changes):
+
+```bash
+sudo -u pitracker mkdir -p /opt/pi_tracker/shared/backend/app/services/pir_scraper
+sudo -u pitracker mkdir -p /opt/pi_tracker/shared/backend/app/services/approved_invoice_scraper
+sudo -u pitracker cp /opt/pi_tracker/repo/backend/.env.example \
+  /opt/pi_tracker/shared/backend/.env
+sudo -u pitracker nano /opt/pi_tracker/shared/backend/.env
+```
+
+Fill in `backend/.env` as before:
 
 ```
 PORT=8080
@@ -94,65 +111,102 @@ AZURE_STORAGE_CONTAINER=invoice-attachments
 (URL-encode any `@` or special characters in the DB password, e.g. `@` → `%40`. Generate a
 session secret with `openssl rand -hex 32`.)
 
-Seed the reference data and admin user (schema migrations run automatically on backend
-startup, so this is the only manual DB step):
+Put the two scraper `auth.json` files (SmartPAL session state) at
+`shared/backend/app/services/pir_scraper/auth.json` and
+`shared/backend/app/services/approved_invoice_scraper/auth.json`. `deploy.sh` refuses to build a
+release if any shared file is missing.
+
+`constraints.txt` (a `pip freeze` of a known-good venv) is optional on the very first deploy —
+`deploy.sh` just installs `requirements.txt` unpinned and prints a warning if it's absent. See
+"Upgrading a pinned dependency" below for how to create/refresh it.
+
+## 6. Install `deploy.sh` and the systemd units
 
 ```bash
-sudo -u pitracker /opt/pi-tracker/backend/.venv/bin/python /opt/pi-tracker/backend/seed.py
+sudo cp /opt/pi_tracker/repo/deploy/deploy.sh /opt/pi_tracker/deploy.sh
+sudo chmod +x /opt/pi_tracker/deploy.sh
 ```
 
-It prints the admin login it created — change that password after your first login.
-
-## 7. Frontend: build
-
-The frontend is served as static files by nginx, not run as its own server — no
-`VITE_API_BASE_URL` needed since `/api` is same-origin (see `deploy/nginx.conf`).
+Install the systemd unit files from `deploy/` the same way — `cp` into `/etc/systemd/system/`,
+then `daemon-reload`. This includes `pi_tracker.service`, the backend web service that
+`deploy.sh` builds, restarts, and health-checks on every deploy:
 
 ```bash
-cd /opt/pi-tracker/frontend
-sudo -u pitracker npm install
-sudo -u pitracker npm run build
-```
-
-This produces `/opt/pi-tracker/frontend/dist`. Nginx doesn't serve that path directly — copy it to
-`/var/www/pi-tracker` (kept separate from the repo checkout so multiple projects on the same VM
-each get their own directory under `/var/www/`, matching this VM's existing convention):
-
-```bash
-sudo mkdir -p /var/www/pi-tracker
-sudo rsync -a --delete /opt/pi-tracker/frontend/dist/ /var/www/pi-tracker/
-```
-
-## 8. Run the backend as a systemd service
-
-```bash
-sudo cp /opt/pi-tracker/deploy/pi-tracker-backend.service /etc/systemd/system/
+sudo cp /opt/pi_tracker/repo/deploy/pi_tracker.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_pir_scrape.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_pir_scrape.timer \
+        /opt/pi_tracker/repo/deploy/pi_tracker_smartpal_invoice_scrape.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_smartpal_invoice_scrape.timer \
+        /opt/pi_tracker/repo/deploy/pi_tracker_invoice_registration_scrape.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_invoice_registration_scrape.timer \
+        /opt/pi_tracker/repo/deploy/pi_tracker_po_scrape.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_po_scrape.timer \
+        /opt/pi_tracker/repo/deploy/pi_tracker_vendor_master_scrape.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_vendor_master_scrape.timer \
+        /opt/pi_tracker/repo/deploy/pi_tracker_soa_ingest.service \
+        /opt/pi_tracker/repo/deploy/pi_tracker_soa_ingest.timer \
+        /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now pi-tracker-backend
-sudo systemctl status pi-tracker-backend   # should show "active (running)"
+sudo systemctl enable --now pi_tracker.service
+sudo systemctl enable --now pi_tracker_pir_scrape.timer
+sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
+sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
+sudo systemctl enable --now pi_tracker_po_scrape.timer
+sudo systemctl enable --now pi_tracker_vendor_master_scrape.timer
 ```
 
-Logs: `sudo journalctl -u pi-tracker-backend -f`
+`pi_tracker_soa_ingest.timer` is installed above but **not** enabled — it's not currently running
+on production. Only `enable --now` it once SOA mailbox ingestion is ready to go live.
 
-## 9. Configure nginx
+## 7. First deploy
 
 ```bash
-sudo cp /opt/pi-tracker/deploy/nginx.conf /etc/nginx/sites-available/pi-tracker
-sudo ln -s /etc/nginx/sites-available/pi-tracker /etc/nginx/sites-enabled/pi-tracker
+sudo -u pitracker /opt/pi_tracker/deploy.sh
+```
+
+This fetches `origin/main`, builds it into a new `releases/<timestamp>-<sha>` directory (venv +
+`pip install`, frontend `npm ci && npm run build`), runs `alembic upgrade head`, flips
+`/opt/pi_tracker/current` to the new release, restarts the backend service, and polls
+`http://127.0.0.1:8080/` until it answers (or rolls the symlink back and restarts the previous
+release if it doesn't). It keeps the last 5 releases and prunes older ones automatically.
+
+You can deploy a specific branch/tag/commit instead of `origin/main`:
+
+```bash
+sudo -u pitracker /opt/pi_tracker/deploy.sh some-branch-or-tag-or-sha
+```
+
+Or build a release without making it live (no migration, no flip, no restart) — useful for
+smoke-testing a build before it goes out:
+
+```bash
+sudo -u pitracker /opt/pi_tracker/deploy.sh --build-only
+```
+
+**Deploys are refused while a scraper is running.** `deploy.sh` checks for any active/activating
+`pi_tracker_*` systemd unit before touching anything (other than `--build-only`, which doesn't
+flip or restart, so it's always allowed) — a scraper started under the old release should finish
+before the code or schema underneath it changes. If a deploy is refused for this reason, just
+re-run it once the scraper's run completes (see the schedule table below for about when that is).
+
+## 8. Configure nginx
+
+```bash
+sudo cp /opt/pi_tracker/repo/deploy/nginx.conf /etc/nginx/sites-available/pi_tracker
+sudo ln -s /etc/nginx/sites-available/pi_tracker /etc/nginx/sites-enabled/pi_tracker
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-## 10. Verify
+## 9. Verify
 
 - `curl http://localhost/api/health` on the VM should return `{"status":"ok","db":"connected"}`.
 - Visit `http://<vm-public-ip>/` in a browser — you should see the login page.
 
-## 11. Scheduled SmartPAL scrapers
+## 10. Scheduled SmartPAL scrapers
 
-Four standalone scripts run on their own schedule via systemd timers, independent of the
-`pi-tracker-backend` web service — none of them are imported by the running API, so updating
-their code only needs a `git pull`, never a service restart:
+Five standalone scripts run on their own schedule via systemd timers, independent of the backend
+web service:
 
 | Timer | Runs | Schedule | What it does |
 |---|---|---|---|
@@ -162,28 +216,20 @@ their code only needs a `git pull`, never a service restart:
 | `pi_tracker_po_scrape` | `app.services.po_scraper.scraper` | 07:30 / 19:30 | Fleet-wide `pr_entries`/`po_entries` sweep (from 01-Jul-2026) feeding the DD Tracker module |
 | `pi_tracker_vendor_master_scrape` | `app.services.vendor_master_scraper.scraper` | 08:00 / 20:00 | Fleet-wide `vendor_master_entries` list sweep (~1,098 vendors) feeding the Vendor Management module's picker |
 
-All four log into the same SmartPAL account (just different modules — `AccountsPALApp` for the
+All five log into the same SmartPAL account (just different modules — `AccountsPALApp` for the
 first, `PurchasePALApp` for the other three), and a second concurrent login can kick out the first
 one's session — confirmed live. The 30-minute stagger above is deliberate; don't schedule any of
 these back-to-back or overlapping.
 
-Install (adjust `User`/paths in each `.service` file first if your deployment differs from the
-documented `/opt/pi-tracker`/`pitracker` convention above — the actual production VM as of
-2026-10 uses `/opt/pi_tracker/PI-TRACKER`, user `Deployer`, venv at `backend/venv`):
+Each unit now runs out of `/opt/pi_tracker/current/backend` (updated by every deploy), not a
+fixed checkout, so their code is kept current automatically — no separate `git pull` or restart
+needed for scraper changes, they just pick up whatever `current` points to next time their timer
+fires.
 
-```bash
-sudo cp deploy/pi_tracker_pir_scrape.service deploy/pi_tracker_pir_scrape.timer /etc/systemd/system/
-sudo cp deploy/pi_tracker_smartpal_invoice_scrape.service deploy/pi_tracker_smartpal_invoice_scrape.timer /etc/systemd/system/
-sudo cp deploy/pi_tracker_invoice_registration_scrape.service deploy/pi_tracker_invoice_registration_scrape.timer /etc/systemd/system/
-sudo cp deploy/pi_tracker_po_scrape.service deploy/pi_tracker_po_scrape.timer /etc/systemd/system/
-sudo cp deploy/pi_tracker_vendor_master_scrape.service deploy/pi_tracker_vendor_master_scrape.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now pi_tracker_pir_scrape.timer
-sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
-sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
-sudo systemctl enable --now pi_tracker_po_scrape.timer
-sudo systemctl enable --now pi_tracker_vendor_master_scrape.timer
-```
+There's also `pi_tracker_soa_ingest` (`app.services.soa_scraper.ingest`, every 4 hours — SOA
+mailbox ingestion via Graph + Ollama extraction). Its unit and timer are in `deploy/` and get
+installed in step 6, but the timer is **not currently enabled on production** — it's not live
+yet.
 
 Check status/logs for any of them:
 
@@ -201,15 +247,58 @@ sudo systemctl start pi_tracker_invoice_registration_scrape.service
 ## Redeploying after code changes
 
 ```bash
-cd /opt/pi-tracker
-sudo -u pitracker git pull
-sudo -u pitracker /opt/pi-tracker/backend/.venv/bin/pip install -r backend/requirements.txt
-cd frontend && sudo -u pitracker npm install && sudo -u pitracker npm run build
-sudo rsync -a --delete /opt/pi-tracker/frontend/dist/ /var/www/pi-tracker/
-sudo systemctl restart pi-tracker-backend
+sudo -u pitracker /opt/pi_tracker/deploy.sh
 ```
 
-(Nginx doesn't need restarting — it just serves whatever's currently in `/var/www/pi-tracker`.)
+That's it — see step 7 above for what this does, `--build-only`, and the scraper-running guard.
+Logs for the live release: `sudo journalctl -u pi_tracker.service -f`.
+
+## Rolling back
+
+```bash
+sudo -u pitracker /opt/pi_tracker/deploy.sh --rollback
+```
+
+Flips `current` back to the release before the one that's live now, restarts the service, and
+health-checks it. This only ever moves the `current` symlink and restarts the service — **it does
+not undo a database migration**, so a rollback after a deploy that included a schema change will
+leave the database ahead of the code. If that happens, write and apply a compensating migration
+rather than trying to hand-revert the schema.
+
+## Upgrading a pinned dependency
+
+`constraints.txt` in `shared/` pins every package to the exact version currently installed in
+production, so a routine deploy never silently picks up a newer release of a dependency. To take
+a deliberate upgrade:
+
+```bash
+sudo -u pitracker /opt/pi_tracker/deploy.sh --build-only   # build a release with requirements.txt as-is
+sudo /opt/pi_tracker/releases/<the-new-release>/backend/venv/bin/pip install --upgrade <package>
+sudo -u pitracker /opt/pi_tracker/releases/<the-new-release>/backend/venv/bin/pip freeze \
+  > /opt/pi_tracker/shared/constraints.txt
+```
+
+Then deploy normally — every release from now on will install that pinned set until you refresh
+`constraints.txt` again. (If the upgrade needs testing first, do that against the `--build-only`
+release before promoting it, or just deploy normally once you're confident and let the health
+check/auto-rollback be the safety net.)
+
+## Installing an updated `deploy.sh` or unit file
+
+`deploy.sh` and the systemd unit files are not part of what a regular deploy touches — they live
+in `/opt/pi_tracker/deploy.sh` and `/etc/systemd/system/`, outside the `releases/`/`current`
+mechanism, so changing them needs a manual step after you've pulled the new version into a
+release (or reviewed the diff in the repo):
+
+```bash
+sudo cp /opt/pi_tracker/current/deploy/deploy.sh /opt/pi_tracker/deploy.sh
+sudo chmod +x /opt/pi_tracker/deploy.sh
+
+# for a changed unit file, e.g. the PIR scrape timer:
+sudo cp /opt/pi_tracker/current/deploy/pi_tracker_pir_scrape.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart pi_tracker_pir_scrape.timer   # or the .service, if it's a oneshot you want to re-trigger now
+```
 
 ## Domain + HTTPS
 
@@ -223,11 +312,11 @@ DNS for `ozellar.com` is not wildcarded — each subdomain needs its own explici
 one for `pitracker.ozellar.com` pointing at this VM's public IP (with whoever manages `ozellar.com`'s
 DNS), then once it resolves (`dig +short pitracker.ozellar.com` returns the VM's IP):
 
-1. `sudo cp deploy/nginx.conf /etc/nginx/sites-available/pi_tracker && sudo nginx -t && sudo systemctl reload nginx`
-2. Update `backend/.env`: set `CORS_ALLOWED_ORIGIN=https://pitracker.ozellar.com` and
-   `ENVIRONMENT=production` (this is what turns the session cookie `Secure`, which now works
+1. `sudo cp /opt/pi_tracker/current/deploy/nginx.conf /etc/nginx/sites-available/pi_tracker && sudo nginx -t && sudo systemctl reload nginx`
+2. Update `/opt/pi_tracker/shared/backend/.env`: set `CORS_ALLOWED_ORIGIN=https://pitracker.ozellar.com`
+   and `ENVIRONMENT=production` (this is what turns the session cookie `Secure`, which now works
    correctly since you have HTTPS).
-3. `sudo systemctl restart pi_tracker`
+3. `sudo systemctl restart pi_tracker.service`
 
 Note this config has no `default_server` / bare-IP fallback — like every other project here,
 it's only reachable via its own domain. If you were previously testing via the bare public IP
