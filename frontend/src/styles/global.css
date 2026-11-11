@@ -1598,6 +1598,13 @@ table.data-table th.col-center {
   text-align: center;
 }
 
+/* Free-text columns (titles, descriptions) read better left-aligned than the table's own
+   center default, which only suits short fixed-width values. */
+table.data-table td.col-left,
+table.data-table th.col-left {
+  text-align: left;
+}
+
 /* Vendor column — sized for realistic vendor names, wraps to 2 lines via ExpandableCell
    instead of hard-clipping, with the full name reachable on hover/click. */
 table.data-table td.col-vendor,

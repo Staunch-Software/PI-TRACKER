@@ -183,6 +183,7 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
   title: {
     label: 'Title',
     group: 'General',
+    cellClassName: 'col-left',
     renderCell: (e) => e.title ?? e.poTitle ?? e.prTitle ?? '—',
     renderEditCell: ({ form, onChange }) => (
       <input autoFocus value={form.title} onChange={(ev) => onChange('title', ev.target.value)} />
