@@ -42,6 +42,7 @@ def create_user(
         can_access_landing=payload.can_access_landing,
         can_access_dd=payload.can_access_dd,
         can_access_vendor=payload.can_access_vendor,
+        can_access_pd=payload.can_access_pd,
     )
     db.add(user)
     db.flush()

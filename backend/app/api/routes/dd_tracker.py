@@ -184,8 +184,17 @@ def _filtered_query(
     po_no: str | None = None,
     readiness_date_from: date | None = None,
     readiness_date_to: date | None = None,
+    exclude_entry_types: list[str] | None = None,
 ) -> OrmQuery:
     query = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None))
+    # Hard, non-optional partition between tracker pages that share this table — added 2026-11-12
+    # after confirming live that a PD Tracker row (entry_type='PD') otherwise still showed up in
+    # DD Tracker's own unfiltered list too. dd_tracker.py's own calls always pass
+    # exclude_entry_types=["PD"] here (preserving the 34 pre-existing OPEX rows DD Tracker already
+    # showed, unlike forcing entry_type=='DD' outright would); pd_tracker.py doesn't need this at
+    # all since its own entry_type filter is already forced to exactly ["PD"].
+    if exclude_entry_types:
+        query = query.filter(or_(DdTrackerEntry.entry_type.is_(None), DdTrackerEntry.entry_type.notin_(exclude_entry_types)))
 
     s_clean = search.strip() if isinstance(search, str) and search.strip() else None
     if s_clean:
@@ -391,6 +400,7 @@ def list_dd_tracker_entries(
     query = _filtered_query(
         db, search, entry_type, vessel_name, sort_by, sort_dir,
         requisition_no, po_no, readiness_date_from, readiness_date_to,
+        exclude_entry_types=["PD"],
     )
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
@@ -460,6 +470,7 @@ def export_dd_tracker_entries(
     query = _filtered_query(
         db, search, entry_type, vessel_name, sort_by, sort_dir,
         requisition_no, po_no, readiness_date_from, readiness_date_to,
+        exclude_entry_types=["PD"],
     )
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
@@ -508,7 +519,11 @@ def list_vessel_options(db: Session = Depends(get_db)) -> list[str]:
     table, since DD Tracker rows aren't FK'd to it."""
     rows = (
         db.query(DdTrackerEntry.vessel_name)
-        .filter(DdTrackerEntry.vessel_name.isnot(None), DdTrackerEntry.deleted_at.is_(None))
+        .filter(
+            DdTrackerEntry.vessel_name.isnot(None),
+            DdTrackerEntry.deleted_at.is_(None),
+            or_(DdTrackerEntry.entry_type.is_(None), DdTrackerEntry.entry_type != "PD"),
+        )
         .distinct()
         .order_by(DdTrackerEntry.vessel_name)
         .all()
@@ -521,8 +536,16 @@ def get_dd_tracker_filter_options(db: Session = Depends(get_db)) -> DdTrackerFil
     """Distinct values for every new Excel-style column filter (2026-11-11, direct purchaser
     feedback) — computed from the full, unfiltered enriched row set (same as vessel-options
     above), not from whatever's currently filtered, so narrowing one filter never shrinks the
-    choices available in another."""
-    rows = db.query(DdTrackerEntry).filter(DdTrackerEntry.deleted_at.is_(None)).all()
+    choices available in another. Excludes PD Tracker rows (added 2026-11-12), same partition as
+    _filtered_query's own exclude_entry_types=["PD"]."""
+    rows = (
+        db.query(DdTrackerEntry)
+        .filter(
+            DdTrackerEntry.deleted_at.is_(None),
+            or_(DdTrackerEntry.entry_type.is_(None), DdTrackerEntry.entry_type != "PD"),
+        )
+        .all()
+    )
     enriched = _attach_live_data(db, rows)
 
     def _distinct(values: list[str | None]) -> list[str]:
@@ -666,20 +689,45 @@ def delete_dd_tracker_entry(
     db.commit()
 
 
+def _tracker_po_no_scope(db: Session, include_entry_types: list[str] | None, exclude_entry_types: list[str] | None):
+    """Builds the subquery of po_no values that belong to a given tracker category, for scoping
+    the "By Account Code" view (and its vessel/account-code option lists) to only that category's
+    POs. Added 2026-11-12 alongside PD Tracker: po_item_entries has no category column of its own
+    (it's keyed purely by po_no — see its docstring), and "Sync New POs" syncs items for every
+    untracked po_no across ALL dd_tracker_entries regardless of entry_type, so DD's and PD's items
+    would silently end up in the same table together. include_entry_types scopes to exactly those
+    types (PD Tracker passes ["PD"]); exclude_entry_types scopes to everything EXCEPT those types,
+    including NULL/untyped rows (DD Tracker passes ["PD"] here, preserving its existing behavior
+    of also showing the 34 pre-existing manually-tagged OPEX rows — confirmed live 2026-11-12 these
+    exist — rather than narrowing DD down to entry_type=='DD' only, which would hide them)."""
+    base = db.query(DdTrackerEntry.po_no).filter(DdTrackerEntry.deleted_at.is_(None), DdTrackerEntry.po_no.isnot(None))
+    if include_entry_types:
+        return base.filter(DdTrackerEntry.entry_type.in_(include_entry_types))
+    if exclude_entry_types:
+        from sqlalchemy import or_ as _or
+
+        return base.filter(_or(DdTrackerEntry.entry_type.is_(None), DdTrackerEntry.entry_type.notin_(exclude_entry_types)))
+    return base
+
+
 def _compute_account_code_analysis(
     db: Session,
     vessel_name: list[str] | None,
     account_code: list[str] | None,
     search: str | None,
+    include_entry_types: list[str] | None = None,
+    exclude_entry_types: list[str] | None = None,
 ) -> AccountCodeAnalysisResponse:
     """Grouped analysis of PO line items and additional charges:
     Grouped by PO, with each PO showing its account codes and line items.
     If a PO has 2 or more account codes, each account code has its own spend & items.
     """
+    po_no_scope = _tracker_po_no_scope(db, include_entry_types, exclude_entry_types)
+
     vessel_options = [
         r[0]
         for r in db.query(PoItemEntry.vessel_name)
-        .filter(PoItemEntry.vessel_name.isnot(None))
+        .filter(PoItemEntry.vessel_name.isnot(None), PoItemEntry.po_no.in_(po_no_scope))
         .distinct()
         .order_by(PoItemEntry.vessel_name)
         .all()
@@ -687,13 +735,13 @@ def _compute_account_code_analysis(
     account_code_options = [
         r[0]
         for r in db.query(PoItemEntry.account_code)
-        .filter(PoItemEntry.account_code.isnot(None))
+        .filter(PoItemEntry.account_code.isnot(None), PoItemEntry.po_no.in_(po_no_scope))
         .distinct()
         .order_by(PoItemEntry.account_code)
         .all()
     ]
 
-    query = db.query(PoItemEntry)
+    query = db.query(PoItemEntry).filter(PoItemEntry.po_no.in_(po_no_scope))
 
     # Safely handle FastAPI Query default objects if called directly
     v_clean = vessel_name if isinstance(vessel_name, (list, str)) and vessel_name else None
@@ -932,7 +980,7 @@ def get_account_code_analysis(
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> AccountCodeAnalysisResponse:
-    response = _compute_account_code_analysis(db, vessel_name, account_code, search)
+    response = _compute_account_code_analysis(db, vessel_name, account_code, search, exclude_entry_types=["PD"])
     _apply_account_code_sort(response, sort_by, sort_dir)
     return response
 
@@ -955,7 +1003,7 @@ def export_account_code_analysis(
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
-    response = _compute_account_code_analysis(db, vessel_name, account_code, search)
+    response = _compute_account_code_analysis(db, vessel_name, account_code, search, exclude_entry_types=["PD"])
     _apply_account_code_sort(response, sort_by, sort_dir)
 
     workbook = Workbook()

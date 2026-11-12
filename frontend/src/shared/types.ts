@@ -14,6 +14,7 @@ export interface User {
   canAccessLanding: boolean;
   canAccessDd: boolean;
   canAccessVendor: boolean;
+  canAccessPd: boolean;
   createdAt: string;
 }
 

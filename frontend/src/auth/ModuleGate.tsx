@@ -3,7 +3,7 @@ import { useFirstAvailableModulePath } from './firstAvailableModulePath';
 import { useRole } from './useRole';
 
 interface Props {
-  module: 'pi' | 'pir' | 'soa' | 'landing' | 'dd' | 'vendor';
+  module: 'pi' | 'pir' | 'soa' | 'landing' | 'dd' | 'vendor' | 'pd';
 }
 
 // Route-level guard for the module-access flags — defense in depth alongside the backend's
@@ -12,14 +12,15 @@ interface Props {
 // link. Redirects to whichever module they DO have access to (see useFirstAvailableModulePath);
 // if none, falls through to a plain message rather than looping between denied routes.
 export function ModuleGate({ module }: Props) {
-  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor } = useRole();
+  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd } = useRole();
   const hasAccess =
     module === 'pi' ? canAccessPi
     : module === 'pir' ? canAccessPir
     : module === 'soa' ? canAccessSoa
     : module === 'landing' ? canAccessLanding
     : module === 'dd' ? canAccessDd
-    : canAccessVendor;
+    : module === 'vendor' ? canAccessVendor
+    : canAccessPd;
 
   const fallbackPath = useFirstAvailableModulePath();
 

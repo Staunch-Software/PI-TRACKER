@@ -9,7 +9,13 @@ import type { User } from './types';
 export interface ModuleAccessField {
   key: keyof Pick<
     User,
-    'canAccessPi' | 'canAccessPir' | 'canAccessSoa' | 'canAccessLanding' | 'canAccessDd' | 'canAccessVendor'
+    | 'canAccessPi'
+    | 'canAccessPir'
+    | 'canAccessSoa'
+    | 'canAccessLanding'
+    | 'canAccessDd'
+    | 'canAccessVendor'
+    | 'canAccessPd'
   >;
   label: string;
 }
@@ -21,4 +27,5 @@ export const MODULE_ACCESS_FIELDS: ModuleAccessField[] = [
   { key: 'canAccessLanding', label: 'Landing Reports' },
   { key: 'canAccessDd', label: 'DD Tracker' },
   { key: 'canAccessVendor', label: 'Vendor Management' },
+  { key: 'canAccessPd', label: 'PD Tracker' },
 ];

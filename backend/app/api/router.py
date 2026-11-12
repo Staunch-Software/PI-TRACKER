@@ -11,6 +11,7 @@ from app.api.routes import (
     invoice_registrations,
     landing_reports,
     owner_recipients,
+    pd_tracker,
     pi_entries,
     pir_entries,
     pir_rejections,
@@ -40,6 +41,7 @@ api_router.include_router(user_activity.router)
 api_router.include_router(soa_entries.router)
 api_router.include_router(landing_reports.router)
 api_router.include_router(dd_tracker.router)
+api_router.include_router(pd_tracker.router)
 api_router.include_router(vendor_management.router)
 api_router.include_router(vendor_attachments.router)
 api_router.include_router(attachments.router)

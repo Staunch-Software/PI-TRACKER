@@ -12,6 +12,8 @@ import { ColumnFilterMenu } from '../table/ColumnFilterMenu';
 export type AcctSortColumn = 'accountCode' | 'vesselName' | 'poNo' | 'totalItems' | 'totalSpendInr' | 'totalSpendUsd';
 
 interface DdAccountCodeTableProps {
+  // Defaults to today's DD Tracker behavior — PdTrackerPage passes '/pd-tracker' via DdTrackerPage.
+  apiBasePath?: string;
   canEdit: boolean;
   selectedVessel: string | null;
   search: string;
@@ -748,6 +750,7 @@ function PoItemDetailsModal({
 
 // ── Main Account Code Table Component ─────────────────────────────────────────
 export function DdAccountCodeTable({
+  apiBasePath = '/dd-tracker',
   canEdit,
   selectedVessel,
   search,
@@ -757,13 +760,14 @@ export function DdAccountCodeTable({
   accountCodeFilter,
   onAccountCodeFilterChange,
 }: DdAccountCodeTableProps) {
+  const queryKeyPrefix = `${apiBasePath.replace(/^\//, '')}-account-code-analysis`;
   const queryClient = useQueryClient();
   const [selectedDetail, setSelectedDetail] = useState<PoItemModalData | null>(null);
   const [syncToast, setSyncToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Fetch PO items analysis data using parent selectedVessel and search
   const { data, isLoading, isError, error, isFetching } = useQuery({
-    queryKey: ['dd-account-code-analysis', selectedVessel, search, accountCodeFilter, sortBy, sortDir],
+    queryKey: [queryKeyPrefix, selectedVessel, search, accountCodeFilter, sortBy, sortDir],
     queryFn: () => {
       const params = new URLSearchParams();
       if (selectedVessel) params.set('vessel_name', selectedVessel);
@@ -774,20 +778,20 @@ export function DdAccountCodeTable({
         params.set('sort_dir', sortDir);
       }
       const qs = params.toString();
-      return api.get<AccountCodeAnalysisResponse>(`/dd-tracker/account-code-analysis${qs ? `?${qs}` : ''}`);
+      return api.get<AccountCodeAnalysisResponse>(`${apiBasePath}/account-code-analysis${qs ? `?${qs}` : ''}`);
     },
   });
 
   // Sync PO items mutation (runs only for newly added POs)
   const syncMutation = useMutation({
     mutationFn: () =>
-      api.post<SyncPoItemsResponse>('/dd-tracker/sync-items', {}),
+      api.post<SyncPoItemsResponse>(`${apiBasePath}/sync-items`, {}),
     onSuccess: (res) => {
       const msg = res.scrapedPos === 0
-        ? (res.message || 'All DD PO items are already up to date. No new POs found.')
+        ? (res.message || 'All PO items are already up to date. No new POs found.')
         : `Successfully synced ${res.scrapedPos} newly added PO(s) (${res.items} items, ${res.addAmounts} additional charges).`;
       setSyncToast({ message: msg, type: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['dd-account-code-analysis'] });
+      queryClient.invalidateQueries({ queryKey: [queryKeyPrefix] });
     },
     onError: (err) => {
       const errMsg = err instanceof ApiError ? err.message : 'Failed to sync items from SmartPAL.';

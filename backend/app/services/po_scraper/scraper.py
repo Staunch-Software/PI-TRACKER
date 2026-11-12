@@ -324,43 +324,52 @@ def _run_po(page, db) -> dict:
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "errors": errors}
 
 
-def _is_dd_category(category: str | None) -> bool:
-    """True for any req_category under the "DD" umbrella (e.g. "DD - SPARE", "DD - DECK STORE",
-    "DD- CARGO HOLD..." before normalization) — the user's own instruction: every DD-category
-    PR/PO should show up in the DD Tracker automatically, not just a manually hand-picked subset.
-    The crew-category DD variants (DD - CREW WAGES / DD - CREW EXPENSES) never reach this check at
-    all — they're dropped at scrape time in _run_pr/_run_po, see _EXCLUDED_CATEGORIES above."""
+def _is_category_prefixed(prefix: str, category: str | None) -> bool:
+    """True for any req_category under the given tracker-category umbrella (e.g. prefix="DD"
+    matches "DD - SPARE", "DD - DECK STORE", "DD- CARGO HOLD..." before normalization) —
+    originally DD-only (the user's own instruction: every DD-category PR/PO should show up in the
+    DD Tracker automatically, not just a manually hand-picked subset); generalized 2026-11-12 so
+    the same logic covers PD Tracker with prefix="PD". The crew-category variants for both (e.g.
+    DD/PD - CREW WAGES / CREW EXPENSES) never reach this check at all — they're dropped at scrape
+    time in _run_pr/_run_po, see _EXCLUDED_CATEGORIES above."""
     norm = _normalize_category(category)
-    return bool(norm) and norm.startswith("DD")
+    return bool(norm) and norm.startswith(prefix)
 
 
-# Matches "DD - ...", "DD- ...", "DD ..." or a bare "DD" title, case-insensitive, with a word
-# boundary right after "DD" so an unrelated title that merely starts with those two letters (e.g.
-# a vendor/item name) isn't swept in.
-_DD_TITLE_RE = re.compile(r"^DD(\s|-|$)", re.IGNORECASE)
+# Matches "<prefix> - ...", "<prefix>- ...", "<prefix> ..." or a bare "<prefix>" title,
+# case-insensitive, with a word boundary right after the prefix so an unrelated title that merely
+# starts with those letters (e.g. a vendor/item name) isn't swept in. Compiled once per prefix and
+# cached, since _is_title_prefixed is called once per PR/PO per sync.
+_TITLE_PREFIX_RE_CACHE: dict[str, re.Pattern] = {}
 
 
-def _is_dd_title(title: str | None) -> bool:
-    """True when the PR/PO's own free-text title is DD-prefixed even though SmartPAL's own
+def _is_title_prefixed(prefix: str, title: str | None) -> bool:
+    """True when the PR/PO's own free-text title is <prefix>-prefixed even though SmartPAL's own
     req_category says something else (e.g. "OPEX-OTHERS", "ADHOC SPARES") — confirmed with the
-    user 2026-11-04: purchase sometimes places what is really a DD order under a different
-    category, but still prefixes the title with "DD" by convention. Catching that here means the
-    DD Tracker picks these up automatically on every scrape, the same way a one-off manual
-    backfill had to for GCL TAPI/GCL Yamuna before this existed (see git history around
-    2026-11-03) — no more hand-linking via "Add Entry" needed for this specific pattern."""
+    user 2026-11-04 for DD: purchase sometimes places what is really a DD order under a different
+    category, but still prefixes the title with "DD" by convention; generalized 2026-11-12 for PD
+    on the same assumption. Catching this means each tracker picks these up automatically on every
+    scrape, the same way a one-off manual backfill had to for GCL TAPI/GCL Yamuna before the DD
+    version of this existed (see git history around 2026-11-03) — no more hand-linking via "Add
+    Entry" needed for this specific pattern."""
     if not title:
         return False
-    return bool(_DD_TITLE_RE.match(title.strip()))
+    regex = _TITLE_PREFIX_RE_CACHE.get(prefix)
+    if regex is None:
+        regex = re.compile(rf"^{re.escape(prefix)}(\s|-|$)", re.IGNORECASE)
+        _TITLE_PREFIX_RE_CACHE[prefix] = regex
+    return bool(regex.match(title.strip()))
 
 
-def _sync_dd_tracker_entries(db: Session) -> dict:
-    """Auto-populates dd_tracker_entries for every DD PR/PO the scraper just saw — confirmed with
-    the user 2026-10-28: DD Tracker rows must appear automatically based on category, not be
-    hand-created one at a time. A PR/PO counts as DD when EITHER its req_category is DD-flavored
-    (_is_dd_category) OR its own title is DD-prefixed (_is_dd_title) even under some other
-    category — the latter added 2026-11-04 to also catch DD orders purchase placed under e.g.
-    OPEX by category but still titled "DD - ...", the same gap a one-off manual backfill had to
-    cover for GCL TAPI/GCL Yamuna before this existed. Runs after _run_pr/_run_po on every scrape.
+def _sync_tracker_entries_for_category(db: Session, category: str) -> dict:
+    """Auto-populates dd_tracker_entries for every PR/PO of the given tracker category (e.g. "DD",
+    "PD") the scraper just saw — confirmed with the user 2026-10-28 for DD, generalized 2026-11-12
+    for PD Tracker: rows must appear automatically based on category, not be hand-created one at a
+    time. A PR/PO counts as this category when EITHER its req_category is category-flavored
+    (_is_category_prefixed) OR its own title is category-prefixed (_is_title_prefixed) even under
+    some other category — the latter added 2026-11-04 for DD to also catch DD orders purchase
+    placed under e.g. OPEX by category but still titled "DD - ...". Runs after _run_pr/_run_po on
+    every scrape, once per tracked category (see _sync_dd_tracker_entries below).
 
     PR-driven: any pr_entries row matching either signal and not already tracked (matched by
     requisition_no) gets a new dd_tracker_entries row, pulling in its matching PO (by
@@ -370,23 +379,22 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
     PO" case, see po_entry.py docstring) is tracked by po_no instead, since there's no PR to key
     off of.
 
-    Existing dd_tracker_entries rows are NEVER overwritten here — this only fills in po_no on an
-    already-tracked PR row when it was previously missing (a PO created after the PR was first
-    synced), and only when that field is still null, so it can never clobber a manual edit."""
-    inserted = linked = 0
+    Existing dd_tracker_entries rows are NEVER overwritten here — see _backfill_tracker_po_links
+    for the only other mutation this sync makes to a pre-existing row."""
+    inserted = 0
 
     tracked_req_nos = {r[0] for r in db.query(DdTrackerEntry.requisition_no).filter(DdTrackerEntry.requisition_no.isnot(None)).all()}
     tracked_po_nos = {r[0] for r in db.query(DdTrackerEntry.po_no).filter(DdTrackerEntry.po_no.isnot(None)).all()}
 
     for pr in db.query(PrEntry).all():
-        if not (_is_dd_category(pr.req_category) or _is_dd_title(pr.title)):
+        if not (_is_category_prefixed(category, pr.req_category) or _is_title_prefixed(category, pr.title)):
             continue
         if pr.requisition_no in tracked_req_nos:
             continue
         matching_po = db.query(PoEntry).filter(PoEntry.requisition_no == pr.requisition_no).first()
         db.add(
             DdTrackerEntry(
-                entry_type="DD",
+                entry_type=category,
                 requisition_no=pr.requisition_no,
                 po_no=matching_po.po_no if matching_po else None,
                 vessel_name=pr.vessel_name,
@@ -396,15 +404,15 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
         tracked_req_nos.add(pr.requisition_no)
         inserted += 1
 
-    dd_direct_pos = db.query(PoEntry).filter(PoEntry.requisition_no.is_(None)).all()
-    for po in dd_direct_pos:
-        if not (_is_dd_category(po.req_category) or _is_dd_title(po.title)):
+    direct_pos = db.query(PoEntry).filter(PoEntry.requisition_no.is_(None)).all()
+    for po in direct_pos:
+        if not (_is_category_prefixed(category, po.req_category) or _is_title_prefixed(category, po.title)):
             continue
         if po.po_no in tracked_po_nos:
             continue
         db.add(
             DdTrackerEntry(
-                entry_type="DD",
+                entry_type=category,
                 requisition_no=None,
                 po_no=po.po_no,
                 vessel_name=po.vessel_name,
@@ -414,17 +422,40 @@ def _sync_dd_tracker_entries(db: Session) -> dict:
         tracked_po_nos.add(po.po_no)
         inserted += 1
 
-    # Backfill po_no on already-tracked PR rows that didn't have a matching PO yet last time —
-    # only when still null, never overwriting a manual edit.
+    db.commit()
+    return {"inserted": inserted}
+
+
+def _backfill_tracker_po_links(db: Session) -> dict:
+    """Fills in po_no on already-tracked PR rows (any category) that didn't have a matching PO yet
+    last time — only when still null, never overwriting a manual edit. Split out from the former
+    single-category _sync_dd_tracker_entries so this runs exactly once per scrape regardless of
+    how many categories _sync_dd_tracker_entries now syncs, instead of redundantly once per
+    category."""
+    linked = 0
     unlinked = db.query(DdTrackerEntry).filter(DdTrackerEntry.requisition_no.isnot(None), DdTrackerEntry.po_no.is_(None)).all()
     for entry in unlinked:
         matching_po = db.query(PoEntry).filter(PoEntry.requisition_no == entry.requisition_no).first()
         if matching_po:
             entry.po_no = matching_po.po_no
             linked += 1
-
     db.commit()
-    return {"inserted": inserted, "linked": linked}
+    return {"linked": linked}
+
+
+def _sync_dd_tracker_entries(db: Session) -> dict:
+    """Orchestrates the auto-sync for every tracker category this app has — DD and, as of
+    2026-11-12, PD Tracker ("replicate DD Tracker for PD", confirmed fully separate module). Kept
+    under its original name/call site (see run() below) so nothing else needs to change; the
+    actual per-category logic lives in _sync_tracker_entries_for_category."""
+    dd = _sync_tracker_entries_for_category(db, "DD")
+    pd = _sync_tracker_entries_for_category(db, "PD")
+    backfill = _backfill_tracker_po_links(db)
+    return {
+        "dd_inserted": dd["inserted"],
+        "pd_inserted": pd["inserted"],
+        "linked": backfill["linked"],
+    }
 
 
 _FETCH_PO_ITEMS_JS = """async ({ pData, poHdId }) => {
