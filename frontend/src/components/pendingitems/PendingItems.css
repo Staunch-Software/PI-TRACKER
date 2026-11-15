@@ -1,4 +1,9 @@
-.pending-stage-tabs {
+/* Both tab rows share one "segmented control" look (gray track, white active pill) and both
+   stretch to the same full width — same left/right edges as the toolbar/table below them —
+   instead of each sizing to its own content, which left them visually unrelated and misaligned
+   with each other. */
+.pending-stage-tabs,
+.pending-owner-tabs {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -11,9 +16,16 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.pending-stage-tab {
+.pending-owner-tabs {
+  margin-bottom: 14px;
+}
+
+.pending-stage-tab,
+.pending-owner-tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
   flex-shrink: 0;
   gap: 8px;
   height: 36px;
@@ -30,7 +42,8 @@
   white-space: nowrap;
 }
 
-.pending-stage-tab:hover {
+.pending-stage-tab:hover,
+.pending-owner-tab:hover {
   color: #0f172a;
   background: rgba(255, 255, 255, 0.6);
 }
@@ -42,47 +55,18 @@
   font-weight: 700;
 }
 
-.pending-owner-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 0 28px 14px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.pending-owner-tab {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 8px;
-  height: 34px;
-  padding: 0 16px;
-  border: 1px solid rgba(17, 20, 36, 0.12);
-  border-radius: 999px;
-  background: #ffffff;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.pending-owner-tab:hover {
-  color: #0f172a;
-}
-
 .pending-owner-tab-tsi.active {
-  background: #e6f0ff;
-  border-color: #0f4c81;
+  background: #ffffff;
   color: #0f4c81;
+  box-shadow: 0 1px 3px rgba(15, 76, 129, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-weight: 700;
 }
 
 .pending-owner-tab-ta.active {
-  background: #fff2e0;
-  border-color: #9a5b00;
+  background: #ffffff;
   color: #9a5b00;
+  box-shadow: 0 1px 3px rgba(154, 91, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-weight: 700;
 }
 
 .pending-tab-count {
@@ -98,8 +82,13 @@
   font-weight: 700;
 }
 
-.pending-stage-tab.active .pending-tab-count {
+.pending-stage-tab.active .pending-tab-count,
+.pending-owner-tab-tsi.active .pending-tab-count {
   background: rgba(15, 76, 129, 0.12);
+}
+
+.pending-owner-tab-ta.active .pending-tab-count {
+  background: rgba(154, 91, 0, 0.12);
 }
 
 /* Table scrolls horizontally inside the shell instead of truncating/wrapping column headers
