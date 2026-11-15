@@ -1,17 +1,20 @@
 .pending-stage-tabs {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  gap: 3px;
+  margin: 0 28px 10px;
+  padding: 3px;
   background: #f1f5f9;
   border-radius: 9px;
-  padding: 3px;
-  gap: 3px;
   border: 1px solid rgba(17, 20, 36, 0.12);
-  margin-bottom: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pending-stage-tab {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
   height: 36px;
   padding: 0 16px;
@@ -42,12 +45,15 @@
 .pending-owner-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 14px;
+  margin: 0 28px 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pending-owner-tab {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
   height: 34px;
   padding: 0 16px;
@@ -96,6 +102,19 @@
   background: rgba(15, 76, 129, 0.12);
 }
 
+/* Table scrolls horizontally inside the shell instead of truncating/wrapping column headers
+   when there isn't enough width (tablet/mobile) — the shell itself keeps overflow:hidden for
+   its rounded corners, so the scroll region is this nested div, not the shell. */
+.pending-items-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.pending-items-table {
+  min-width: 950px;
+}
+
 .pending-items-table th {
   cursor: pointer;
   user-select: none;
@@ -111,4 +130,15 @@
   text-align: center;
   padding: 2rem;
   color: var(--color-text-muted);
+}
+
+/* Mirrors Tracker.css's own mobile breakpoint (28px -> 12px side margins) for the tab rows,
+   which live outside .tracker-toolbar/.tracker-table-shell so that global rule doesn't cover
+   them. */
+@media (max-width: 767px) {
+  .pending-stage-tabs,
+  .pending-owner-tabs {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
 }

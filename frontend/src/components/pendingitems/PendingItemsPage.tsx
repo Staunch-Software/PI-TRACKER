@@ -272,7 +272,16 @@ export function PendingItemsPage() {
       ) : (
         <>
           <div className="tracker-table-shell">
+           <div className="pending-items-scroll">
             <table className="data-table pending-items-table">
+              <colgroup>
+                <col style={{ width: 180 }} />
+                <col style={{ width: 160 }} />
+                <col style={{ width: 220 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 130 }} />
+                <col style={{ width: 120 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th onClick={() => handleSort('referenceNo')}>Reference No. {sortIndicator('referenceNo')}</th>
@@ -301,6 +310,7 @@ export function PendingItemsPage() {
                 )}
               </tbody>
             </table>
+           </div>
           </div>
           <div className="tracker-pagination">
             <div className="pagination-left">
