@@ -44,8 +44,12 @@ _VESSEL_OWNERS: dict[str, tuple[str, str]] = {
     "AM TARANG": ("Pavan", "Sunil"),
 }
 
+# "Finally Approved" is a terminal state — fully done, not pending for anyone — confirmed with
+# the user 2026-11-15 it must NOT be lumped in with plain "Approved" (which still has an open
+# TSI/TA action against it). So it's deliberately excluded from both sets below: rows in that
+# status are dropped entirely from this report across all three stages.
 _PENDING_STATUSES = {"Pending"}
-_APPROVED_STATUSES = {"Approved", "Finally Approved"}
+_APPROVED_STATUSES = {"Approved"}
 
 
 def _owner(vessel_name: str | None, pending_side_role: str) -> tuple[str, str | None]:
@@ -67,8 +71,9 @@ def _ageing(reference_date: date | None) -> int | None:
 def _compute_pending_items(db: Session) -> list[PendingItemOut]:
     items: list[PendingItemOut] = []
 
-    # Requisition: Pending -> TSI's job (ageing since created); Approved/Finally Approved -> TA's
-    # job (ageing since it was approved, i.e. since it became TA's job).
+    # Requisition: Pending -> TSI's job (ageing since created); Approved -> TA's job (ageing
+    # since it was approved, i.e. since it became TA's job). Finally Approved is excluded
+    # entirely — see _APPROVED_STATUSES.
     prs = (
         db.query(PrEntry)
         .filter(PrEntry.approval_flag.in_(_PENDING_STATUSES | _APPROVED_STATUSES))
@@ -94,7 +99,7 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
             )
         )
 
-    # Purchase Order: Pending -> TA's job; Approved/Finally Approved -> TSI's job.
+    # Purchase Order: Pending -> TA's job; Approved -> TSI's job. Finally Approved excluded.
     pos = (
         db.query(PoEntry)
         .filter(PoEntry.approved_status.in_(_PENDING_STATUSES | _APPROVED_STATUSES))
@@ -120,8 +125,8 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
             )
         )
 
-    # Invoice: Pending (Approval) -> TA's job; Approved/Finally Approved -> TSI's job. No
-    # "approved date" column exists on this table, so both sides age from invoice_date.
+    # Invoice: Pending (Approval) -> TA's job; Approved -> TSI's job. Finally Approved excluded.
+    # No "approved date" column exists on this table, so both sides age from invoice_date.
     invoices = (
         db.query(SmartpalInvoiceEntry)
         .filter(
