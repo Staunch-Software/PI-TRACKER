@@ -18,13 +18,10 @@ from app.schemas.pending_items import PendingItemOut, PendingItemsCountEntry, Pe
 _STAGES = ("Requisition", "Purchase Order", "Invoice")
 _OWNER_ROLES = ("TSI", "TA")
 
-# Gated on the "dd" module flag (same data source, same audience as DD/PD Tracker) rather than a
-# new can_access_* column + migration + admin-UI toggle — reassess if TSI/TA access ever needs to
-# diverge from DD Tracker access.
 router = APIRouter(
     prefix="/pending-items",
     tags=["pending-items"],
-    dependencies=[Depends(require_module_access("dd"))],
+    dependencies=[Depends(require_module_access("pending_items"))],
 )
 
 # Vessel -> (TSI, TA) assignment, provided by the user 2026-11-15. No DB table for this yet — it's

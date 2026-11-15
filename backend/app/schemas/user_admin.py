@@ -19,6 +19,7 @@ class UserCreateRequest(CamelModel):
     can_access_dd: bool = True
     can_access_vendor: bool = True
     can_access_pd: bool = True
+    can_access_pending_items: bool = True
 
 
 class UserUpdateRequest(CamelModel):
@@ -32,4 +33,5 @@ class UserUpdateRequest(CamelModel):
     can_access_dd: bool | None = None
     can_access_vendor: bool | None = None
     can_access_pd: bool | None = None
+    can_access_pending_items: bool | None = None
     password: str | None = None

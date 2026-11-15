@@ -64,7 +64,7 @@ export function App() {
               <Route element={<ModuleGate module="pd" />}>
                 <Route path="/pd-tracker" element={<PdTrackerPage />} />
               </Route>
-              <Route element={<ModuleGate module="dd" />}>
+              <Route element={<ModuleGate module="pendingItems" />}>
                 <Route path="/pending-items" element={<PendingItemsPage />} />
               </Route>
               <Route element={<ModuleGate module="vendor" />}>

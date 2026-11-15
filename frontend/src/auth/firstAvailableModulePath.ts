@@ -5,7 +5,10 @@ import { useRole } from './useRole';
 // access to. Shared here so the "/" root route can pick the right module directly instead of
 // always bouncing through /dashboard first and letting ModuleGate redirect a second time.
 export function useFirstAvailableModulePath(): string | null {
-  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd } = useRole();
+  const {
+    canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd,
+    canAccessPendingItems,
+  } = useRole();
   if (canAccessPi) return '/dashboard';
   if (canAccessPir) return '/pir';
   if (canAccessSoa) return '/soa';
@@ -13,5 +16,6 @@ export function useFirstAvailableModulePath(): string | null {
   if (canAccessDd) return '/dd-tracker';
   if (canAccessVendor) return '/vendor-management';
   if (canAccessPd) return '/pd-tracker';
+  if (canAccessPendingItems) return '/pending-items';
   return null;
 }

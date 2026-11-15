@@ -20,6 +20,7 @@ class UserOut(CamelModel):
     can_access_dd: bool
     can_access_vendor: bool
     can_access_pd: bool
+    can_access_pending_items: bool
     created_at: datetime
 
 

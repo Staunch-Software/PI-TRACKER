@@ -43,6 +43,7 @@ def create_user(
         can_access_dd=payload.can_access_dd,
         can_access_vendor=payload.can_access_vendor,
         can_access_pd=payload.can_access_pd,
+        can_access_pending_items=payload.can_access_pending_items,
     )
     db.add(user)
     db.flush()

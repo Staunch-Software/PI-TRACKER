@@ -19,5 +19,6 @@ export function useRole() {
     canAccessDd: isAdmin || (user?.canAccessDd ?? false),
     canAccessVendor: isAdmin || (user?.canAccessVendor ?? false),
     canAccessPd: isAdmin || (user?.canAccessPd ?? false),
+    canAccessPendingItems: isAdmin || (user?.canAccessPendingItems ?? false),
   };
 }

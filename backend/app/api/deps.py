@@ -63,6 +63,7 @@ def require_module_access(module: str) -> Callable[[User], User]:
         "dd": "can_access_dd",
         "vendor": "can_access_vendor",
         "pd": "can_access_pd",
+        "pending_items": "can_access_pending_items",
     }[module]
 
     def dependency(current_user: User = Depends(get_current_user)) -> User:

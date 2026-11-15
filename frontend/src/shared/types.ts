@@ -15,6 +15,7 @@ export interface User {
   canAccessDd: boolean;
   canAccessVendor: boolean;
   canAccessPd: boolean;
+  canAccessPendingItems: boolean;
   createdAt: string;
 }
 

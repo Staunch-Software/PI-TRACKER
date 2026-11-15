@@ -21,6 +21,7 @@ export function UserModal({ user, onClose }: Props) {
   const [canAccessDd, setCanAccessDd] = useState(user?.canAccessDd ?? true);
   const [canAccessVendor, setCanAccessVendor] = useState(user?.canAccessVendor ?? true);
   const [canAccessPd, setCanAccessPd] = useState(user?.canAccessPd ?? true);
+  const [canAccessPendingItems, setCanAccessPendingItems] = useState(user?.canAccessPendingItems ?? true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -39,9 +40,10 @@ export function UserModal({ user, onClose }: Props) {
             canAccessDd,
             canAccessVendor,
             canAccessPd,
+            canAccessPendingItems,
             ...(password ? { password } : {}),
           })
-        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd }),
+        : api.post<User>('/users', { email, fullName, role, password, canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd, canAccessPendingItems }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['audit-log'] });
@@ -170,6 +172,15 @@ export function UserModal({ user, onClose }: Props) {
                       onChange={(e) => setCanAccessPd(e.target.checked)}
                     />
                     PD Tracker
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={role === UserRole.ADMIN || canAccessPendingItems}
+                      disabled={role === UserRole.ADMIN}
+                      onChange={(e) => setCanAccessPendingItems(e.target.checked)}
+                    />
+                    TSI/TA Pending
                   </label>
                 </div>
                 {role === UserRole.ADMIN && (

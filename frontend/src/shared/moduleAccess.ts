@@ -16,6 +16,7 @@ export interface ModuleAccessField {
     | 'canAccessDd'
     | 'canAccessVendor'
     | 'canAccessPd'
+    | 'canAccessPendingItems'
   >;
   label: string;
 }
@@ -28,4 +29,5 @@ export const MODULE_ACCESS_FIELDS: ModuleAccessField[] = [
   { key: 'canAccessDd', label: 'DD Tracker' },
   { key: 'canAccessVendor', label: 'Vendor Management' },
   { key: 'canAccessPd', label: 'PD Tracker' },
+  { key: 'canAccessPendingItems', label: 'TSI/TA Pending' },
 ];
