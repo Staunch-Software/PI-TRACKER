@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import type { PaginatedResult, PendingItem, PendingItemsFilterOptions } from '../../shared';
+import type { PaginatedResult, PendingItem, PendingItemsCountEntry, PendingItemsFilterOptions } from '../../shared';
 import { MultiSelectDropdown } from '../common/MultiSelectDropdown';
 import { MoreFiltersPopover } from '../common/MoreFiltersPopover';
 import { SearchIcon } from '../common/SearchIcon';
@@ -9,27 +9,31 @@ import { SearchIcon } from '../common/SearchIcon';
 import '../../pages/Tracker.css';
 import './PendingItems.css';
 
-type SortColumn = 'stage' | 'referenceNo' | 'vesselName' | 'vendor' | 'status' | 'ownerRole' | 'ownerName' | 'ageingDays';
+type SortColumn = 'referenceNo' | 'vesselName' | 'vendor' | 'status' | 'ownerName' | 'ageingDays';
+
+const STAGES = ['Requisition', 'Purchase Order', 'Invoice'] as const;
+type Stage = (typeof STAGES)[number];
+
+const OWNER_ROLES = ['TSI', 'TA'] as const;
+type OwnerRole = (typeof OWNER_ROLES)[number];
 
 interface PendingItemFilters {
   search: string;
   vesselName: string[];
-  stage: string[];
-  ownerRole: string[];
   ownerName: string[];
 }
 
 const DEFAULT_FILTERS: PendingItemFilters = {
   search: '',
   vesselName: [],
-  stage: [],
-  ownerRole: [],
   ownerName: [],
 };
 
 const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
 
 function buildQueryParams(
+  stage: Stage,
+  ownerRole: OwnerRole,
   filters: PendingItemFilters,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
@@ -37,10 +41,10 @@ function buildQueryParams(
   pageSize: number
 ): URLSearchParams {
   const params = new URLSearchParams();
+  params.append('stage', stage);
+  params.append('owner_role', ownerRole);
   if (filters.search) params.set('search', filters.search);
   filters.vesselName.forEach((v) => params.append('vessel_name', v));
-  filters.stage.forEach((v) => params.append('stage', v));
-  filters.ownerRole.forEach((v) => params.append('owner_role', v));
   filters.ownerName.forEach((v) => params.append('owner_name', v));
   if (sortBy) {
     params.set('sort_by', sortBy);
@@ -52,6 +56,8 @@ function buildQueryParams(
 }
 
 export function PendingItemsPage() {
+  const [stage, setStage] = useState<Stage>('Requisition');
+  const [ownerRole, setOwnerRole] = useState<OwnerRole>('TSI');
   const [filters, setFilters] = useState<PendingItemFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -59,6 +65,16 @@ export function PendingItemsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  function selectStage(next: Stage) {
+    setStage(next);
+    setPage(1);
+  }
+
+  function selectOwnerRole(next: OwnerRole) {
+    setOwnerRole(next);
+    setPage(1);
+  }
 
   function updateFilters(patch: Partial<PendingItemFilters>) {
     setPage(1);
@@ -90,10 +106,34 @@ export function PendingItemsPage() {
     queryFn: () => api.get<PendingItemsFilterOptions>('/pending-items/filter-options'),
   });
 
+  // Counts for every (stage, ownerRole) combo, under the current search/vessel/owner-name
+  // filters — badges every tab and sub-tab regardless of which one is currently selected.
+  const countsQuery = useQuery({
+    queryKey: ['pending-items-counts', filters],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filters.search) params.set('search', filters.search);
+      filters.vesselName.forEach((v) => params.append('vessel_name', v));
+      filters.ownerName.forEach((v) => params.append('owner_name', v));
+      return api.get<PendingItemsCountEntry[]>(`/pending-items/counts?${params.toString()}`);
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  function countFor(s: Stage, role: OwnerRole): number {
+    return countsQuery.data?.find((c) => c.stage === s && c.ownerRole === role)?.count ?? 0;
+  }
+
+  function stageTotal(s: Stage): number {
+    return OWNER_ROLES.reduce((sum, role) => sum + countFor(s, role), 0);
+  }
+
   const itemsQuery = useQuery({
-    queryKey: ['pending-items', filters, sortBy, sortDir, page, pageSize],
+    queryKey: ['pending-items', stage, ownerRole, filters, sortBy, sortDir, page, pageSize],
     queryFn: () =>
-      api.get<PaginatedResult<PendingItem>>(`/pending-items?${buildQueryParams(filters, sortBy, sortDir, page, pageSize).toString()}`),
+      api.get<PaginatedResult<PendingItem>>(
+        `/pending-items?${buildQueryParams(stage, ownerRole, filters, sortBy, sortDir, page, pageSize).toString()}`
+      ),
     placeholderData: keepPreviousData,
   });
 
@@ -103,14 +143,14 @@ export function PendingItemsPage() {
     setExportError(null);
     setIsExporting(true);
     try {
-      const params = buildQueryParams(filters, sortBy, sortDir, page, pageSize);
+      const params = buildQueryParams(stage, ownerRole, filters, sortBy, sortDir, page, pageSize);
       params.delete('page');
       params.delete('page_size');
       const { blob, filename } = await api.getBlob(`/pending-items/export?${params.toString()}`);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename ?? 'TSI_TA_Pending_Items.xlsx';
+      link.download = filename ?? `${stage.replace(/\s+/g, '_')}_${ownerRole}_Pending.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -123,14 +163,9 @@ export function PendingItemsPage() {
   }
 
   const vesselOptions = (filterOptionsQuery.data?.vesselName ?? []).map((v) => ({ value: v, label: v }));
-  const stageOptions = (filterOptionsQuery.data?.stage ?? []).map((v) => ({ value: v, label: v }));
-  const ownerRoleOptions = [
-    { value: 'TSI', label: 'TSI' },
-    { value: 'TA', label: 'TA' },
-  ];
   const ownerNameOptions = (filterOptionsQuery.data?.ownerName ?? []).map((v) => ({ value: v, label: v }));
 
-  const moreFiltersActiveCount = filters.stage.length + filters.ownerRole.length + filters.ownerName.length;
+  const moreFiltersActiveCount = filters.ownerName.length;
   const hasAnyActiveFilter = filters.search !== '' || filters.vesselName.length > 0 || moreFiltersActiveCount > 0;
 
   function sortIndicator(column: SortColumn) {
@@ -144,8 +179,36 @@ export function PendingItemsPage() {
         <h1 className="tracker-page-title">TSI / TA Pending Items</h1>
         <div className="tracker-page-count">
           <span className="count-number">{itemsQuery.data?.total ?? 0}</span>
-          <span className="count-label">Pending Items</span>
+          <span className="count-label">{stage} · {ownerRole} Pending</span>
         </div>
+      </div>
+
+      <div className="pending-stage-tabs">
+        {STAGES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            className={`pending-stage-tab ${stage === s ? 'active' : ''}`}
+            onClick={() => selectStage(s)}
+          >
+            {s}
+            <span className="pending-tab-count">{stageTotal(s)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="pending-owner-tabs">
+        {OWNER_ROLES.map((role) => (
+          <button
+            key={role}
+            type="button"
+            className={`pending-owner-tab pending-owner-tab-${role.toLowerCase()} ${ownerRole === role ? 'active' : ''}`}
+            onClick={() => selectOwnerRole(role)}
+          >
+            {role} Pending
+            <span className="pending-tab-count">{countFor(stage, role)}</span>
+          </button>
+        ))}
       </div>
 
       <div className="tracker-toolbar">
@@ -172,22 +235,6 @@ export function PendingItemsPage() {
               </button>
             </div>
           )}
-          <div className="more-filters-section">
-            <MultiSelectDropdown
-              options={stageOptions}
-              selected={filters.stage}
-              onChange={(next) => updateFilters({ stage: next })}
-              allLabel="All stages"
-            />
-          </div>
-          <div className="more-filters-section">
-            <MultiSelectDropdown
-              options={ownerRoleOptions}
-              selected={filters.ownerRole}
-              onChange={(next) => updateFilters({ ownerRole: next })}
-              allLabel="TSI & TA"
-            />
-          </div>
           <div className="more-filters-section">
             <MultiSelectDropdown
               options={ownerNameOptions}
@@ -228,34 +275,28 @@ export function PendingItemsPage() {
             <table className="data-table pending-items-table">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort('stage')}>Stage {sortIndicator('stage')}</th>
                   <th onClick={() => handleSort('referenceNo')}>Reference No. {sortIndicator('referenceNo')}</th>
                   <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
                   <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
                   <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
-                  <th onClick={() => handleSort('ownerRole')}>Owner Role {sortIndicator('ownerRole')}</th>
-                  <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
+                  <th onClick={() => handleSort('ownerName')}>{ownerRole} {sortIndicator('ownerName')}</th>
                   <th onClick={() => handleSort('ageingDays')}>Ageing (Days) {sortIndicator('ageingDays')}</th>
                 </tr>
               </thead>
               <tbody>
                 {(itemsQuery.data?.items ?? []).map((item, idx) => (
-                  <tr key={`${item.stage}-${item.referenceNo}-${idx}`}>
-                    <td>{item.stage}</td>
+                  <tr key={`${item.referenceNo}-${idx}`}>
                     <td>{item.referenceNo ?? '—'}</td>
                     <td>{item.vesselName ?? '—'}</td>
                     <td>{item.vendor ?? '—'}</td>
                     <td>{item.status ?? '—'}</td>
-                    <td>
-                      <span className={`owner-role-badge owner-role-${item.ownerRole.toLowerCase()}`}>{item.ownerRole}</span>
-                    </td>
                     <td>{item.ownerName ?? '—'}</td>
                     <td>{item.ageingDays ?? '—'}</td>
                   </tr>
                 ))}
                 {itemsQuery.data && itemsQuery.data.items.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="pending-items-empty">No pending items match the current filters.</td>
+                    <td colSpan={6} className="pending-items-empty">No {stage.toLowerCase()} items pending with {ownerRole} match the current filters.</td>
                   </tr>
                 )}
               </tbody>

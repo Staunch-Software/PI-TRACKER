@@ -1,3 +1,101 @@
+.pending-stage-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid rgba(17, 20, 36, 0.12);
+  margin-bottom: 10px;
+}
+
+.pending-stage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pending-stage-tab:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.pending-stage-tab.active {
+  background: #ffffff;
+  color: #0f4c81;
+  box-shadow: 0 1px 3px rgba(15, 76, 129, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-weight: 700;
+}
+
+.pending-owner-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pending-owner-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid rgba(17, 20, 36, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pending-owner-tab:hover {
+  color: #0f172a;
+}
+
+.pending-owner-tab-tsi.active {
+  background: #e6f0ff;
+  border-color: #0f4c81;
+  color: #0f4c81;
+}
+
+.pending-owner-tab-ta.active {
+  background: #fff2e0;
+  border-color: #9a5b00;
+  color: #9a5b00;
+}
+
+.pending-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.pending-stage-tab.active .pending-tab-count {
+  background: rgba(15, 76, 129, 0.12);
+}
+
 .pending-items-table th {
   cursor: pointer;
   user-select: none;
@@ -13,22 +111,4 @@
   text-align: center;
   padding: 2rem;
   color: var(--color-text-muted);
-}
-
-.owner-role-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.owner-role-tsi {
-  background: #e6f0ff;
-  color: #0f4c81;
-}
-
-.owner-role-ta {
-  background: #fff2e0;
-  color: #9a5b00;
 }

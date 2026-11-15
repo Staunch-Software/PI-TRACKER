@@ -167,6 +167,12 @@ export interface PendingItemsFilterOptions {
   status: string[];
 }
 
+export interface PendingItemsCountEntry {
+  stage: string;
+  ownerRole: string;
+  count: number;
+}
+
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.
 export interface ImportRowData {
   rowNumber: number;

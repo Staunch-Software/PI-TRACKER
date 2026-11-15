@@ -13,7 +13,10 @@ from app.models.po_entry import PoEntry
 from app.models.pr_entry import PrEntry
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.schemas.common import PaginatedResult
-from app.schemas.pending_items import PendingItemOut, PendingItemsFilterOptions
+from app.schemas.pending_items import PendingItemOut, PendingItemsCountEntry, PendingItemsFilterOptions
+
+_STAGES = ("Requisition", "Purchase Order", "Invoice")
+_OWNER_ROLES = ("TSI", "TA")
 
 # Gated on the "dd" module flag (same data source, same audience as DD/PD Tracker) rather than a
 # new can_access_* column + migration + admin-UI toggle — reassess if TSI/TA access ever needs to
@@ -224,6 +227,29 @@ def list_pending_items(
     return PaginatedResult[PendingItemOut](items=items[start : start + page_size], total=total, page=page, page_size=page_size)
 
 
+@router.get("/counts", response_model=list[PendingItemsCountEntry])
+def get_pending_items_counts(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    vessel_name: list[str] | None = Query(default=None),
+    owner_name: list[str] | None = Query(default=None),
+) -> list[PendingItemsCountEntry]:
+    """Row count per (stage, owner_role) combination, under the current search/vessel/owner-name
+    filters but WITHOUT stage/owner_role themselves (those are what the frontend's tabs and
+    sub-tabs pick) — drives the count badge on each tab/sub-tab regardless of which one is
+    currently selected."""
+    items = _filtered(_compute_pending_items(db), search, vessel_name, None, None, owner_name)
+    counts: dict[tuple[str, str], int] = {}
+    for item in items:
+        key = (item.stage, item.owner_role)
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        PendingItemsCountEntry(stage=stage, owner_role=role, count=counts.get((stage, role), 0))
+        for stage in _STAGES
+        for role in _OWNER_ROLES
+    ]
+
+
 @router.get("/filter-options", response_model=PendingItemsFilterOptions)
 def get_pending_items_filter_options(db: Session = Depends(get_db)) -> PendingItemsFilterOptions:
     items = _compute_pending_items(db)
@@ -288,8 +314,19 @@ def export_pending_items(
     buffer = BytesIO()
     workbook.save(buffer)
     buffer.seek(0)
+
+    # Frontend always sends exactly one stage + one owner_role (its tab/sub-tab selection), so
+    # name the file after them; falls back to a generic name for any other combination (e.g. a
+    # future "export everything" caller).
+    stage_clean = [s for s in (stage or []) if s]
+    role_clean = [r for r in (owner_role or []) if r]
+    if len(stage_clean) == 1 and len(role_clean) == 1:
+        filename = f"{stage_clean[0].replace(' ', '_')}_{role_clean[0]}_Pending.xlsx"
+    else:
+        filename = "TSI_TA_Pending_Items.xlsx"
+
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=TSI_TA_Pending_Items.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
