@@ -146,6 +146,27 @@ export interface PaginatedResult<T> {
   pageSize: number;
 }
 
+// TSI/TA Pending Items report: mirrors PendingItemOut/PendingItemsFilterOptions in
+// backend/app/schemas/pending_items.py.
+export interface PendingItem {
+  stage: string;
+  referenceNo: string | null;
+  vesselName: string | null;
+  vendor: string | null;
+  status: string | null;
+  ownerRole: string;
+  ownerName: string | null;
+  ageingDays: number | null;
+  referenceDate: string | null;
+}
+
+export interface PendingItemsFilterOptions {
+  vesselName: string[];
+  stage: string[];
+  ownerName: string[];
+  status: string[];
+}
+
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.
 export interface ImportRowData {
   rowNumber: number;

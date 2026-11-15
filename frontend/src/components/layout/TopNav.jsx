@@ -101,6 +101,9 @@ export function TopNav() {
           {canAccessPd && (
             <NavLink to="/pd-tracker" className={linkClass} onClick={closeMenu}>PD Tracker</NavLink>
           )}
+          {canAccessDd && (
+            <NavLink to="/pending-items" className={linkClass} onClick={closeMenu}>TSI/TA Pending</NavLink>
+          )}
           {canAccessVendor && (
             <NavLink to="/vendor-management" className={linkClass} onClick={closeMenu}>Vendor Management</NavLink>
           )}
