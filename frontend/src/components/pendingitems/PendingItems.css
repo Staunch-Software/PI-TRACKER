@@ -1,8 +1,40 @@
-/* Enable smooth vertical scrolling for the TSI/TA Pending module */
-.pending-items-page {
-  height: 100%;
+/* ==========================================================================
+   TSI / TA Pending Module — Natural Full Page Scrolling (Mobile → 4K)
+   Overrides global.css tracker-page 100vh lock so the entire window scrolls smoothly
+   ========================================================================== */
+
+html:has(.pending-items-page),
+body:has(.pending-items-page) {
   overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100% !important;
+}
+
+body:has(.pending-items-page) #root,
+body:has(.pending-items-page) .app-shell {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body:has(.pending-items-page) .page-content {
+  padding: 0 !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+}
+
+.tracker-page.pending-items-page {
+  flex: none !important;
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow: visible !important;
+  background: var(--color-bg);
 }
 
 /* Stage Tabs segmented control */
