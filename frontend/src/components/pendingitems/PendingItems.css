@@ -674,7 +674,10 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  margin: 0 28px 28px;
+  padding: 0 28px 28px;
+  margin: 0;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 /* Compact Executive KPI Cards */
@@ -1736,8 +1739,8 @@
 /* ── 1. Extra Small Mobile Phones (≤ 480px) ── */
 @media (max-width: 480px) {
   .pending-dashboard-view {
-    margin-left: 6px;
-    margin-right: 6px;
+    padding: 0 10px 16px;
+    margin: 0;
     gap: 12px;
   }
 
@@ -1885,8 +1888,8 @@
 /* ── 2. Mobile Landscape & Small Phablets (481px – 767px) ── */
 @media (min-width: 481px) and (max-width: 767px) {
   .pending-dashboard-view {
-    margin-left: 10px;
-    margin-right: 10px;
+    padding: 0 14px 20px;
+    margin: 0;
     gap: 14px;
   }
 
@@ -1923,8 +1926,8 @@
 /* ── 3. Tablets & Small Laptops (768px – 1024px) ── */
 @media (min-width: 768px) and (max-width: 1024px) {
   .pending-dashboard-view {
-    margin-left: 14px;
-    margin-right: 14px;
+    padding: 0 18px 24px;
+    margin: 0;
     gap: 18px;
   }
 
@@ -1966,9 +1969,8 @@
 /* ── 5. Large Desktop & QHD (1441px – 2559px) ── */
 @media (min-width: 1441px) and (max-width: 2559px) {
   .pending-dashboard-view {
-    max-width: 2000px;
-    margin-left: auto;
-    margin-right: auto;
+    padding: 0 28px 28px;
+    margin: 0;
     gap: 22px;
   }
 
@@ -1999,11 +2001,9 @@
 /* ── 6. 4K Ultra HD (≥ 2560px) ── */
 @media (min-width: 2560px) {
   .pending-dashboard-view {
-    max-width: 3200px;
-    margin-left: auto;
-    margin-right: auto;
+    padding: 0 36px 36px;
+    margin: 0;
     gap: 30px;
-    padding: 16px 32px;
   }
 
   .pending-kpi-grid {
