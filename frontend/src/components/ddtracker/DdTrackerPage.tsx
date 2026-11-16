@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '../../auth/useRole';
 import { api, ApiError } from '../../lib/api';
-import type { DdTrackerEntry, PaginatedResult } from '../../shared';
+import type { DdTrackerEntry, DdTrackerFilterOptions, PaginatedResult } from '../../shared';
 import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COL_WIDTHS,
   DdTrackerTable,
+  type DdTrackerColumnFilters,
   type ReorderableColumnKey,
   type SortColumn,
 } from './DdTrackerTable';
 import { blankDdTrackerForm, ddTrackerFormFromEntry, toDdTrackerPayload, type DdTrackerFormState } from './ddTrackerForm';
+import { DdAccountCodeTable, type AcctSortColumn } from './DdAccountCodeTable';
 import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 import { TrashIcon } from '../common/TrashIcon';
@@ -19,12 +21,10 @@ import { ConfirmDialog } from '../modals/ConfirmDialog';
 import '../../pages/Tracker.css';
 import './DdTracker.css';
 
-const TABLE_KEY = 'dd_tracker';
 const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
 const MIN_PAGE_SIZE = 5;
 const MAX_PAGE_SIZE = 1000;
 const DEFAULT_PAGE_SIZE = 50;
-const DEFAULT_VESSEL = 'GCL NARMADA';
 
 const TOTAL_PALETTES = 20;
 
@@ -136,9 +136,43 @@ function sanitizeColumnWidths(saved: Record<string, number> | null | undefined):
   return result;
 }
 
+const EMPTY_COLUMN_FILTERS: DdTrackerColumnFilters = {
+  entryType: [],
+  requisitionNo: '',
+  poNo: '',
+  readinessDate: { from: '', to: '' },
+  prStatus: [],
+  poStatus: [],
+  vendor: [],
+  supplyPort: '',
+  orderStatus: [],
+  supplyConfirmation: [],
+  remarks: '',
+  invoiceType: [],
+  invoiceStatus: [],
+  paymentStatus: [],
+};
+
+// Column-key field -> backend query-param name, for every field that ISN'T already a plain
+// snake_case of itself (handled by the fallback below). Keeps buildQueryParams a one-line loop
+// instead of a 14-branch if/else as this list keeps growing.
+const FILTER_PARAM_NAME: Partial<Record<keyof DdTrackerColumnFilters, string>> = {
+  requisitionNo: 'requisition_no',
+  poNo: 'po_no',
+  prStatus: 'pr_status',
+  poStatus: 'po_status',
+  supplyPort: 'supply_port',
+  orderStatus: 'order_status',
+  supplyConfirmation: 'delivery_status',
+  invoiceType: 'invoice_type',
+  invoiceStatus: 'invoice_status',
+  paymentStatus: 'payment_status',
+};
+
 function buildQueryParams(
   search: string,
-  selectedVessel: string,
+  selectedVessel: string | null,
+  columnFilters: DdTrackerColumnFilters,
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
   page: number,
@@ -147,6 +181,20 @@ function buildQueryParams(
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (selectedVessel) params.append('vessel_name', selectedVessel);
+  for (const [key, value] of Object.entries(columnFilters) as [keyof DdTrackerColumnFilters, unknown][]) {
+    if (key === 'readinessDate') {
+      const range = value as { from: string; to: string };
+      if (range.from) params.set('readiness_date_from', range.from);
+      if (range.to) params.set('readiness_date_to', range.to);
+      continue;
+    }
+    const paramName = FILTER_PARAM_NAME[key] ?? key;
+    if (Array.isArray(value)) {
+      value.forEach((v) => params.append(paramName, v));
+    } else if (typeof value === 'string' && value) {
+      params.set(paramName, value);
+    }
+  }
   if (sortBy) {
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
@@ -156,15 +204,57 @@ function buildQueryParams(
   return params;
 }
 
-export function DdTrackerPage() {
+interface DdTrackerPageProps {
+  // All default to today's DD Tracker behavior exactly — PdTrackerPage.tsx is the only other
+  // caller, passing its own category's values. Keeping this one component (rather than a
+  // copy-pasted ~2500-line duplicate) means any future DD Tracker enhancement automatically
+  // applies to PD Tracker too, by construction, since they share the same code.
+  apiBasePath?: string;
+  tableLayoutKey?: string;
+  pageTitle?: string;
+  moduleLabel?: string;
+  bannerText?: React.ReactNode;
+  defaultVessel?: string | null;
+}
+
+export function DdTrackerPage({
+  apiBasePath = '/dd-tracker',
+  tableLayoutKey = 'dd_tracker',
+  pageTitle = 'DD Tracker',
+  moduleLabel = 'DD Tracker',
+  bannerText = (
+    <>
+      Entries for every "DD" category PR/PO, plus any other PR/PO whose own title starts with "DD", are added
+      automatically from the SmartPAL scrape (twice daily). Use "Add Entry" — with the PR/PO Number lookup — only
+      for items that need tracking here but SmartPAL neither categorizes nor titles as DD.
+    </>
+  ),
+  defaultVessel = 'GCL NARMADA',
+}: DdTrackerPageProps) {
+  const queryKeyPrefix = apiBasePath.replace(/^\//, '');
   const { canEdit } = useRole();
+  const [showPoItemsView, setShowPoItemsView] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedVessel, setSelectedVessel] = useState<string>(DEFAULT_VESSEL);
+  const [selectedVessel, setSelectedVessel] = useState<string | null>(defaultVessel);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [customPageSizeInput, setCustomPageSizeInput] = useState('');
   const [sortBy, setSortBy] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [columnFilters, setColumnFilters] = useState<DdTrackerColumnFilters>(EMPTY_COLUMN_FILTERS);
+
+  function handleFilterChange<K extends keyof DdTrackerColumnFilters>(key: K, value: DdTrackerColumnFilters[K]) {
+    setPage(1);
+    setColumnFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const filterOptionsQuery = useQuery({
+    queryKey: [`${queryKeyPrefix}-filter-options`],
+    queryFn: () => api.get<DdTrackerFilterOptions>(`${apiBasePath}/filter-options`),
+  });
+  const filterOptions: DdTrackerFilterOptions = filterOptionsQuery.data ?? {
+    prStatus: [], poStatus: [], vendor: [], orderStatus: [], deliveryStatus: [], invoiceType: [], invoiceStatus: [], paymentStatus: [],
+  };
 
   const [layoutEditable, setLayoutEditable] = useState(false);
   const [savedColumnOrder, setSavedColumnOrder] = useState<ReorderableColumnKey[]>([...DEFAULT_COLUMN_ORDER]);
@@ -185,8 +275,8 @@ export function DdTrackerPage() {
   const initializedRef = useRef(false);
 
   const tableLayoutQuery = useQuery({
-    queryKey: ['table-layout', TABLE_KEY],
-    queryFn: () => api.get<TableLayoutPreference | null>(`/table-layout/${TABLE_KEY}`),
+    queryKey: ['table-layout', tableLayoutKey],
+    queryFn: () => api.get<TableLayoutPreference | null>(`/table-layout/${tableLayoutKey}`),
   });
 
   useEffect(() => {
@@ -204,7 +294,7 @@ export function DdTrackerPage() {
   }, [tableLayoutQuery.data]);
 
   const saveLayoutMutation = useMutation({
-    mutationFn: () => api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths, pageSize }),
+    mutationFn: () => api.put<TableLayoutPreference>(`/table-layout/${tableLayoutKey}`, { columnOrder, columnWidths, pageSize }),
     onSuccess: () => {
       setSavedColumnOrder(columnOrder);
       setSavedColumnWidths(columnWidths);
@@ -214,7 +304,7 @@ export function DdTrackerPage() {
 
   const savePageSizeMutation = useMutation({
     mutationFn: (size: number) =>
-      api.put<TableLayoutPreference>(`/table-layout/${TABLE_KEY}`, { columnOrder, columnWidths, pageSize: size }),
+      api.put<TableLayoutPreference>(`/table-layout/${tableLayoutKey}`, { columnOrder, columnWidths, pageSize: size }),
   });
 
   function applyPageSize(size: number) {
@@ -235,17 +325,19 @@ export function DdTrackerPage() {
   }
 
   const vesselOptionsQuery = useQuery({
-    queryKey: ['dd-tracker-vessel-options'],
-    queryFn: () => api.get<string[]>('/dd-tracker/vessel-options'),
+    queryKey: [`${queryKeyPrefix}-vessel-options`],
+    queryFn: () => api.get<string[]>(`${apiBasePath}/vessel-options`),
   });
 
   const vesselList = vesselOptionsQuery.data ?? [];
   const vesselColorMap = useMemo(() => computeVesselColorAssignment(vesselList), [vesselList]);
 
   const entriesQuery = useQuery({
-    queryKey: ['dd-tracker', search, selectedVessel, sortBy, sortDir, page, pageSize],
+    queryKey: [queryKeyPrefix, search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize],
     queryFn: () =>
-      api.get<PaginatedResult<DdTrackerEntry>>(`/dd-tracker?${buildQueryParams(search, selectedVessel, sortBy, sortDir, page, pageSize).toString()}`),
+      api.get<PaginatedResult<DdTrackerEntry>>(
+        `${apiBasePath}?${buildQueryParams(search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize).toString()}`
+      ),
     placeholderData: keepPreviousData,
   });
 
@@ -257,7 +349,7 @@ export function DdTrackerPage() {
   // since scrolled off-screen under a different filter/page/sort.
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [search, selectedVessel, sortBy, sortDir, page, pageSize]);
+  }, [search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -286,9 +378,75 @@ export function DdTrackerPage() {
     setPage(1);
   }
 
-  function selectVessel(vessel: string) {
+  function selectVessel(vessel: string | null) {
     setPage(1);
     setSelectedVessel(vessel);
+  }
+
+  // Account Code view's own sort + Account Code column filter — lifted up here (rather than kept
+  // local to DdAccountCodeTable) so the shared toolbar's "Export" button below can read them when
+  // building that view's export URL, same reason "By PO"'s sort state already lives here.
+  const [acctSortBy, setAcctSortBy] = useState<AcctSortColumn | null>(null);
+  const [acctSortDir, setAcctSortDir] = useState<'asc' | 'desc'>('asc');
+  const [acctAccountCodeFilter, setAcctAccountCodeFilter] = useState<string[]>([]);
+
+  function handleAcctSort(column: AcctSortColumn) {
+    if (acctSortBy === column) {
+      if (acctSortDir === 'asc') {
+        setAcctSortDir('desc');
+      } else {
+        setAcctSortBy(null);
+        setAcctSortDir('asc');
+      }
+    } else {
+      setAcctSortBy(column);
+      setAcctSortDir('asc');
+    }
+  }
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Exports exactly the rows the current view's filters would return — same query params as that
+  // view's own list fetch, minus pagination (the By PO view) since export returns every matching
+  // row in one file. Each tab gets its own endpoint/filename, per the user's request for separate
+  // download options for "By PO" vs. "By Account Code".
+  async function handleExport() {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      let blob: Blob;
+      let filename: string | null;
+      if (showPoItemsView) {
+        const params = new URLSearchParams();
+        if (selectedVessel) params.append('vessel_name', selectedVessel);
+        if (search) params.set('search', search);
+        acctAccountCodeFilter.forEach((v) => params.append('account_code', v));
+        if (acctSortBy) {
+          params.set('sort_by', acctSortBy);
+          params.set('sort_dir', acctSortDir);
+        }
+        ({ blob, filename } = await api.getBlob(`${apiBasePath}/account-code-analysis/export?${params.toString()}`));
+      } else {
+        const params = buildQueryParams(search, selectedVessel, columnFilters, sortBy, sortDir, page, pageSize);
+        params.delete('page');
+        params.delete('page_size');
+        ({ blob, filename } = await api.getBlob(`${apiBasePath}/export?${params.toString()}`));
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const moduleFileLabel = moduleLabel.replace(/\s+/g, '_');
+      link.download = filename ?? (showPoItemsView ? `${moduleFileLabel}_By_Account_Code.xlsx` : `${moduleFileLabel}_By_PO.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : 'Failed to export.');
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   // Cell-level edit: double-clicking a different field within the SAME row just switches which
@@ -321,15 +479,15 @@ export function DdTrackerPage() {
   // at the moment mutate() is called instead, immune to anything that happens afterward.
   const saveEditMutation = useMutation({
     mutationFn: ({ id, form }: { id: string; form: DdTrackerFormState }) =>
-      api.patch<DdTrackerEntry>(`/dd-tracker/${id}`, toDdTrackerPayload(form)),
+      api.patch<DdTrackerEntry>(`${apiBasePath}/${id}`, toDdTrackerPayload(form)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      queryClient.invalidateQueries({ queryKey: [queryKeyPrefix] });
+      queryClient.invalidateQueries({ queryKey: [`${queryKeyPrefix}-vessel-options`] });
       setEditingId(null);
       setEditingField(null);
       setEditForm(null);
     },
-    onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to save DD Tracker entry.'),
+    onError: (err) => setSaveError(err instanceof ApiError ? err.message : `Failed to save ${moduleLabel} entry.`),
   });
 
   // A dropdown field (Type, Invoice Type) doesn't need a separate Save click — picking a value is
@@ -354,48 +512,54 @@ export function DdTrackerPage() {
   }
 
   const saveNewMutation = useMutation({
-    mutationFn: () => api.post<DdTrackerEntry>('/dd-tracker', toDdTrackerPayload(newRowForm)),
+    mutationFn: () => api.post<DdTrackerEntry>(apiBasePath, toDdTrackerPayload(newRowForm)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      queryClient.invalidateQueries({ queryKey: [queryKeyPrefix] });
+      queryClient.invalidateQueries({ queryKey: [`${queryKeyPrefix}-vessel-options`] });
       setIsAddingNew(false);
     },
-    onError: (err) => setSaveError(err instanceof ApiError ? err.message : 'Failed to add DD Tracker entry.'),
+    onError: (err) => setSaveError(err instanceof ApiError ? err.message : `Failed to add ${moduleLabel} entry.`),
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: string[]) => api.post<{ deletedCount: number }>('/dd-tracker/bulk-delete', { ids }),
+    mutationFn: (ids: string[]) => api.post<{ deletedCount: number }>(`${apiBasePath}/bulk-delete`, { ids }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker'] });
-      queryClient.invalidateQueries({ queryKey: ['dd-tracker-vessel-options'] });
+      queryClient.invalidateQueries({ queryKey: [queryKeyPrefix] });
+      queryClient.invalidateQueries({ queryKey: [`${queryKeyPrefix}-vessel-options`] });
       setSelectedIds(new Set());
       setConfirmingBulkDelete(false);
     },
     onError: (err) => {
       setConfirmingBulkDelete(false);
-      setSaveError(err instanceof ApiError ? err.message : 'Failed to delete the selected DD Tracker entries.');
+      setSaveError(err instanceof ApiError ? err.message : `Failed to delete the selected ${moduleLabel} entries.`);
     },
   });
 
   return (
     <div className="tracker-page dd-tracker-page">
       <div className="tracker-page-header">
-        <h1 className="tracker-page-title">DD Tracker</h1>
+        <h1 className="tracker-page-title">{pageTitle}</h1>
         <div className="tracker-page-count">
           <span className="count-number">{entriesQuery.data?.total ?? 0}</span>
           <span className="count-label">Entries</span>
         </div>
       </div>
-      <p className="dd-tracker-auto-note">
-        Entries for every "DD" category PR/PO, plus any other PR/PO whose own title starts with "DD", are added
-        automatically from the SmartPAL scrape (twice daily). Use "Add Entry" — with the PR/PO Number lookup — only
-        for items that need tracking here but SmartPAL neither categorizes nor titles as DD.
-      </p>
+
+      <p className="dd-tracker-auto-note">{bannerText}</p>
+
+      {/* Vessel Filter Capsules - Always available at top */}
       <div className="dd-tracker-vessel-capsules">
         <div className="dd-tracker-vessel-label">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a6 6 0 0 0 12 0 6 6 0 0 0 10 0"/><path d="m4 16 1.5-6h13l1.5 6"/><path d="M10 10V4h4v6"/></svg>
           <span>Vessels</span>
         </div>
+        <button
+          type="button"
+          className={`dd-tracker-vessel-capsule${selectedVessel === null ? ' active' : ''}`}
+          onClick={() => selectVessel(null)}
+        >
+          All Vessels
+        </button>
         {vesselList.map((vessel) => {
           const colorIndex = vesselColorMap[vessel.trim().toUpperCase()] ?? 0;
           const colorClass = colorIndex < TOTAL_PALETTES ? `vessel-color-${colorIndex}` : '';
@@ -419,7 +583,7 @@ export function DdTrackerPage() {
           <SearchIcon />
           <input
             type="search"
-            placeholder="Search PR/PO number, vessel, title, remarks…"
+            placeholder={showPoItemsView ? 'Search PO number, account code, item description…' : 'Search PR/PO number, vessel, title, remarks…'}
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -428,7 +592,11 @@ export function DdTrackerPage() {
           />
         </div>
         <div className="tracker-toolbar-spacer" />
-        {canEdit && (
+        <button className="btn-tracker-action btn-tracker-secondary" onClick={handleExport} disabled={isExporting}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          {isExporting ? 'Exporting…' : showPoItemsView ? 'Export By Account Code' : 'Export By PO'}
+        </button>
+        {!showPoItemsView && canEdit && (
           <>
             {selectedIds.size > 0 && (
               <button
@@ -469,18 +637,48 @@ export function DdTrackerPage() {
             )}
           </>
         )}
+
+        {/* Tab switch near Edit Layout button */}
+        <div className="tracker-view-tabs">
+          <button
+            type="button"
+            className={`tracker-view-tab ${!showPoItemsView ? 'active' : ''}`}
+            onClick={() => setShowPoItemsView(false)}
+          >
+            By PO
+          </button>
+          <button
+            type="button"
+            className={`tracker-view-tab ${showPoItemsView ? 'active' : ''}`}
+            onClick={() => setShowPoItemsView(true)}
+          >
+            By Account Code
+          </button>
+        </div>
       </div>
 
-      {entriesQuery.isLoading ? (
+      {showPoItemsView ? (
+        <DdAccountCodeTable
+          apiBasePath={apiBasePath}
+          canEdit={canEdit}
+          selectedVessel={selectedVessel}
+          search={search}
+          sortBy={acctSortBy}
+          sortDir={acctSortDir}
+          onSort={handleAcctSort}
+          accountCodeFilter={acctAccountCodeFilter}
+          onAccountCodeFilterChange={(values) => setAcctAccountCodeFilter(values)}
+        />
+      ) : entriesQuery.isLoading ? (
         <div className="tracker-table-card">
           <div className="tracker-loading">
             <div className="tracker-loading-spinner" />
-            <div>Loading DD Tracker entries…</div>
+            <div>Loading {moduleLabel} entries…</div>
           </div>
         </div>
       ) : entriesQuery.isError ? (
         <div className="tracker-table-card">
-          <div className="tracker-error">Failed to load DD Tracker entries.</div>
+          <div className="tracker-error">Failed to load {moduleLabel} entries.</div>
         </div>
       ) : (
         <>
@@ -493,6 +691,9 @@ export function DdTrackerPage() {
               sortBy={sortBy}
               sortDir={sortDir}
               onSort={handleSort}
+              filters={columnFilters}
+              onFilterChange={handleFilterChange}
+              filterOptions={filterOptions}
               editingId={editingId}
               editingField={editingField}
               editForm={editForm}
@@ -586,10 +787,11 @@ export function DdTrackerPage() {
       )}
 
       {saveError && <Toast type="error" message={saveError} onClose={() => setSaveError(null)} duration={5000} />}
+      {exportError && <Toast type="error" message={exportError} onClose={() => setExportError(null)} duration={5000} />}
 
       {confirmingBulkDelete && (
         <ConfirmDialog
-          title="Delete DD Tracker Entries"
+          title={`Delete ${moduleLabel} Entries`}
           message={`Delete ${selectedIds.size} selected entr${selectedIds.size === 1 ? 'y' : 'ies'}? This cannot be undone.`}
           isConfirming={bulkDeleteMutation.isPending}
           onConfirm={() => bulkDeleteMutation.mutate([...selectedIds])}

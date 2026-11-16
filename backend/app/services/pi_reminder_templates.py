@@ -8,9 +8,12 @@
 # ===========================================================================
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 from app.core.enums import FollowUpStatus, FOLLOW_UP_STATUS_LABELS
+
+if TYPE_CHECKING:
+    from app.models.vendor_bank_detail import VendorBankDetail
 
 
 def _fmt_date(d: date | None) -> str:
@@ -55,11 +58,21 @@ def vendor_notice_email(
     return subject, body
 
 
-def bank_details_request_email(*, vendor_name: str) -> tuple[str, str]:
+def bank_details_request_email(*, vendor_name: str, missing_fields: list[str]) -> tuple[str, str]:
     """Returns (subject, html_body). Goes to the VENDOR — asks THEM to send us their bank details
     on THEIR OWN company letterhead, signed by an authorized signatory (standard anti-fraud
     bank-mandate verification practice) — confirmed with the user 2026-10-30 this needs no
-    letterhead/branding of our own, just a plain request explaining what to send."""
+    letterhead/branding of our own, just a plain request explaining what to send.
+
+    missing_fields (confirmed 2026-11-04): only the fields SmartPAL's own Bank Details tab doesn't
+    already have for this vendor are listed — a vendor with every field already on file never gets
+    this email at all (the frontend hides the "Send Bank Details Request" action in that case), but
+    this still falls back to asking for all 6 if somehow called with an empty list, rather than
+    sending a request that asks for nothing."""
+    fields = missing_fields or [
+        "Beneficiary Name", "Bank Name", "Branch Name", "Account Number", "IBAN", "Swift Code",
+    ]
+    items = "\n".join(f"      <li>{field}</li>" for field in fields)
     subject = f"Request for Bank Details – {vendor_name}"
     body = f"""
     <p>Dear {vendor_name} Team,</p>
@@ -67,14 +80,65 @@ def bank_details_request_email(*, vendor_name: str) -> tuple[str, str]:
     account details on your company's official letterhead, duly signed by an authorized
     signatory. Please include the following details:</p>
     <ul>
-      <li>Beneficiary Name</li>
-      <li>Bank Name</li>
-      <li>Branch Name</li>
-      <li>Account Number</li>
-      <li>IBAN</li>
-      <li>Swift Code</li>
+{items}
     </ul>
     <p>Kindly also attach supporting proof such as a cancelled cheque or a bank confirmation letter.</p>
+    <p>Thank you,<br>Purchase Team</p>
+    """
+    return subject, body
+
+
+def verification_reminder_email(
+    *,
+    vendor_name: str,
+    bank_row: "VendorBankDetail | None",
+    vendor_email: str | None = None,
+    vendor_phone: str | None = None,
+    vendor_address: str | None = None,
+) -> tuple[str, str]:
+    """Returns (subject, html_body). Goes to accounts payable — these are the bank details we
+    received FROM the vendor (already scraped into vendor_bank_details from SmartPAL's own Bank
+    Details tab), asking them to verify it from their side before any payment is processed against
+    it. Only ever called once that bank row is confirmed complete (see
+    api/routes/vendor_management.py's _pal_bank_completeness / the "Send Verification Reminder"
+    button's disabled state), so bank_row is never None in practice, but the fallback below keeps
+    this safe to call defensively.
+
+    Deliberately NOT an HTML <table> (confirmed 2026-11-04 the prior version broke once sent): the
+    frontend's editable preview/edit modal round-trips this body through a plain-text conversion
+    before sending (same pattern as bank_details_request_email's modal), and <tr>/<td> don't
+    survive that round trip as a table — they degrade to bare label-then-value text with no
+    separator. Plain "Label : Value" lines joined by <br> survive that round trip intact and read
+    the same editable/sent either way."""
+    subject = f"Bank Details Verification Required – {vendor_name}"
+
+    vendor_lines = [
+        f"Email : {vendor_email or '—'}",
+        f"Phone : {vendor_phone or '—'}",
+        f"Address : {vendor_address or '—'}",
+    ]
+    if bank_row:
+        bank_lines = [
+            f"Beneficiary Name : {bank_row.beneficiary_name or '—'}",
+            f"Bank Name : {bank_row.bank_name or '—'}",
+            f"Branch Name : {bank_row.branch_name or '—'}",
+            f"Account Number : {bank_row.account_number or '—'}",
+            f"IBAN : {bank_row.iban or '—'}",
+            f"Swift Code : {bank_row.swift_code or '—'}",
+        ]
+    else:
+        bank_lines = ["No bank details on file."]
+
+    vendor_block = "<br>".join(vendor_lines)
+    bank_block = "<br>".join(bank_lines)
+    body = f"""
+    <p>Dear Team,</p>
+    <p>These are the bank details we received from <b>{vendor_name}</b>. Kindly verify them from
+    your side before they are used for any payment.</p>
+    <p><b>Vendor Details</b><br>
+    {vendor_block}</p>
+    <p><b>Bank Details</b><br>
+    {bank_block}</p>
     <p>Thank you,<br>Purchase Team</p>
     """
     return subject, body

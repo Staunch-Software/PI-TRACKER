@@ -14,6 +14,8 @@ export interface User {
   canAccessLanding: boolean;
   canAccessDd: boolean;
   canAccessVendor: boolean;
+  canAccessPd: boolean;
+  canAccessPendingItems: boolean;
   createdAt: string;
 }
 
@@ -143,6 +145,33 @@ export interface PaginatedResult<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+// TSI/TA Pending Items report: mirrors PendingItemOut/PendingItemsFilterOptions in
+// backend/app/schemas/pending_items.py.
+export interface PendingItem {
+  stage: string;
+  referenceNo: string | null;
+  vesselName: string | null;
+  vendor: string | null;
+  status: string | null;
+  ownerRole: string;
+  ownerName: string | null;
+  ageingDays: number | null;
+  referenceDate: string | null;
+}
+
+export interface PendingItemsFilterOptions {
+  vesselName: string[];
+  stage: string[];
+  ownerName: string[];
+  status: string[];
+}
+
+export interface PendingItemsCountEntry {
+  stage: string;
+  ownerRole: string;
+  count: number;
 }
 
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.
@@ -447,6 +476,17 @@ export interface LandingReportInput {
 // Mirrors backend/app/schemas/dd_tracker.py DdTrackerEntryOut. Manual fields are team-entered;
 // pr*/po* fields are live-joined from pr_entries/po_entries at read time (see
 // backend/app/api/routes/dd_tracker.py) — null when the linked requisitionNo/poNo has no match.
+export interface DdTrackerFilterOptions {
+  prStatus: string[];
+  poStatus: string[];
+  vendor: string[];
+  orderStatus: string[];
+  deliveryStatus: string[];
+  invoiceType: string[];
+  invoiceStatus: string[];
+  paymentStatus: string[];
+}
+
 export interface DdTrackerEntry {
   id: string;
   seqNo: number;
@@ -551,11 +591,15 @@ export interface VendorMasterLookupResult {
   state: string | null;
 }
 
-// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut.
+// Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut. id/seqNo/createdAt/
+// updatedAt are null for an "All Vendors" tab row with no vendor_tracker_entries row yet — every
+// row action lazily materializes one via ensure-tracking on first use (see
+// VendorManagementPage.tsx's ensureTrackingId). A "DD Vendors" tab row always has real values.
 export interface VendorTrackerEntry {
-  id: string;
-  seqNo: number;
+  id: string | null;
+  seqNo: number | null;
   vendorCode: string;
+  isDdVendor: boolean;
 
   bankDetailsStatus: string;
   bankRequestSentAt: string | null;
@@ -576,8 +620,8 @@ export interface VendorTrackerEntry {
   bankVerificationCompletedByName: string | null;
   bankVerificationCompletedAt: string | null;
 
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 
   // Live-joined from vendor_master_entries by vendorCode — null until the on-demand detail
   // scrape completes (see detailScrapePending).
@@ -597,8 +641,27 @@ export interface VendorTrackerEntry {
   bankDetailsInPalMissingFields: string[];
 }
 
+// A VendorTrackerEntry known to have a real backing vendor_tracker_entries row — used by every
+// modal/action that needs an id to call its endpoint (Bank Request, Verification Reminder,
+// Verification Complete). The "All Vendors" tab's id-less rows are narrowed to this via
+// ensureTrackingId (VendorManagementPage.tsx) before any such modal opens.
+export type TrackedVendorEntry = VendorTrackerEntry & {
+  id: string;
+  seqNo: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export interface VendorBankRequestPreview {
   toEmail: string;
+  ccEmails: string[];
+  subject: string;
+  body: string;
+}
+
+export interface VendorVerificationReminderPreview {
+  toEmail: string;
+  ccEmails: string[];
   subject: string;
   body: string;
 }
@@ -608,14 +671,19 @@ export interface VendorTrackerEntryCreateInput {
   vendorCode: string;
 }
 
-// Request body for keying in the manually-reviewed bank fields.
-export interface VendorTrackerEntryBankUpdateInput {
-  bankBeneficiaryName?: string | null;
-  bankName?: string | null;
-  bankBranchName?: string | null;
-  bankAccountNumber?: string | null;
-  bankIban?: string | null;
-  bankSwiftCode?: string | null;
+// Mirrors backend/app/schemas/vendor_management.py VendorDetailBulkScrapeRunOut — progress of a
+// "Scrape All Vendor Details" run (All Vendors tab).
+export interface VendorDetailBulkScrapeRun {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  succeeded: number;
+  failed: number;
+  currentVendorCode: string | null;
+  startedAt: string;
+  startedByName: string | null;
+  finishedAt: string | null;
 }
 
 // Mirrors backend/app/schemas/vendor_management.py VendorBankDetailOut — a single SmartPAL Bank
@@ -665,4 +733,97 @@ export interface VendorMasterAttachment {
   smartpalUploadedBy: string | null;
   smartpalUploadedAt: string | null;
   downloadUrl: string;
+}
+
+// Mirrors backend/app/schemas/dd_tracker.py AccountCodeAnalysisResponse and hierarchy.
+export interface PoItemDetail {
+  id: string;
+  poNo: string;
+  vesselName: string | null;
+  itemType: 'ITEM' | 'ADDITIONAL' | string;
+  accountCode: string | null;
+  accountCodeDesc: string | null;
+  partNumber: string | null;
+  itemDescription: string | null;
+  rob: number | null;
+  unitPrice: number | null;
+  quantity: number | null;
+  discountPct: number | null;
+  totalAmountInr: number | null;
+  totalAmountUsd: number | null;
+  vatKey: string | null;
+  vatPct: number | null;
+  subAccountCode: string | null;
+  analysisCode: string | null;
+  clientCode: string | null;
+  drawingNo: string | null;
+  scrapedAt: string;
+}
+
+export interface AccountCodeSpendForPo {
+  accountCode: string;
+  accountCodeDesc: string | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  itemCount: number;
+  items: PoItemDetail[];
+}
+
+export interface PoAccountGroup {
+  poNo: string;
+  vesselName: string | null;
+  poTitle: string | null;
+  vendor: string | null;
+  currency: string | null;
+  poBaseAmount: number | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  totalAccountCodes: number;
+  totalItems: number;
+  accountCodes: AccountCodeSpendForPo[];
+}
+
+export interface PoSpendForAccountCode {
+  poNo: string;
+  vesselName: string | null;
+  poTitle: string | null;
+  vendor: string | null;
+  currency: string | null;
+  poBaseAmount: number | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  itemCount: number;
+  items: PoItemDetail[];
+}
+
+export interface AccountCodeGroup {
+  accountCode: string;
+  accountCodeDesc: string | null;
+  totalSpendInr: number;
+  totalSpendUsd: number;
+  totalPos: number;
+  totalItems: number;
+  pos: PoSpendForAccountCode[];
+}
+
+export interface AccountCodeAnalysisResponse {
+  accountCodes?: AccountCodeGroup[];
+  pos: PoAccountGroup[];
+  totalPos: number;
+  totalVessels: number;
+  totalAccountCodes: number;
+  totalItems: number;
+  grandTotalSpendInr: number;
+  grandTotalSpendUsd: number;
+  vesselOptions: string[];
+  accountCodeOptions: string[];
+}
+
+
+export interface SyncPoItemsResponse {
+  scrapedPos: number;
+  items: number;
+  addAmounts: number;
+  errors: number;
+  message?: string | null;
 }

@@ -6,7 +6,15 @@ from sqlalchemy import engine_from_config, pool
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False — the default (True) silently disables every logger that
+    # already exists at this point and isn't explicitly listed in alembic.ini's [loggers] section.
+    # Since migrations run on every backend startup (app.main's lifespan calls
+    # run_pending_migrations()), that was disabling every app-level `logging.getLogger(__name__)`
+    # logger app-wide (detail_scraper.py, po_scraper, pir_scraper, etc.) for the process's whole
+    # lifetime — confirmed 2026-11-04 investigating why a completed "Scrape All Vendor Details" run
+    # had zero [VENDOR] log lines anywhere in the journal, at any time window: none of those
+    # warnings/errors were ever actually being emitted.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = None
 

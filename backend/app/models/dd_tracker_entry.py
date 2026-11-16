@@ -31,8 +31,10 @@ class DdTrackerEntry(Base):
       - PR Status / Order status are the TEAM's own free-text follow-up notes — SmartPAL's own PR
         narrative status is a separate field (pr_entries.status) already surfaced via the join,
         not duplicated here.
-      - Readiness date is manual by the user's own instruction (the team updates it directly, not
-        the various readiness-looking SmartPAL fields — see po_entry.py docstring).
+      - Readiness date defaults to the live po_entries.expected_delivery_date (confirmed live
+        2026-11-04 as SmartPAL's own "Scheduled Delivery Date") when this column is null, same
+        "live value, optional override" stance as supply_port below — the team can still type over
+        it for a specific order. See api/routes/dd_tracker.py's _effective_readiness_date.
       - Invoice number/amount/currency/status are NOT stored here — same "join live, don't
         duplicate" stance as PR/PO — they're read live from smartpal_invoice_entries, matched by
         its po_nos field against this row's po_no (see api/routes/dd_tracker.py). A PO can in

@@ -110,5 +110,11 @@ whole table.
 
 ### Deployment
 
-See `DEPLOYMENT.md` and `deploy/` (nginx config + systemd unit) — Linux production deploy behind
-nginx, backend run via gunicorn/uvicorn workers per `pi-tracker-backend.service`.
+See `DEPLOYMENT.md` and `deploy/` (nginx config, systemd units, `deploy.sh`) — Linux production
+deploy behind nginx. Production runs a release layout under `/opt/pi_tracker` (`repo` clone →
+`releases/<timestamp>-<sha>` → `current` symlink → `shared/` for `.env`, scraper `auth.json`
+files, and `constraints.txt`), not a `git pull`-in-place checkout. Routine deploys and rollbacks go
+through `/opt/pi_tracker/deploy.sh` (build → migrate → flip → restart → health-check, with
+`--build-only` and `--rollback` modes); it refuses to run while a scraper service is active. Don't
+run `alembic upgrade` or restart the backend service by hand as part of a deploy — that's what
+`deploy.sh` does.

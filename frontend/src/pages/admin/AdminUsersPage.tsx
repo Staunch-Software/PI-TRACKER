@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../lib/api';
-import type { User } from '../../shared';
+import { MODULE_ACCESS_FIELDS, type User } from '../../shared';
 import { UserModal } from '../../components/modals/UserModal';
 import { formatDate } from '../../lib/format';
 import { TrashIcon } from '../../components/common/TrashIcon';
@@ -78,9 +78,8 @@ export function AdminUsersPage() {
                   <td>
                     <span className="admin-badge access">
                       {u.role === 'ADMIN'
-                        ? 'PI · PIR · SOA · Landing Reports'
-                        : [u.canAccessPi && 'PI', u.canAccessPir && 'PIR', u.canAccessSoa && 'SOA', u.canAccessLanding && 'Landing Reports']
-                            .filter(Boolean).join(' · ') || '—'}
+                        ? MODULE_ACCESS_FIELDS.map((f) => f.label).join(' · ')
+                        : MODULE_ACCESS_FIELDS.filter((f) => u[f.key]).map((f) => f.label).join(' · ') || '—'}
                     </span>
                   </td>
                   <td>

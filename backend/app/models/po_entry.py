@@ -67,6 +67,12 @@ class PoEntry(Base):
     confirmed_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # "PO Acknowledged date" — see docstring
 
     schd_del_port: Mapped[str | None] = mapped_column(Text, nullable=True)  # "Supply Port"
+    # SmartPAL's "Scheduled Delivery Date" (raw field schd_Del_Date) — confirmed live 2026-11-04
+    # against a real PO (GCGA/O-0372/PO26, SmartPAL showing 01 Mar 2027) that this is the field,
+    # not estGRNDate/deliveryDate's sibling guesses. DD Tracker's Readiness Date defaults to this
+    # when the team hasn't manually overridden it — see api/routes/dd_tracker.py's _to_out /
+    # _compute_lead_days, same "live value, optional override" pattern as supply_port above.
+    expected_delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     agent_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     warehouse_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     grn_nos: Mapped[str | None] = mapped_column(Text, nullable=True)

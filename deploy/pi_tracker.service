@@ -1,0 +1,25 @@
+[Unit]
+Description=Gunicorn service for PI Tracker FastAPI
+After=network.target
+
+[Service]
+User=Deployer
+Group=www-data
+
+WorkingDirectory=/opt/pi_tracker/current/backend
+
+Environment="PATH=/opt/pi_tracker/current/backend/venv/bin"
+EnvironmentFile=/opt/pi_tracker/current/backend/.env
+
+ExecStart=/opt/pi_tracker/current/backend/venv/bin/gunicorn \
+    -k uvicorn.workers.UvicornWorker \
+    -w 4 \
+    --bind 127.0.0.1:8080 \
+    --timeout 120 \
+    app.main:app
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -13,7 +13,10 @@ const AnchorIcon = () => (
 );
 
 export function TopNav() {
-  const { canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor } = useRole();
+  const {
+    canAccessPi, canAccessPir, canAccessSoa, canAccessLanding, canAccessDd, canAccessVendor, canAccessPd,
+    canAccessPendingItems,
+  } = useRole();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -97,6 +100,12 @@ export function TopNav() {
           )}
           {canAccessDd && (
             <NavLink to="/dd-tracker" className={linkClass} onClick={closeMenu}>DD Tracker</NavLink>
+          )}
+          {canAccessPd && (
+            <NavLink to="/pd-tracker" className={linkClass} onClick={closeMenu}>PD Tracker</NavLink>
+          )}
+          {canAccessPendingItems && (
+            <NavLink to="/pending-items" className={linkClass} onClick={closeMenu}>TSI/TA Pending</NavLink>
           )}
           {canAccessVendor && (
             <NavLink to="/vendor-management" className={linkClass} onClick={closeMenu}>Vendor Management</NavLink>

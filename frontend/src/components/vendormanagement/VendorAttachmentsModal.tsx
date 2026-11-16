@@ -2,11 +2,11 @@ import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import { uploadVendorBankAttachment } from '../../lib/vendorAttachmentUpload';
-import type { VendorBankAttachment, VendorMasterAttachment, VendorTrackerEntry } from '../../shared';
+import type { TrackedVendorEntry, VendorBankAttachment, VendorMasterAttachment } from '../../shared';
 import { Toast } from '../common/Toast';
 
 interface Props {
-  entry: VendorTrackerEntry;
+  entry: TrackedVendorEntry;
   canEdit: boolean;
   onClose: () => void;
 }

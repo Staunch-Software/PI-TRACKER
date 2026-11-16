@@ -12,7 +12,9 @@ import { PIRPage } from './pages/PIRPage';
 import { SOAPage } from './pages/SOAPage';
 import { LandingReportsPage } from './components/landingreport/LandingReportsPage';
 import { DdTrackerPage } from './components/ddtracker/DdTrackerPage';
+import { PdTrackerPage } from './components/ddtracker/PdTrackerPage';
 import { VendorManagementPage } from './components/vendormanagement/VendorManagementPage';
+import { PendingItemsPage } from './components/pendingitems/PendingItemsPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminVesselsPage } from './pages/admin/AdminVesselsPage';
@@ -58,6 +60,12 @@ export function App() {
               </Route>
               <Route element={<ModuleGate module="dd" />}>
                 <Route path="/dd-tracker" element={<DdTrackerPage />} />
+              </Route>
+              <Route element={<ModuleGate module="pd" />}>
+                <Route path="/pd-tracker" element={<PdTrackerPage />} />
+              </Route>
+              <Route element={<ModuleGate module="pendingItems" />}>
+                <Route path="/pending-items" element={<PendingItemsPage />} />
               </Route>
               <Route element={<ModuleGate module="vendor" />}>
                 <Route path="/vendor-management" element={<VendorManagementPage />} />
