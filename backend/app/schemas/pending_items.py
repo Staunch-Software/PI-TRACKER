@@ -6,6 +6,7 @@ from app.schemas.base import CamelModel
 class PendingItemOut(CamelModel):
     stage: str  # "Requisition" | "Purchase Order" | "Invoice"
     reference_no: str | None
+    title: str | None = None
     vessel_name: str | None
     vendor: str | None
     status: str | None
@@ -29,3 +30,58 @@ class PendingItemsCountEntry(CamelModel):
     stage: str
     owner_role: str
     count: int
+
+
+class PendingVesselCount(CamelModel):
+    vessel_name: str
+    count: int
+
+
+class PendingOwnerBreakdown(CamelModel):
+    owner_name: str
+    owner_role: str  # "TSI" | "TA"
+    total_count: int
+    vessels: list[PendingVesselCount]
+
+
+class PendingStageBreakdown(CamelModel):
+    stage: str
+    total: int
+    tsi_total: int
+    ta_total: int
+    owners: list[PendingOwnerBreakdown]
+
+
+class PendingDashboardVesselRow(CamelModel):
+    vessel_name: str
+    requisition_count: int
+    po_count: int
+    invoice_count: int
+    total_count: int
+
+
+class PendingDashboardOwnerGroup(CamelModel):
+    owner_name: str
+    owner_role: str  # "TSI" | "TA"
+    requisition_total: int
+    po_total: int
+    invoice_total: int
+    total_count: int
+    vessels: list[PendingDashboardVesselRow]
+
+
+class PendingDashboardTotals(CamelModel):
+    requisition_total: int
+    po_total: int
+    invoice_total: int
+    grand_total: int
+
+
+class PendingDashboardSummaryResponse(CamelModel):
+    tsi_groups: list[PendingDashboardOwnerGroup]
+    ta_groups: list[PendingDashboardOwnerGroup]
+    tsi_totals: PendingDashboardTotals
+    ta_totals: PendingDashboardTotals
+    fleet_totals: PendingDashboardTotals
+
+

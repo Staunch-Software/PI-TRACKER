@@ -152,6 +152,7 @@ export interface PaginatedResult<T> {
 export interface PendingItem {
   stage: string;
   referenceNo: string | null;
+  title: string | null;
   vesselName: string | null;
   vendor: string | null;
   status: string | null;
@@ -172,6 +173,59 @@ export interface PendingItemsCountEntry {
   stage: string;
   ownerRole: string;
   count: number;
+}
+
+export interface PendingVesselCount {
+  vesselName: string;
+  count: number;
+}
+
+export interface PendingOwnerBreakdown {
+  ownerName: string;
+  ownerRole: 'TSI' | 'TA';
+  totalCount: number;
+  vessels: PendingVesselCount[];
+}
+
+export interface PendingStageBreakdown {
+  stage: string;
+  total: number;
+  tsiTotal: number;
+  taTotal: number;
+  owners: PendingOwnerBreakdown[];
+}
+
+export interface PendingDashboardVesselRow {
+  vesselName: string;
+  requisitionCount: number;
+  poCount: number;
+  invoiceCount: number;
+  totalCount: number;
+}
+
+export interface PendingDashboardOwnerGroup {
+  ownerName: string;
+  ownerRole: 'TSI' | 'TA';
+  requisitionTotal: number;
+  poTotal: number;
+  invoiceTotal: number;
+  totalCount: number;
+  vessels: PendingDashboardVesselRow[];
+}
+
+export interface PendingDashboardTotals {
+  requisitionTotal: number;
+  poTotal: number;
+  invoiceTotal: number;
+  grandTotal: number;
+}
+
+export interface PendingDashboardSummaryResponse {
+  tsiGroups: PendingDashboardOwnerGroup[];
+  taGroups: PendingDashboardOwnerGroup[];
+  tsiTotals: PendingDashboardTotals;
+  taTotals: PendingDashboardTotals;
+  fleetTotals: PendingDashboardTotals;
 }
 
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.
