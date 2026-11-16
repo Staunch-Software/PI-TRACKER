@@ -2891,3 +2891,63 @@ table.dashboard-mini-table thead th {
   color: var(--color-primary);
   cursor: pointer;
 }
+
+/* ==========================================================================
+   SearchableSelect dropdown (PIR "Assign vessel", Tracker/DD Tracker cell dropdowns) — responsive
+   The panel is portaled to <body> and positioned/sized by SearchableSelect.tsx, so these rules
+   only keep it inside the screen and make it comfortable to use on touch devices.
+   ========================================================================== */
+
+/* Never wider than the screen (the inline width is max(trigger width, 220px)) */
+@media (max-width: 767px) {
+  .searchable-select-panel {
+    max-width: calc(100vw - 24px);
+  }
+  .searchable-select-search {
+    font-size: 16px;          /* prevents iOS zoom-on-focus */
+    padding: 10px 12px;
+  }
+  .searchable-select-option {
+    padding: 9px 12px;
+    font-size: 14px;
+  }
+}
+
+/* Long vessel/vendor names get an ellipsis instead of widening or wrapping the panel */
+.searchable-select-option {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 4K: bigger text to match the rest of the page */
+@media (min-width: 2560px) {
+  .searchable-select-search,
+  .searchable-select-option,
+  .searchable-select-empty {
+    font-size: 15px;
+  }
+}
+
+/* SearchableSelect trigger button — touch and 4K sizing (the panel's own phone rules are above) */
+@media (hover: none) and (pointer: coarse) {
+  .searchable-select-trigger {
+    height: 36px;               /* comfortable touch target (30px on mouse devices) */
+    font-size: 14px;
+  }
+}
+@media (min-width: 2560px) {
+  .searchable-select-trigger {
+    height: 40px;
+    font-size: 15px;
+    padding: 0 12px;
+  }
+}
+
+/* Tablets: a little more room in the panel than the compact desktop sizing */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .searchable-select-search,
+  .searchable-select-option {
+    font-size: 14px;
+  }
+}

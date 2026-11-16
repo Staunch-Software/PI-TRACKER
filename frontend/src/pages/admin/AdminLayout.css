@@ -804,3 +804,101 @@
   }
 }
 
+
+/* ==========================================================================
+   RESPONSIVE FIXES (media queries only)
+   ========================================================================== */
+
+/* The admin panel is rendered outside AppShell, so there is no top nav above it - but the shell's
+   height still subtracted 66px for one, leaving an empty strip at the bottom of the screen on
+   laptops/desktops (and making the sidebar 66px short). Use the full viewport height. */
+@media (min-width: 1024px) {
+  .admin-shell {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+/* Phones and small tablets: the shell's minimum height has no nav to account for either */
+@media (max-width: 1023px) {
+  .admin-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+/* Short landscape screens: keep header padding compact so the table keeps usable height */
+@media (min-width: 768px) and (max-height: 600px) {
+  .admin-page-header {
+    padding: 16px 32px 12px;
+  }
+}
+
+/* 4K: larger sidebar, text and table to match the rest of the app's 4K sizing */
+@media (min-width: 2560px) {
+  .admin-sidebar {
+    width: 340px;
+  }
+  .admin-nav-link {
+    font-size: 17px;
+    padding: 14px 20px;
+  }
+  .admin-page-title {
+    font-size: 36px;
+  }
+  .admin-page-body {
+    padding: 0 48px 48px;
+  }
+  .admin-page-header {
+    padding: 44px 48px 32px;
+  }
+  .admin-table {
+    font-size: 16px;
+  }
+  .admin-table th {
+    font-size: 14px;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 20px 28px;
+  }
+}
+
+/* ==========================================================================
+   Admin edit modals (User / Vessel / Vendor / Vendor Mapping) — responsive fixes
+   ========================================================================== */
+
+/* "Module access" in the User modal is one inline-styled flex row (display:flex; gap:18px) holding
+   six checkbox labels with no wrapping, so on a phone-width modal they overflowed or squashed.
+   Let the row wrap; it needs no JS change. */
+.user-modal .field > div[style*="display: flex"] {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+/* Phones (<=575px): two checkboxes per row, 16px inputs (stops iOS zooming on focus) and
+   comfortable 42px tap targets; the modal fills the screen width with the app's 12px gutter. */
+@media (max-width: 575px) {
+  .user-modal .field > div[style*="display: flex"] > label {
+    flex: 0 0 calc(50% - 9px);
+    min-width: 0;
+  }
+  .user-modal .field input:not([type='checkbox']):not([type='radio']),
+  .user-modal .field select,
+  .user-modal .field textarea,
+  .user-modal .mailbox-dropdown-trigger {
+    font-size: 16px;
+    min-height: 42px;
+  }
+  .user-modal .modal-header h2 {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Short landscape phones/tablets: keep the form's header/footer compact so the fields can scroll */
+@media (max-height: 560px) {
+  .user-modal .modal-body {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}

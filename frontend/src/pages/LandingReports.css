@@ -87,3 +87,171 @@
   min-width: 0;
   flex: none;
 }
+
+/* ==========================================================================
+   Additional responsive rules (media queries only)
+   ========================================================================== */
+
+/* Short-ish laptop heights keep the toolbar compact so the table keeps its height */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .landing-reports-page .tracker-page-header {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
+
+/* Phones: Add/Edit modal fields. 16px text stops iOS Safari zooming in on focus, and the 40px
+   height is a comfortable touch target. */
+@media (max-width: 767px) {
+  .landing-reports-form-grid .field input,
+  .landing-reports-form-grid .field select,
+  .landing-reports-form-grid .field textarea {
+    font-size: 16px;
+    min-height: 40px;
+  }
+  .landing-reports-form-grid .field .searchable-select-trigger {
+    height: 40px;
+    font-size: 15px;
+  }
+}
+
+/* Small phones: narrower S.No column so more of the table fits the screen */
+@media (max-width: 400px) {
+  .landing-reports-page table.data-table td.col-dpr,
+  .landing-reports-page table.data-table th.col-dpr {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+  }
+}
+
+/* 4K: give the Add/Edit modal more width and larger field text to match the rest of the page */
+@media (min-width: 2560px) {
+  .modal-panel:has(.landing-reports-form-grid) {
+    max-width: 960px;
+  }
+  .landing-reports-form-grid {
+    gap: 22px;
+  }
+  .landing-reports-form-grid .field label {
+    font-size: 15px;
+  }
+  .landing-reports-form-grid .field input,
+  .landing-reports-form-grid .field select,
+  .landing-reports-form-grid .field textarea {
+    font-size: 16px;
+    min-height: 46px;
+  }
+}
+
+/* ==========================================================================
+   Oil-type / vessel dropdowns (MultiSelectDropdown) — panel alignment
+   --------------------------------------------------------------------------
+   Cause: global.css gives .multi-select-panel `left: 0; min-width: 260px`, but the trigger here is
+   only as wide as its short label ("Lube Oil"), so the panel opened far wider than the button it
+   belongs to (and, pinned to the button's left edge, any extra width spills out to the right).
+   Fix (Landing Reports only): give each dropdown a sensible minimum width and stretch the panel
+   between the wrapper's left and right edges, so it is exactly as wide as its trigger and opens
+   straight below it, at every screen size.
+   ========================================================================== */
+.landing-reports-page .multi-select {
+  position: relative;       /* anchor to its own trigger (Tracker.css re-anchors toolbar dropdowns to the whole toolbar on phones) */
+  min-width: 170px;
+}
+.landing-reports-page .multi-select .multi-select-panel {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+}
+/* Long names wrap inside the trigger-wide panel instead of widening it */
+.landing-reports-page .multi-select .multi-select-option {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   Tablet / laptop (768px - 1279px): "More filters" panel and pagination
+   --------------------------------------------------------------------------
+   Cause 1: the panel is a fixed 520px box pinned to the left edge of the "More filters" button
+   (global.css / Tracker.css). On tablets that button sits in the middle of the toolbar, so the
+   panel ran past the toolbar and the right side of the screen. Tracker.css only re-anchors it to
+   the toolbar below 768px. Same approach here for 768px-1279px: anchor it to the toolbar (which is
+   position:relative) and cap it at 520px / the toolbar's own width, so it can never overflow.
+   ========================================================================== */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .landing-reports-page .tracker-toolbar .more-filters {
+    position: static;
+  }
+  .landing-reports-page .tracker-toolbar .more-filters-panel {
+    left: 0;
+    right: auto;
+    width: min(520px, 100%);
+    max-width: 100%;
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+}
+
+/* Cause 2: the pagination bar squeezes three groups into one row; at ~768px the "ROWS PER PAGE:"
+   label wrapped onto two lines. Keep the label on one line and let the groups wrap instead. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .landing-reports-page .pagination-label {
+    white-space: nowrap;
+  }
+  .landing-reports-page .tracker-pagination {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+  .landing-reports-page .pagination-left {
+    flex: 1 1 auto;
+  }
+  .landing-reports-page .pagination-center {
+    flex: 0 1 auto;
+  }
+  .landing-reports-page .pagination-right {
+    flex: 0 0 auto;
+  }
+}
+
+/* ==========================================================================
+   "Offlanded From" / "Offlanded To" labels on phones
+   --------------------------------------------------------------------------
+   The label is `white-space: nowrap` and uppercase with letter-spacing (Tracker.css), and on a phone
+   each of the two date fields only gets about half of the panel, so the long "OFFLANDED FROM" /
+   "OFFLANDED TO" text had barely enough room (and none at all on 320px screens), crowding the
+   calendar icon. Let the label wrap if it must, and put the two fields on their own rows on small
+   phones so the full wording and the date always fit.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .landing-reports-page .more-filters-dates .date-range-field {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .landing-reports-page .more-filters-dates .date-range-field label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+    font-size: 10.5px;
+    letter-spacing: 0.3px;
+  }
+  .landing-reports-page .more-filters-dates .date-range-field input[type='date'] {
+    font-size: 14px;
+  }
+  .landing-reports-page .more-filters-dates .date-range-clear {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-reports-page .more-filters-dates .date-range-field {
+    flex: 1 1 100%;
+  }
+  .landing-reports-page .more-filters-dates .date-range-field label {
+    font-size: 11px;
+    letter-spacing: 0.4px;
+  }
+}

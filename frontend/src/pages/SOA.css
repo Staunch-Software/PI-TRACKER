@@ -336,11 +336,51 @@
   white-space: nowrap;
 }
 
+/* Header cells in this table are left-aligned (PIR.css) but global.css centers body cells, so the
+   text columns (Vendor, Outstanding, SOA Subject, SOA Received) didn't line up under their
+   headers. Attachment / Line Items / Needs Triage keep their own inline center alignment. */
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(1),
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(5),
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(6),
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(7) {
+  text-align: left;
+}
+
+/* Column sizing for the grouped-by-vendor table. The table is width:max-content (so it scrolls
+   sideways inside .pir-table-scroll rather than squashing), which makes the <colgroup> percentages
+   unreliable — give the text columns real minimums instead. */
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(1),
+.soa-content-pane .pir-table-scroll .data-table th:nth-child(1) {
+  min-width: 170px;
+}
+/* Outstanding can list several currencies ("EUR 1,000 · USD 2,000 · JPY 3,000"): wrap them
+   instead of overflowing into the neighbouring columns. */
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(5),
+.soa-content-pane .pir-table-scroll .data-table th:nth-child(5) {
+  min-width: 220px;
+  max-width: 300px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.soa-content-pane .pir-table-scroll .data-table td:nth-child(7),
+.soa-content-pane .pir-table-scroll .data-table th:nth-child(7) {
+  min-width: 160px;
+}
+/* One consistent minimum row height, so rows with the attachment button and rows with a plain "—"
+   are the same height. */
+.soa-content-pane .pir-table-scroll .data-table td {
+  height: 64px;
+}
+
 /* SOA Subject is the 6th column */
 .soa-content-pane .pir-table-scroll .data-table th:nth-child(6),
 .soa-content-pane .pir-table-scroll .data-table td:nth-child(6) {
   min-width: 320px;
-  white-space: normal;      /* show the full subject by wrapping onto more lines */
+  max-width: 420px !important;       /* overrides the inline max-width:320 / nowrap / ellipsis */
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;    /* show the full subject by wrapping onto more lines */
   word-break: break-word;
   line-height: 1.4;
 }
@@ -370,6 +410,47 @@
   }
 }
 
+/* Below laptop (<1024px): the page is no longer height-locked, and .soa-content-pane's flex:1 then
+   sizes it to its full content, so a long SOA list stretched the whole page. Give the pane a real
+   height (same as the PIR pane) so the table scrolls inside it. */
+@media (max-width: 1023px) {
+  .dash-page.soa-page .soa-content-pane {
+    flex: none;
+    height: clamp(420px, 70vh, 640px);
+  }
+}
+
+/* Phones & small tablets (<=767px): tighter cells, smaller text, shorter rows, narrower minimums */
+@media (max-width: 767px) {
+  .soa-content-pane .pir-table-scroll .data-table {
+    font-size: 12px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table th,
+  .soa-content-pane .pir-table-scroll .data-table td {
+    padding: 8px 10px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td {
+    height: 56px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(1),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(1) {
+    min-width: 140px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(5),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(5) {
+    min-width: 190px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(6),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(6) {
+    min-width: 240px;
+    max-width: 300px !important;
+  }
+  .soa-content-pane .pir-controls {
+    padding: 10px;
+    gap: 10px;
+  }
+}
+
 /* Small phones */
 @media (max-width: 480px) {
   .soa-filter-chip {
@@ -386,7 +467,7 @@
 /* Small phones: modal goes full screen */
 @media (max-width: 480px) {
   .modal-overlay.soa-modal-overlay {
-    padding: 12px;
+    padding: 0;               /* the panel is full-screen (100dvh) below, so 12px of padding pushed it off-screen */
   }
   .soa-modal-panel {
     height: 100vh !important;
@@ -418,5 +499,124 @@
   .soa-modal-body .data-table th,
   .soa-modal-body .data-table td {
     font-size: 15px;
+  }
+}
+
+/* 4K: larger rows and wider columns to match the larger table font */
+@media (min-width: 2560px) {
+  .soa-content-pane .pir-table-scroll .data-table td {
+    height: 84px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(1),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(1) {
+    min-width: 240px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(5),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(5) {
+    min-width: 300px;
+    max-width: 420px;
+  }
+  .soa-content-pane .pir-table-scroll .data-table td:nth-child(6),
+  .soa-content-pane .pir-table-scroll .data-table th:nth-child(6) {
+    min-width: 440px;
+    max-width: 600px !important;
+  }
+}
+
+/* ==========================================================================
+   SOA vendor detail modal — responsive fixes
+   ========================================================================== */
+
+/* Header cells are left-aligned (PIR.css) but global.css centers body cells, so the modal's
+   columns didn't line up under their headers — same mismatch as the main table. */
+.soa-modal-body .data-table td {
+  text-align: left;
+}
+
+/* Phones & small tablets (<=767px): the table cells carry inline 32px side padding on the first
+   and last column (to line up with the modal's 32px header on desktop). On a phone that wastes a
+   big share of the width, so match the modal's own 18px mobile gutter instead. */
+@media (max-width: 767px) {
+  .soa-modal-body .data-table th:first-child,
+  .soa-modal-body .data-table td:first-child {
+    padding-left: 18px !important;
+  }
+  .soa-modal-body .data-table th:last-child,
+  .soa-modal-body .data-table td:last-child {
+    padding-right: 18px !important;
+  }
+  .soa-modal-body .data-table th:last-child {
+    width: auto !important;   /* overrides the inline width:260px on Match Status */
+    min-width: 200px;
+  }
+  .soa-modal-body .data-table th,
+  .soa-modal-body .data-table td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 12.5px;
+  }
+  .soa-modal-close-icon {
+    width: 40px;              /* comfortable touch target */
+    height: 40px;
+  }
+  .soa-btn-close {
+    min-height: 42px;
+  }
+}
+
+/* Short screens (phones in landscape): shrink the header/footer so the table keeps some height */
+@media (max-height: 560px) {
+  .soa-modal-panel {
+    max-height: 100dvh !important;
+  }
+  .modal-overlay.soa-modal-overlay {
+    padding: 8px;
+  }
+  .soa-modal-header {
+    padding: 10px 18px !important;
+  }
+  .soa-modal-title {
+    font-size: 16px;
+  }
+  .soa-modal-icon-wrap {
+    display: none;
+  }
+  .soa-modal-footer {
+    padding: 8px 18px !important;
+  }
+  .soa-btn-close {
+    padding: 6px 20px;
+  }
+}
+
+/* Large tablets / small laptops: a little less side padding than the 32px desktop gutter */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .soa-modal-header,
+  .soa-modal-footer {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+  .soa-modal-body .data-table th:first-child,
+  .soa-modal-body .data-table td:first-child {
+    padding-left: 24px !important;
+  }
+  .soa-modal-body .data-table th:last-child,
+  .soa-modal-body .data-table td:last-child {
+    padding-right: 24px !important;
+  }
+}
+
+/* 4K: roomier modal cells to go with the larger font */
+@media (min-width: 2560px) {
+  .soa-modal-body .data-table th,
+  .soa-modal-body .data-table td {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .soa-modal-header {
+    padding: 28px 40px !important;
+  }
+  .soa-modal-footer {
+    padding: 24px 40px !important;
   }
 }

@@ -386,6 +386,13 @@
   max-width: 920px;
 }
 
+/* Very large screens (e.g. 2560px): make the modal taller so it doesn't look tiny */
+@media (min-width: 1920px) {
+  .modal-panel.user-activity-modal-panel {
+    min-height: 70vh;
+  }
+}
+
 .user-activity-toolbar {
   display: flex;
   align-items: center;
@@ -1190,4 +1197,117 @@
 }
 .pir-th-label {
   overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   RESPONSIVE FIXES (media queries only)
+   ========================================================================== */
+
+/* -- Page height at laptop / desktop --
+   The earlier rule subtracts 108px, but the sticky top nav (54px bar + 2x7px container padding = 68px)
+   plus .page-content's 2x24px padding is 116px, so the page overflowed the screen by ~8px and
+   scrolled slightly. 4K has a taller nav (72px + 2x10px = 92px), so 140px there. */
+@media (min-width: 1024px) {
+  .dash-page.pir-page {
+    height: calc(100vh - 116px);
+    height: calc(100dvh - 116px);
+  }
+}
+@media (min-width: 2560px) {
+  .dash-page.pir-page {
+    height: calc(100vh - 140px);
+    height: calc(100dvh - 140px);
+  }
+}
+
+/* -- Table pane toolbar (vessel name + search + export + bulk actions) --
+   It never wrapped, so on phones the 240px search box + Export button pushed it off-screen. */
+@media (max-width: 767px) {
+  .pir-pane-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .pir-table-search {
+    order: 99;
+    flex: 1 1 100%;
+    width: 100%;
+    margin-left: 0;
+    height: 38px;
+    font-size: 14px; /* avoids iOS zoom-on-focus */
+  }
+  .pir-export-btn {
+    order: 100;
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+}
+
+/* -- Tablets (768px - 1023px): the toolbar can wrap instead of squeezing -- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .pir-pane-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* -- User Activity modal on phones -- */
+@media (max-width: 767px) {
+  .user-activity-modal-panel .modal-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .user-activity-modal-panel .modal-header h2 {
+    order: 1;
+    flex: 1 1 auto;
+    margin: 0;
+  }
+  .user-activity-modal-panel .user-activity-header-actions {
+    display: contents;
+  }
+  .user-activity-modal-panel .modal-close {
+    order: 2;
+    flex: 0 0 auto;
+  }
+  .user-activity-modal-panel .user-activity-email-btn {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .user-activity-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .user-activity-toolbar .pir-tabs-premium {
+    width: 100%;
+  }
+  .user-activity-toolbar .pir-tab-premium {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+  .user-activity-toolbar .pir-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .user-activity-chart-card {
+    padding: 12px;
+  }
+  .user-activity-report-status {
+    padding: 10px 16px;
+  }
+}
+
+/* -- Small phones (<= 480px) -- */
+@media (max-width: 480px) {
+  .pir-registered-by-row {
+    grid-template-columns: 90px 1fr 28px;
+  }
+  .user-activity-header-trigger {
+    width: 100%;
+    justify-content: center;
+    align-self: stretch;
+  }
 }

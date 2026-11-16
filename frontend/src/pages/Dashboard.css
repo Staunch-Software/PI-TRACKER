@@ -413,8 +413,9 @@
 
 @media (min-width: 1024px) {
   .dash-page {
-    height: calc(100vh - 108px);
-    height: calc(100dvh - 108px);
+    /* 116px = sticky top nav (54px bar + 2x7px container padding = 68px) + .page-content's 2x24px padding */
+    height: calc(100vh - 116px);
+    height: calc(100dvh - 116px);
     min-height: 560px;     /* short landscape screens scroll instead of squashing */
   }
 
@@ -455,6 +456,12 @@
    ========================================================================== */
 
 @media (min-width: 2560px) {
+  /* 4K top nav is taller (72px bar + 2x10px container padding = 92px) + 48px page padding */
+  .dash-page {
+    height: calc(100vh - 140px);
+    height: calc(100dvh - 140px);
+  }
+
   .dash-title { font-size: 40px; }
   .dash-subtitle { font-size: 18px; }
   .dash-greeting { font-size: 14px; }

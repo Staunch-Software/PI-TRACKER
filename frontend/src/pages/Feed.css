@@ -602,3 +602,90 @@
   .fp-btn-highlight { width: 36px; height: 36px; }
   .fp-feed-wrap { max-height: calc(100vh - 320px); }
 }
+
+/* ==========================================================================
+   RESPONSIVE FIXES (media queries only)
+   --------------------------------------------------------------------------
+   The feed list scrolls inside .fp-feed-wrap, whose max-height subtracts what sits above it:
+   sticky top nav (54px bar + 2x7px padding = 68px) + page padding (2x24px) + header + controls
+   + gaps. The old offsets (250/260/280/320px) were a little too small, so the page itself still
+   scrolled by a few pixels. The (min-height: 601px) guard keeps the existing "short screens: no
+   max-height" rule above working.
+   ========================================================================== */
+
+/* Tablet portrait / small tablets (769px - 1023px): the filters wrap onto their own full row,
+   so the controls block is taller and needs a larger offset. */
+@media (min-width: 769px) and (max-width: 1023px) and (min-height: 601px) {
+  .fp-feed-wrap { max-height: max(360px, calc(100vh - 330px)); max-height: max(360px, calc(100dvh - 330px)); }
+}
+
+/* Laptop (1024px - 1199px) */
+@media (min-width: 1024px) and (max-width: 1199px) and (min-height: 601px) {
+  .fp-feed-wrap { max-height: max(360px, calc(100vh - 264px)); max-height: max(360px, calc(100dvh - 264px)); }
+}
+
+/* Desktop (1200px - 1799px) */
+@media (min-width: 1200px) and (max-width: 1799px) and (min-height: 601px) {
+  .fp-feed-wrap { max-height: max(360px, calc(100vh - 270px)); max-height: max(360px, calc(100dvh - 270px)); }
+}
+
+/* Widescreen (1800px - 2559px) */
+@media (min-width: 1800px) and (max-width: 2559px) and (min-height: 601px) {
+  .fp-feed-wrap { max-height: max(360px, calc(100vh - 290px)); max-height: max(360px, calc(100dvh - 290px)); }
+}
+
+/* 4K: the nav is taller (72px bar + 2x10px = 92px) and the header/controls use larger padding */
+@media (min-width: 2560px) and (min-height: 601px) {
+  .fp-feed-wrap { max-height: max(480px, calc(100vh - 370px)); max-height: max(480px, calc(100dvh - 370px)); }
+}
+
+/* Small phones: keep long names/summaries and the action buttons from overflowing the card */
+@media (max-width: 480px) {
+  .fp-header-left { min-width: 0; width: 100%; }
+  .fp-header-right { width: 100%; }
+  .fp-tabs-premium { width: max-content; }
+  .fp-timeline-meta { min-width: 0; overflow-wrap: anywhere; }
+}
+
+/* ==========================================================================
+   Feed filter dropdowns (All vessels / All actions) — panel alignment
+   --------------------------------------------------------------------------
+   Cause: global.css gives .multi-select-panel `left: 0; min-width: 260px`, while the trigger is
+   only as wide as its short label. So the panel was always wider than its button and, pinned to the
+   button's left edge, ran off the right side for the right-hand dropdown ("All actions") - where
+   .fp-root's overflow-x:hidden then clipped it.
+   Fix (Feed only): give each dropdown a sensible minimum width, and stretch the panel between the
+   wrapper's left and right edges, so its width is exactly the trigger's and it opens straight
+   below it.
+   ========================================================================== */
+.fp-filters .multi-select {
+  flex: 0 0 auto;
+  min-width: 190px;
+}
+.fp-filters .multi-select .multi-select-panel {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+}
+/* Long names wrap inside the (now trigger-wide) panel instead of widening it */
+.fp-filters .multi-select .multi-select-option {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Phones: each dropdown fills the row (filters are stacked), panel matches it */
+@media (max-width: 480px) {
+  .fp-filters .multi-select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Tablets: let the two dropdowns share a row evenly */
+@media (min-width: 481px) and (max-width: 1023px) {
+  .fp-filters .multi-select {
+    flex: 1 1 190px;
+  }
+}

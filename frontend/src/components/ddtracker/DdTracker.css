@@ -623,3 +623,174 @@ tr:hover .dd-tracker-editable-cell {
 .dd-tracker-page .table-header-scroll {
   background: linear-gradient(180deg, #10528b 0%, #0b3a63 50%, #f1f5f9 50%, #f1f5f9 100%) !important;
 }
+
+/* ==========================================================================
+   RESPONSIVE — media queries only (DD Tracker-specific parts).
+   The shared page header / toolbar / table shell / pagination already respond via Tracker.css
+   (≥768, ≥1280, ≥2560, ≤1023, ≤767, ≤400); these rules cover what is unique to this module and
+   keep its 28px gutters, which are hard-coded above, in line with the shared ones.
+   ========================================================================== */
+
+/* ── Large desktop / 4K (≥ 2560px) ── */
+@media (min-width: 2560px) {
+  .dd-tracker-auto-note {
+    padding: 0 40px;
+    font-size: 15px;
+  }
+  .dd-tracker-vessel-capsules {
+    padding: 0 40px 18px;
+    gap: 12px;
+  }
+  .dd-tracker-vessel-capsule {
+    padding: 9px 22px;
+    font-size: 15px;
+  }
+  .dd-tracker-vessel-label {
+    font-size: 13px;
+  }
+}
+
+/* ── Laptop (1024px – 1439px): slightly tighter capsules ── */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .dd-tracker-vessel-capsule {
+    padding: 5px 13px;
+    font-size: 12px;
+  }
+}
+
+/* ── Tablet & below (≤ 1023px) ── */
+@media (max-width: 1023px) {
+  .dd-tracker-auto-note {
+    padding: 0 20px;
+  }
+  .dd-tracker-vessel-capsules {
+    padding: 0 20px 12px;
+  }
+  .dd-tracker-page table.data-table thead tr.dd-tracker-group-row th.dd-tracker-group-header {
+    padding: 12px 12px;
+    font-size: 11px;
+  }
+  .dd-tracker-page table.data-table thead tr:not(.dd-tracker-group-row) th {
+    padding: 9px 10px;
+  }
+}
+
+/* ── Mobile (≤ 767px) ── */
+@media (max-width: 767px) {
+  /* Gutters 28px -> 12px, matching the shared tracker blocks on mobile */
+  .dd-tracker-auto-note {
+    margin: -4px 0 10px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  /* Vessel capsules: one swipeable row instead of a tall wrapped block */
+  .dd-tracker-vessel-capsules {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 12px 12px;
+    gap: 6px;
+  }
+  .dd-tracker-vessel-capsules::-webkit-scrollbar {
+    display: none;
+  }
+  .dd-tracker-vessel-label,
+  .dd-tracker-vessel-capsule {
+    flex-shrink: 0;
+  }
+  .dd-tracker-vessel-capsule {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  /* No hover lift on touch screens */
+  .dd-tracker-vessel-capsule:hover {
+    transform: none;
+  }
+
+  /* Table header/cells: compact; inline cell editors get a comfortable touch height */
+  .dd-tracker-page table.data-table thead tr.dd-tracker-group-row th.dd-tracker-group-header {
+    padding: 10px 10px;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+  }
+  .dd-tracker-page table.data-table thead tr:not(.dd-tracker-group-row) th {
+    padding: 8px 8px;
+    font-size: 11px;
+  }
+  .dd-tracker-page table.data-table thead th.dd-tracker-sno-header {
+    padding: 10px 8px;
+  }
+  .dd-tracker-cell-edit input {
+    min-width: 90px;
+    height: 36px;
+    font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+  }
+  .dd-tracker-cell-edit .searchable-select-trigger {
+    min-width: 100px;
+    height: 36px;
+  }
+
+  /* Pagination: the DD override above (.dd-tracker-page .tracker-pagination) out-ranks the shared
+     mobile padding, so restate it here. */
+  .dd-tracker-page .tracker-pagination {
+    padding: 6px 12px;
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+}
+
+/* ── Small phones (≤ 400px) ── */
+@media (max-width: 400px) {
+  .dd-tracker-auto-note {
+    font-size: 11.5px;
+  }
+  .dd-tracker-vessel-capsule {
+    padding: 5px 10px;
+    font-size: 11.5px;
+  }
+  .dd-tracker-page table.data-table th.col-dpr,
+  .dd-tracker-page table.data-table td.col-dpr {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+  }
+}
+
+/* ── Short landscape phones ── */
+@media (max-height: 560px) {
+  .dd-tracker-vessel-capsules {
+    padding-bottom: 8px;
+  }
+}
+
+/* ── Page scrolling on laptop / desktop (≥ 1024px) ──
+   global.css locks the Tracker layout to 100vh (only the table scrolls) at every width, and
+   Tracker.css lifts that lock only below 1024px. For the DD Tracker the page scrolls on desktop
+   too: the lock is lifted here and the table gets a fixed share of the screen, exactly as it
+   already does on tablets and phones. */
+@media (min-width: 1024px) {
+  html body:has(.dd-tracker-page) {
+    overflow-y: auto;
+  }
+  html body:has(.dd-tracker-page) #root,
+  html body:has(.dd-tracker-page) .app-shell {
+    height: auto;
+    min-height: 100%;
+    max-height: none;
+    overflow: visible;
+  }
+  html body:has(.dd-tracker-page) .page-content {
+    overflow: visible;
+  }
+  .dd-tracker-page {
+    flex: none;
+  }
+  .dd-tracker-page .tracker-table-shell {
+    flex: none;
+    height: 75vh;
+    height: 75dvh;
+    min-height: 380px;
+  }
+}

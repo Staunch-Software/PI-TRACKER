@@ -686,7 +686,9 @@
 /* ── Desktop (≥ 1280px) ── */
 @media (min-width: 1280px) {
   .tracker-toolbar {
-    flex-wrap: nowrap;
+    /* Keep wrapping enabled: with search + 4 dropdowns + More filters + 4 action buttons, a forced
+       single row overflows the toolbar card at ~1280-1500px. On wider screens it still fits on one row. */
+    flex-wrap: wrap;
     gap: 10px;
   }
 
@@ -893,6 +895,18 @@
   .tracker-layout-edit-group {
     flex: 1 1 100%;
     justify-content: center;
+  }
+
+  /* Multi-select dropdown panels: same anchoring as More-filters below. Anchored to its own trigger,
+     the right-hand dropdown's 260px panel opens past the screen edge on phones. */
+  .tracker-toolbar > .multi-select {
+    position: static;
+  }
+  .tracker-toolbar > .multi-select .multi-select-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+    min-width: 0;
   }
 
   /* More-filters panel: anchor to the toolbar (not the button) and fill its width */

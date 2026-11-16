@@ -23,13 +23,33 @@ interface Props {
 // (e.g. as more vessels/vendors get added over time).
 const VISIBLE_OPTIONS = 4;
 const OPTION_HEIGHT = 34;
-const MIN_PANEL_WIDTH = 220;
+const MIN_PANEL_WIDTH = 140; // floor only for very narrow triggers; normally the panel matches the trigger's width
 const VIEWPORT_MARGIN = 12;
 // Search input row height + the panel's own 1px top/bottom border — used to estimate the
 // panel's total height up front (see open() below) so it can flip above the trigger before
 // ever painting below the viewport, rather than rendering below and correcting after the fact.
 const SEARCH_ROW_HEIGHT = 37;
 const PANEL_BORDER = 2;
+
+// The part of the trigger that is actually visible: a trigger inside a horizontally scrolling
+// table can be wider than the scroll area showing it, so its own bounding rect would otherwise
+// size/position the (portaled) panel from a width the user can't see — leaving it wider than what
+// they clicked and shifted away from it. Intersects the rect with each scrolling ancestor.
+function visibleHorizontalRange(el: HTMLElement, rect: DOMRect): { left: number; right: number } {
+  let left = rect.left;
+  let right = rect.right;
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    const overflowX = window.getComputedStyle(node).overflowX;
+    if (overflowX !== 'visible') {
+      const r = node.getBoundingClientRect();
+      left = Math.max(left, r.left);
+      right = Math.min(right, r.right);
+    }
+    node = node.parentElement;
+  }
+  return right > left ? { left, right } : { left: rect.left, right: rect.right };
+}
 
 export function SearchableSelect({ options, value, onChange, placeholder = 'Select…', disabled, onAddNew, addNewLabel, customPanelContent, onClose }: Props) {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,8 +103,12 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sele
   function open() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const width = Math.max(rect.width, MIN_PANEL_WIDTH);
-    const left = Math.min(rect.left, window.innerWidth - width - VIEWPORT_MARGIN);
+    const visible = visibleHorizontalRange(triggerRef.current!, rect);
+    // Same width as the (visible part of the) trigger, left edge aligned with it. Only shifted
+    // when it would run past the screen edge, and never wider than the screen itself.
+    const maxWidth = Math.max(0, document.documentElement.clientWidth - 2 * VIEWPORT_MARGIN);
+    const width = Math.min(Math.max(visible.right - visible.left, MIN_PANEL_WIDTH), maxWidth);
+    const left = Math.min(visible.left, document.documentElement.clientWidth - width - VIEWPORT_MARGIN);
 
     // Estimated off the full (unfiltered) option list, since that's the tallest the panel can
     // ever be right after opening (search always starts empty) — filtering can only shrink it
