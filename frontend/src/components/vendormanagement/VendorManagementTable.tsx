@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { VendorTrackerEntry } from '../../shared';
 import { BANK_DETAILS_STATUS_LABELS, BankDetailsStatus } from '../../shared/enums';
 import { formatSize, getFileKindInfo } from './VendorAttachmentsModal';
@@ -133,6 +134,11 @@ export function VendorManagementTable({
   onOpenDocuments,
   emptyMessage,
 }: Props) {
+  const [expandedDocRows, setExpandedDocRows] = useState<Record<string, boolean>>({});
+
+  function toggleDocsExpanded(id: string) {
+    setExpandedDocRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
   return (
     <div className="tracker-table-shell vendor-management-table-shell">
       <table className="data-table vendor-management-table">
@@ -282,61 +288,161 @@ export function VendorManagementTable({
                 <td className="col-docs">
                   <div className="vendor-table-docs-cell">
                     {entry.attachments && entry.attachments.length > 0 ? (
-                      <div className="vendor-table-docs-list">
-                        {entry.attachments.map((att) => {
-                          const kind = getFileKindInfo(att.fileName, att.contentType ?? undefined);
-                          return (
-                            <a
-                              key={att.id}
-                              href={att.downloadUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="vendor-table-doc-link"
-                              title={`${att.fileName} (${formatSize(att.sizeBytes)}) • Click to open/download`}
-                              onClick={(e) => e.stopPropagation()}
+                      <>
+                        <div className="vendor-table-docs-header">
+                          <span
+                            className="vendor-table-docs-count-badge"
+                            title={`${entry.attachments.length} attached documents`}
+                          >
+                            <DocumentsIcon />
+                            <span>
+                              {entry.attachments.length}{' '}
+                              {entry.attachments.length === 1 ? 'Doc' : 'Docs'}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            className="vendor-table-docs-manage-link"
+                            title="Open full documents modal to preview, manage or upload attachments"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenDocuments(entry);
+                            }}
+                          >
+                            <span>Manage / Add</span>
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                             >
-                              <span
-                                className="vendor-doc-mini-badge"
-                                style={{ color: kind.color, background: kind.bg, borderColor: kind.border }}
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        {(() => {
+                          const rowKey = entry.id ?? entry.vendorCode;
+                          const isExpanded = !!expandedDocRows[rowKey];
+                          const DEFAULT_LIMIT = 7;
+                          const hasMore = entry.attachments.length > DEFAULT_LIMIT;
+                          const visibleAtts =
+                            isExpanded || !hasMore
+                              ? entry.attachments
+                              : entry.attachments.slice(0, DEFAULT_LIMIT);
+                          const remainingCount = entry.attachments.length - DEFAULT_LIMIT;
+
+                          return (
+                            <>
+                              <div
+                                className={`vendor-table-docs-list ${
+                                  isExpanded ? 'is-expanded' : ''
+                                }`}
                               >
-                                {kind.label}
-                              </span>
-                              <span className="vendor-table-doc-name">{att.fileName}</span>
-                              <svg
-                                className="vendor-table-doc-arrow"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                              </svg>
-                            </a>
+                                {visibleAtts.map((att) => {
+                                  const kind = getFileKindInfo(
+                                    att.fileName,
+                                    att.contentType ?? undefined
+                                  );
+                                  return (
+                                    <a
+                                      key={att.id}
+                                      href={att.downloadUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="vendor-table-doc-link"
+                                      title={`${att.fileName} (${formatSize(
+                                        att.sizeBytes
+                                      )}) • Click to open/download`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span
+                                        className="vendor-doc-mini-badge"
+                                        style={{
+                                          color: kind.color,
+                                          background: kind.bg,
+                                          borderColor: kind.border,
+                                        }}
+                                      >
+                                        {kind.label}
+                                      </span>
+                                      <span className="vendor-table-doc-name">
+                                        {att.fileName}
+                                      </span>
+                                      <span className="vendor-table-doc-size">
+                                        {formatSize(att.sizeBytes)}
+                                      </span>
+                                      <svg
+                                        className="vendor-table-doc-arrow"
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                        <polyline points="15 3 21 3 21 9" />
+                                        <line x1="10" y1="14" x2="21" y2="3" />
+                                      </svg>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+
+                              {hasMore && (
+                                <button
+                                  type="button"
+                                  className="vendor-docs-toggle-expand-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleDocsExpanded(rowKey);
+                                  }}
+                                  title={
+                                    isExpanded
+                                      ? 'Collapse documents list'
+                                      : `Show all ${entry.attachments.length} documents`
+                                  }
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <span>Show less</span>
+                                      <span className="expand-arrow">▲</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>+{remainingCount} more documents</span>
+                                      <span className="expand-arrow">▼</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </>
                           );
-                        })}
-                      </div>
+                        })()}
+                      </>
                     ) : (
-                      <span className="vendor-table-docs-empty">No documents</span>
+                      <div className="vendor-table-docs-empty-box">
+                        <span className="vendor-table-docs-empty-text">
+                          No documents
+                        </span>
+                        <button
+                          type="button"
+                          className="vendor-docs-add-first-btn"
+                          title="Open modal to upload attachments"
+                          onClick={() => onOpenDocuments(entry)}
+                        >
+                          <DocumentsIcon />
+                          <span>+ Add / Manage</span>
+                        </button>
+                      </div>
                     )}
-                    <button
-                      type="button"
-                      className="vendor-docs-open-modal-btn"
-                      title="View all details, preview or upload bank reply attachments"
-                      onClick={() => onOpenDocuments(entry)}
-                    >
-                      <DocumentsIcon />
-                      <span>
-                        {entry.attachments && entry.attachments.length > 0
-                          ? `Full Documents (${entry.attachments.length})`
-                          : '+ Add / Manage'}
-                      </span>
-                    </button>
                   </div>
                 </td>
               </tr>
