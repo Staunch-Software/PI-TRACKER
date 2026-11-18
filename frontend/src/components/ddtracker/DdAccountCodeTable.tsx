@@ -6,10 +6,18 @@ import { SpinnerIcon } from '../common/SpinnerIcon';
 import { Toast } from '../common/Toast';
 import { ColumnFilterMenu } from '../table/ColumnFilterMenu';
 
-// "accountCode"/"totalItems"/"totalSpendInr"/"totalSpendUsd" reorder the account-code GROUPS
-// (see backend's _apply_account_code_sort); "vesselName"/"poNo" instead reorder the POs within
-// each group, leaving the grouping itself intact either way.
-export type AcctSortColumn = 'accountCode' | 'vesselName' | 'poNo' | 'totalItems' | 'totalSpendInr' | 'totalSpendUsd';
+// "accountCode"/"totalItems"/"totalSpendInr"/"totalSpendUsd"/"spendBaseCurrency"/"spendPoCurrency"
+// reorder the account-code GROUPS (see backend's _apply_account_code_sort); "vesselName"/"poNo"
+// instead reorder the POs within each group, leaving the grouping itself intact either way.
+export type AcctSortColumn =
+  | 'accountCode'
+  | 'vesselName'
+  | 'poNo'
+  | 'totalItems'
+  | 'totalSpendInr'
+  | 'totalSpendUsd'
+  | 'spendBaseCurrency'
+  | 'spendPoCurrency';
 
 interface DdAccountCodeTableProps {
   // Defaults to today's DD Tracker behavior — PdTrackerPage passes '/pd-tracker' via DdTrackerPage.
@@ -26,8 +34,12 @@ interface DdAccountCodeTableProps {
 
 interface VesselGroupUnderAccount {
   vesselName: string | null;
+  pos: PoSpendForAccountCode[];
   poNos: string[];
   vendors: string[];
+  baseCurrency: string;
+  totalSpendBase: number;
+  paymentSpendMap: Map<string, number>;
   totalSpendInr: number;
   totalSpendUsd: number;
   itemCount: number;
@@ -35,11 +47,14 @@ interface VesselGroupUnderAccount {
 }
 
 interface PoItemModalData {
+  pos: PoSpendForAccountCode[];
   poNos: string[];
   vesselName: string | null;
   vendors: string[];
   accountCode: string;
   accountCodeDesc: string | null;
+  baseCurrency: string;
+  totalSpendBase: number;
   totalSpendInr: number;
   totalSpendUsd: number;
   itemCount: number;
@@ -112,24 +127,27 @@ function getVesselColorClass(vesselName: string | null | undefined): string {
   return `vessel-color-${hash}`;
 }
 
-function formatUSD(amount: number | string | null | undefined): string {
+export function formatCurrency(amount: number | string | null | undefined, currencyCode?: string | null): string {
   const num = toNum(amount);
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
+  const cur = (currencyCode || 'USD').trim().toUpperCase();
+  try {
+    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: cur,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  } catch {
+    return `${cur} ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
+function formatUSD(amount: number | string | null | undefined): string {
+  return formatCurrency(amount, 'USD');
 }
 
 function formatINR(amount: number | string | null | undefined): string {
-  const num = toNum(amount);
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
+  return formatCurrency(amount, 'INR');
 }
 
 function parseAccountCode(codeStr: string, descStr?: string | null): { code: string; desc: string } {
@@ -150,10 +168,15 @@ function groupPosByVessel(pos: PoSpendForAccountCode[]): VesselGroupUnderAccount
     const vKey = po.vesselName || 'Unknown';
     let group = map.get(vKey);
     if (!group) {
+      const vslCur = po.baseCurrency || (po.vesselName && po.vesselName.includes('AMNS') ? 'INR' : 'USD');
       group = {
         vesselName: po.vesselName,
+        pos: [],
         poNos: [],
         vendors: [],
+        baseCurrency: vslCur,
+        totalSpendBase: 0,
+        paymentSpendMap: new Map<string, number>(),
         totalSpendInr: 0,
         totalSpendUsd: 0,
         itemCount: 0,
@@ -161,12 +184,24 @@ function groupPosByVessel(pos: PoSpendForAccountCode[]): VesselGroupUnderAccount
       };
       map.set(vKey, group);
     }
+    group.pos.push(po);
     if (!group.poNos.includes(po.poNo)) {
       group.poNos.push(po.poNo);
     }
     if (po.vendor && !group.vendors.includes(po.vendor)) {
       group.vendors.push(po.vendor);
     }
+
+    const baseSpend =
+      toNum(po.spendBaseCurrency) ||
+      (group.baseCurrency === 'USD' ? toNum(po.totalSpendUsd) : toNum(po.totalSpendInr));
+    group.totalSpendBase += baseSpend;
+
+    const poCur = (po.paymentCurrency || group.baseCurrency).trim().toUpperCase();
+    const poSpend =
+      toNum(po.spendPoCurrency) ||
+      (poCur === 'USD' ? toNum(po.totalSpendUsd) : toNum(po.totalSpendInr));
+    group.paymentSpendMap.set(poCur, (group.paymentSpendMap.get(poCur) || 0) + poSpend);
 
     // Accumulate numbers safely with toNum to prevent string concatenation
     group.totalSpendInr += toNum(po.totalSpendInr);
@@ -177,7 +212,7 @@ function groupPosByVessel(pos: PoSpendForAccountCode[]): VesselGroupUnderAccount
       group.items.push(...po.items);
     }
   }
-  return Array.from(map.values()).sort((a, b) => b.totalSpendUsd - a.totalSpendUsd);
+  return Array.from(map.values()).sort((a, b) => b.totalSpendBase - a.totalSpendBase);
 }
 
 // ── Intelligent Item Description Formatter ────────────────────────────────────
@@ -287,16 +322,54 @@ function PoItemDetailsModal({
 
   // Pre-calculate per-PO stats for high performance & rich card display
   const poStatsMap = React.useMemo(() => {
-    const map = new Map<string, { count: number; spendUsd: number; spendInr: number }>();
-    for (const po of detail.poNos) {
-      const itemsForPo = detail.items.filter((it) => it.poNo === po);
+    const map = new Map<
+      string,
+      {
+        count: number;
+        spendBase: number;
+        spendPo: number;
+        paymentCurrency: string;
+        baseCurrency: string;
+        paymentStatus: string | null;
+        invoiceNumber: string | null;
+        invoiceAmount: number | null;
+        vendor: string | null;
+      }
+    >();
+    for (const pNo of detail.poNos) {
+      const poObj = detail.pos?.find((p) => p.poNo === pNo);
+      const itemsForPo = detail.items.filter((it) => it.poNo === pNo);
       const count = itemsForPo.length;
-      const spendUsd = itemsForPo.reduce((acc, it) => acc + toNum(it.totalAmountUsd), 0);
-      const spendInr = itemsForPo.reduce((acc, it) => acc + toNum(it.totalAmountInr), 0);
-      map.set(po, { count, spendUsd, spendInr });
+      const paymentCurrency =
+        poObj?.paymentCurrency || itemsForPo[0]?.poCurrency || detail.baseCurrency || 'USD';
+      const baseCurrency =
+        poObj?.baseCurrency || itemsForPo[0]?.vesselCurrency || detail.baseCurrency || 'USD';
+      const spendBase =
+        toNum(poObj?.spendBaseCurrency) ||
+        itemsForPo.reduce((acc, it) => acc + toNum(it.amountVesselCurrency ?? it.totalAmountUsd), 0);
+      const spendPo =
+        toNum(poObj?.spendPoCurrency) ||
+        itemsForPo.reduce((acc, it) => acc + toNum(it.amountPoCurrency ?? it.totalAmountInr), 0);
+      const paymentStatus = poObj?.paymentStatus || null;
+      const invoiceNumber = poObj?.invoiceNumber || null;
+      const invoiceAmount =
+        poObj?.invoiceAmount !== null && poObj?.invoiceAmount !== undefined ? toNum(poObj.invoiceAmount) : null;
+      const vendor = poObj?.vendor || null;
+
+      map.set(pNo, {
+        count,
+        spendBase,
+        spendPo,
+        paymentCurrency,
+        baseCurrency,
+        paymentStatus,
+        invoiceNumber,
+        invoiceAmount,
+        vendor,
+      });
     }
     return map;
-  }, [detail.poNos, detail.items]);
+  }, [detail.poNos, detail.items, detail.pos, detail.baseCurrency]);
 
   const parsed = parseAccountCode(detail.accountCode, detail.accountCodeDesc);
 
@@ -314,16 +387,18 @@ function PoItemDetailsModal({
     return true;
   });
 
-  // Calculate totals strictly as numeric sum using toNum
-  const totalModalSpendUsd = detail.items.reduce((sum, it) => sum + toNum(it.totalAmountUsd), 0);
-  const totalModalSpendInr = detail.items.reduce((sum, it) => sum + toNum(it.totalAmountInr), 0);
-
-  const filteredSpendUsd = filteredItems.reduce((sum, it) => sum + toNum(it.totalAmountUsd), 0);
-  const filteredSpendInr = filteredItems.reduce((sum, it) => sum + toNum(it.totalAmountInr), 0);
+  const totalModalSpendBase = detail.items.reduce(
+    (sum, it) => sum + toNum(it.amountVesselCurrency ?? it.totalAmountUsd),
+    0
+  );
+  const filteredSpendBase = filteredItems.reduce(
+    (sum, it) => sum + toNum(it.amountVesselCurrency ?? it.totalAmountUsd),
+    0
+  );
 
   const isFiltering = activePoFilter !== null || searchQuery.trim().length > 0;
-  const activeSpendUsd = isFiltering ? filteredSpendUsd : totalModalSpendUsd;
-  const activeSpendInr = isFiltering ? filteredSpendInr : totalModalSpendInr;
+  const activeSpendBase = isFiltering ? filteredSpendBase : totalModalSpendBase;
+  const activePoStats = activePoFilter ? poStatsMap.get(activePoFilter) : null;
 
   return (
     <div className="modal-overlay clean-modal-overlay" onClick={onClose}>
@@ -355,8 +430,22 @@ function PoItemDetailsModal({
               <div className="clean-modal-spend-wrap">
                 <div className="modal-spend-label">{isFiltering ? 'Filtered Spend' : 'Total Spend'}</div>
                 <div className="modal-spend-values">
-                  <span className="clean-modal-spend-usd">{formatUSD(activeSpendUsd)}</span>
-                  <span className="clean-modal-spend-inr">({formatINR(activeSpendInr)})</span>
+                  {activePoStats ? (
+                    <>
+                      <span className="clean-modal-spend-usd">
+                        {formatCurrency(activePoStats.spendPo, activePoStats.paymentCurrency)}
+                      </span>
+                      {activePoStats.paymentCurrency !== activePoStats.baseCurrency && (
+                        <span className="clean-modal-spend-inr">
+                          ({formatCurrency(activePoStats.spendBase, activePoStats.baseCurrency)})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="clean-modal-spend-usd">
+                      {formatCurrency(activeSpendBase, detail.baseCurrency)}
+                    </span>
+                  )}
                 </div>
               </div>
               <button className="clean-modal-close" onClick={onClose} aria-label="Close" title="Close (Esc)">
@@ -407,7 +496,14 @@ function PoItemDetailsModal({
                   {activePoFilter ? (
                     // Filtered PO Card Trigger State
                     (() => {
-                      const stats = poStatsMap.get(activePoFilter) || { count: 0, spendUsd: 0, spendInr: 0 };
+                      const stats = poStatsMap.get(activePoFilter) || {
+                        count: 0,
+                        spendBase: 0,
+                        spendPo: 0,
+                        paymentCurrency: 'USD',
+                        baseCurrency: 'USD',
+                        paymentStatus: null,
+                      };
                       const col = getPoColor(activePoFilter, detail.poNos);
                       return (
                         <div className="po-card-trigger-content">
@@ -424,7 +520,7 @@ function PoItemDetailsModal({
                           <div className="po-trigger-meta">
                             <span className="po-trigger-count">{stats.count} {stats.count === 1 ? 'item' : 'items'}</span>
                             <span className="po-trigger-sep">&bull;</span>
-                            <span className="po-trigger-spend">{formatUSD(stats.spendUsd)}</span>
+                            <span className="po-trigger-spend">{formatCurrency(stats.spendPo, stats.paymentCurrency)}</span>
                           </div>
                           <span
                             className="po-trigger-clear-btn"
@@ -468,7 +564,7 @@ function PoItemDetailsModal({
                           <span className="po-trigger-sep">&bull;</span>
                           <span>{detail.items.length} items</span>
                           <span className="po-trigger-sep">&bull;</span>
-                          <span className="po-trigger-spend">{formatUSD(totalModalSpendUsd)}</span>
+                          <span className="po-trigger-spend">{formatCurrency(totalModalSpendBase, detail.baseCurrency)}</span>
                         </div>
                       </div>
                       <svg
@@ -531,8 +627,7 @@ function PoItemDetailsModal({
                           </div>
                         </div>
                         <div className="po-choice-right">
-                          <div className="po-choice-spend-usd">{formatUSD(totalModalSpendUsd)}</div>
-                          <div className="po-choice-spend-inr">{formatINR(totalModalSpendInr)}</div>
+                          <div className="po-choice-spend-usd">{formatCurrency(totalModalSpendBase, detail.baseCurrency)}</div>
                         </div>
                       </div>
 
@@ -543,7 +638,15 @@ function PoItemDetailsModal({
                       {/* Grid of Individual PO Modern Cards */}
                       <div className="po-cards-grid">
                         {detail.poNos.map((pNo) => {
-                          const stats = poStatsMap.get(pNo) || { count: 0, spendUsd: 0, spendInr: 0 };
+                          const stats = poStatsMap.get(pNo) || {
+                            count: 0,
+                            spendBase: 0,
+                            spendPo: 0,
+                            paymentCurrency: 'USD',
+                            baseCurrency: 'USD',
+                            paymentStatus: null,
+                            invoiceNumber: null,
+                          };
                           const col = getPoColor(pNo, detail.poNos);
                           const isSelected = activePoFilter === pNo;
 
@@ -584,8 +687,19 @@ function PoItemDetailsModal({
                               </div>
 
                               <div className="po-grid-card-bottom">
-                                <div className="po-grid-card-spend-usd">{formatUSD(stats.spendUsd)}</div>
-                                <div className="po-grid-card-spend-inr">{formatINR(stats.spendInr)}</div>
+                                <div className="po-grid-card-spend-usd">
+                                  {formatCurrency(stats.spendPo, stats.paymentCurrency)}
+                                </div>
+                                {stats.paymentCurrency !== stats.baseCurrency && (
+                                  <div className="po-grid-card-spend-inr">
+                                    ({formatCurrency(stats.spendBase, stats.baseCurrency)})
+                                  </div>
+                                )}
+                                {stats.invoiceNumber && (
+                                  <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                                    Inv: #{stats.invoiceNumber}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -620,11 +734,11 @@ function PoItemDetailsModal({
                   <th style={{ width: '150px', minWidth: '140px' }}>PO Number</th>
                   <th style={{ width: '80px', minWidth: '70px' }}>Type</th>
                   <th style={{ width: '120px', minWidth: '100px' }}>Part No.</th>
-                  <th style={{ minWidth: '320px' }}>Item Description</th>
+                  <th style={{ minWidth: '300px' }}>Item Description</th>
                   <th style={{ width: '65px', minWidth: '55px', textAlign: 'right' }}>Qty</th>
                   <th style={{ width: '95px', minWidth: '85px', textAlign: 'right' }}>Unit Price</th>
-                  <th style={{ width: '120px', minWidth: '110px', textAlign: 'right' }}>Amount (INR)</th>
-                  <th style={{ width: '120px', minWidth: '110px', textAlign: 'right' }}>Amount (USD)</th>
+                  <th style={{ width: '130px', minWidth: '115px', textAlign: 'right' }}>Payment Amount</th>
+                  <th style={{ width: '130px', minWidth: '115px', textAlign: 'right' }}>Base Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -657,6 +771,17 @@ function PoItemDetailsModal({
                   filteredItems.map((item, idx) => {
                     const col = getPoColor(item.poNo, detail.poNos);
                     const isAdd = item.itemType === 'ADDITIONAL';
+                    const poStats = poStatsMap.get(item.poNo);
+                    const poCur = item.poCurrency || poStats?.paymentCurrency || detail.baseCurrency;
+                    const vslCur = item.vesselCurrency || poStats?.baseCurrency || detail.baseCurrency;
+                    const poAmt =
+                      item.amountPoCurrency !== null && item.amountPoCurrency !== undefined
+                        ? toNum(item.amountPoCurrency)
+                        : toNum(item.totalAmountInr);
+                    const vslAmt =
+                      item.amountVesselCurrency !== null && item.amountVesselCurrency !== undefined
+                        ? toNum(item.amountVesselCurrency)
+                        : toNum(item.totalAmountUsd);
 
                     // Clean part number: omit literal "NULL" or blank
                     const hasPartNo = item.partNumber && item.partNumber.trim() !== '' && item.partNumber.trim().toUpperCase() !== 'NULL';
@@ -715,8 +840,12 @@ function PoItemDetailsModal({
                         <td className="cell-num">
                           {item.unitPrice !== null && item.unitPrice !== undefined ? toNum(item.unitPrice).toLocaleString() : '—'}
                         </td>
-                        <td className="cell-amount inr">{formatINR(item.totalAmountInr)}</td>
-                        <td className="cell-amount usd font-bold">{formatUSD(item.totalAmountUsd)}</td>
+                        <td className="cell-amount po-cur">
+                          <span className="amt-val">{formatCurrency(poAmt, poCur)}</span>
+                        </td>
+                        <td className="cell-amount base-cur font-bold">
+                          <span className="amt-val">{formatCurrency(vslAmt, vslCur)}</span>
+                        </td>
                       </tr>
                     );
                   })
@@ -737,7 +866,18 @@ function PoItemDetailsModal({
             ) : detail.poNos.length === 1 ? (
               <span> &bull; PO: <strong>{detail.poNos[0]}</strong></span>
             ) : null}
-            <span> &bull; Total Spend: <strong>{formatUSD(activeSpendUsd)}</strong> ({formatINR(activeSpendInr)})</span>
+            <span>
+              {' '}
+              &bull; Total Spend:{' '}
+              <strong>
+                {activePoStats
+                  ? formatCurrency(activePoStats.spendPo, activePoStats.paymentCurrency)
+                  : formatCurrency(activeSpendBase, detail.baseCurrency)}
+              </strong>
+              {activePoStats && activePoStats.paymentCurrency !== activePoStats.baseCurrency && (
+                <span> ({formatCurrency(activePoStats.spendBase, activePoStats.baseCurrency)})</span>
+              )}
+            </span>
           </div>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
             Close (Esc)
@@ -820,8 +960,15 @@ export function DdAccountCodeTable({
               <strong>{data?.totalPos ?? 0}</strong> POs
             </span>
             <span className="stat-pill-spend">
-              <span className="spend-usd-tag">{formatUSD(data?.grandTotalSpendUsd)}</span>
-              <span className="spend-inr-tag">{formatINR(data?.grandTotalSpendInr)}</span>
+              {toNum(data?.grandTotalSpendUsd) > 0 && (
+                <span className="spend-usd-tag">{formatUSD(data?.grandTotalSpendUsd)}</span>
+              )}
+              {toNum(data?.grandTotalSpendInr) > 0 && (
+                <span className="spend-inr-tag">{formatINR(data?.grandTotalSpendInr)}</span>
+              )}
+              {toNum(data?.grandTotalSpendEur) > 0 && (
+                <span className="spend-eur-tag">{formatCurrency(data?.grandTotalSpendEur, 'EUR')}</span>
+              )}
             </span>
           </div>
           {selectedVessel && (
@@ -899,7 +1046,7 @@ export function DdAccountCodeTable({
             <thead>
               <tr>
                 <th
-                  style={{ width: '28%', minWidth: '220px' }}
+                  style={{ width: '25%', minWidth: '200px' }}
                   className="sortable-col col-has-filter"
                   onClick={() => onSort('accountCode')}
                 >
@@ -913,32 +1060,34 @@ export function DdAccountCodeTable({
                     />
                   </span>
                 </th>
-                <th style={{ width: '16%', minWidth: '130px' }} className="sortable-col" onClick={() => onSort('vesselName')}>
+                <th style={{ width: '15%', minWidth: '120px' }} className="sortable-col" onClick={() => onSort('vesselName')}>
                   Vessel <span className="sort-arrow">{sortBy === 'vesselName' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                 </th>
-                <th style={{ width: '24%', minWidth: '180px' }} className="sortable-col" onClick={() => onSort('poNo')}>
+                <th style={{ width: '22%', minWidth: '170px' }} className="sortable-col" onClick={() => onSort('poNo')}>
                   PO Number <span className="sort-arrow">{sortBy === 'poNo' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                 </th>
                 <th
-                  style={{ width: '10%', minWidth: '70px', textAlign: 'center' }}
+                  style={{ width: '8%', minWidth: '65px', textAlign: 'center' }}
                   className="sortable-col"
                   onClick={() => onSort('totalItems')}
                 >
                   Items <span className="sort-arrow">{sortBy === 'totalItems' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                 </th>
                 <th
-                  style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}
+                  style={{ width: '15%', minWidth: '130px', textAlign: 'right' }}
                   className="sortable-col"
-                  onClick={() => onSort('totalSpendInr')}
+                  onClick={() => onSort('spendPoCurrency')}
+                  title="Spend in Vendor Payment Currency (EUR, USD, INR, etc.)"
                 >
-                  Spend (INR) <span className="sort-arrow">{sortBy === 'totalSpendInr' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                  Payment Spend <span className="sort-arrow">{sortBy === 'spendPoCurrency' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                 </th>
                 <th
-                  style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}
+                  style={{ width: '15%', minWidth: '130px', textAlign: 'right' }}
                   className="sortable-col"
-                  onClick={() => onSort('totalSpendUsd')}
+                  onClick={() => onSort('spendBaseCurrency')}
+                  title="Spend in Vessel Accounting Currency (USD for GCL, INR for AMNSI)"
                 >
-                  Spend (USD) <span className="sort-arrow">{sortBy === 'totalSpendUsd' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                  Base Spend <span className="sort-arrow">{sortBy === 'spendBaseCurrency' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                 </th>
               </tr>
             </thead>
@@ -959,11 +1108,14 @@ export function DdAccountCodeTable({
 
                   const handleRowClick = () => {
                     setSelectedDetail({
+                      pos: vg.pos,
                       poNos: vg.poNos,
                       vesselName: vg.vesselName,
                       vendors: vg.vendors,
                       accountCode: ac.accountCode,
                       accountCodeDesc: ac.accountCodeDesc,
+                      baseCurrency: vg.baseCurrency,
+                      totalSpendBase: vg.totalSpendBase,
                       totalSpendInr: vg.totalSpendInr,
                       totalSpendUsd: vg.totalSpendUsd,
                       itemCount: vg.itemCount,
@@ -996,8 +1148,12 @@ export function DdAccountCodeTable({
                             {/* Mini Executive Summary Card for this Account Code (only in All Vessels when spanning multiple vessel groups) */}
                             {!selectedVessel && acRowSpan > 1 && (
                               <div className="acct-spend-summary-card">
-                                <div className="acct-card-spend-usd">{formatUSD(ac.totalSpendUsd)}</div>
-                                <div className="acct-card-spend-inr">{formatINR(ac.totalSpendInr)}</div>
+                                {toNum(ac.totalSpendUsd) > 0 && (
+                                  <div className="acct-card-spend-usd">{formatUSD(ac.totalSpendUsd)}</div>
+                                )}
+                                {toNum(ac.totalSpendInr) > 0 && (
+                                  <div className="acct-card-spend-inr">{formatINR(ac.totalSpendInr)}</div>
+                                )}
                                 <div className="acct-card-items-count">
                                   <span>{ac.totalItems} items across {ac.totalPos} PO{ac.totalPos === 1 ? '' : 's'}</span>
                                 </div>
@@ -1053,15 +1209,21 @@ export function DdAccountCodeTable({
                         </span>
                       </td>
 
-                      {/* FIFTH COLUMN: Spend (INR) */}
-                      <td className="cell-spend inr">
-                        {formatINR(vg.totalSpendInr)}
+                      {/* FIFTH COLUMN: Payment Spend (in EUR, USD, INR, SGD, etc.) */}
+                      <td className="cell-spend payment">
+                        <div className="payment-spend-cell">
+                          {Array.from(vg.paymentSpendMap.entries()).map(([cur, amt]) => (
+                            <div key={cur} className="payment-spend-row">
+                              <span className="payment-spend-amt">{formatCurrency(amt, cur)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </td>
 
-                      {/* SIXTH COLUMN: Spend (USD) + View Pill */}
-                      <td className="cell-spend usd">
-                        <div className="spend-usd-cell-content">
-                          <span className="spend-usd-value">{formatUSD(vg.totalSpendUsd)}</span>
+                      {/* SIXTH COLUMN: Base Spend (in Vessel Accounting Currency: USD or INR) */}
+                      <td className="cell-spend base">
+                        <div className="spend-base-cell-content">
+                          <span className="spend-base-value">{formatCurrency(vg.totalSpendBase, vg.baseCurrency)}</span>
                           <span className="view-items-pill">
                             <span>View</span>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

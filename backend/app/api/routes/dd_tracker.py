@@ -86,7 +86,11 @@ def _effective_readiness_date(entry: DdTrackerEntry, po: PoEntry | None) -> date
 
 
 def _to_out(
-    entry: DdTrackerEntry, pr: PrEntry | None, po: PoEntry | None, invoice: SmartpalInvoiceEntry | None
+    entry: DdTrackerEntry,
+    pr: PrEntry | None,
+    po: PoEntry | None,
+    invoice: SmartpalInvoiceEntry | None,
+    account_codes: list[str] | None = None,
 ) -> DdTrackerEntryOut:
     return DdTrackerEntryOut(
         id=entry.id,
@@ -122,6 +126,7 @@ def _to_out(
         po_warehouse_name=po.warehouse_name if po else None,
         po_grn_nos=po.grn_nos if po else None,
         po_do_nos=po.do_nos if po else None,
+        account_codes=account_codes or [],
         invoice_number=invoice.invoice_no if invoice else None,
         invoice_amount=invoice.amount if invoice else None,
         invoice_currency=invoice.currency_code if invoice else None,
@@ -159,7 +164,9 @@ def _compute_lead_days(entry: DdTrackerEntry, po: PoEntry | None) -> int | None:
     return (readiness - po.approved_date).days
 
 
-def _fetch_live(db: Session, entry: DdTrackerEntry) -> tuple[PrEntry | None, PoEntry | None, SmartpalInvoiceEntry | None]:
+def _fetch_live(
+    db: Session, entry: DdTrackerEntry
+) -> tuple[PrEntry | None, PoEntry | None, SmartpalInvoiceEntry | None, list[str]]:
     pr = db.query(PrEntry).filter(PrEntry.requisition_no == entry.requisition_no).first() if entry.requisition_no else None
     po = db.query(PoEntry).filter(PoEntry.po_no == entry.po_no).first() if entry.po_no else None
     invoice = (
@@ -170,7 +177,25 @@ def _fetch_live(db: Session, entry: DdTrackerEntry) -> tuple[PrEntry | None, PoE
         if entry.po_no
         else None
     )
-    return pr, po, invoice
+    account_codes: list[str] = []
+    if entry.po_no:
+        raw_codes = (
+            db.query(PoItemEntry.account_code)
+            .filter(
+                PoItemEntry.po_no == entry.po_no,
+                PoItemEntry.account_code.isnot(None),
+                PoItemEntry.account_code != "",
+            )
+            .distinct()
+            .order_by(PoItemEntry.account_code)
+            .all()
+        )
+        seen = set()
+        for (c,) in raw_codes:
+            if c and c.strip() and c.strip() not in seen:
+                seen.add(c.strip())
+                account_codes.append(c.strip())
+    return pr, po, invoice, account_codes
 
 
 def _filtered_query(
@@ -274,6 +299,7 @@ class _LiveFilters:
         invoice_type: list[str] | None,
         invoice_status: list[str] | None,
         payment_status: list[str] | None,
+        account_code: str | None = None,
     ):
         def _clean_list(v: list[str] | str | None) -> list[str] | None:
             if isinstance(v, str):
@@ -295,12 +321,14 @@ class _LiveFilters:
         self.invoice_type = _clean_list(invoice_type)
         self.invoice_status = _clean_list(invoice_status)
         self.payment_status = _clean_list(payment_status)
+        self.account_code = _clean_text(account_code)
 
     def is_empty(self) -> bool:
         return not any(
             (
                 self.pr_status, self.po_status, self.vendor, self.supply_port, self.order_status,
                 self.delivery_status, self.remarks, self.invoice_type, self.invoice_status, self.payment_status,
+                self.account_code,
             )
         )
 
@@ -324,6 +352,8 @@ class _LiveFilters:
         if self.invoice_status and item.invoice_status not in self.invoice_status:
             return False
         if self.payment_status and item.payment_status not in self.payment_status:
+            return False
+        if self.account_code and not any(self.account_code.lower() in (ac or "").lower() for ac in item.account_codes):
             return False
         return True
 
@@ -354,6 +384,26 @@ def _attach_live_data(db: Session, entries: list[DdTrackerEntry]) -> list[DdTrac
     prs = {p.requisition_no: p for p in db.query(PrEntry).filter(PrEntry.requisition_no.in_(req_nos)).all()} if req_nos else {}
     pos = {p.po_no: p for p in db.query(PoEntry).filter(PoEntry.po_no.in_(po_nos)).all()} if po_nos else {}
 
+    po_account_codes: dict[str, list[str]] = {}
+    if po_nos:
+        rows = (
+            db.query(PoItemEntry.po_no, PoItemEntry.account_code)
+            .filter(
+                PoItemEntry.po_no.in_(po_nos),
+                PoItemEntry.account_code.isnot(None),
+                PoItemEntry.account_code != "",
+            )
+            .distinct()
+            .order_by(PoItemEntry.po_no, PoItemEntry.account_code)
+            .all()
+        )
+        for p_no, ac in rows:
+            if ac and ac.strip():
+                clean_ac = ac.strip()
+                codes = po_account_codes.setdefault(p_no, [])
+                if clean_ac not in codes:
+                    codes.append(clean_ac)
+
     # smartpal_invoice_entries.po_nos is an exact-match string (every row sampled live 2026-10-28
     # carried exactly one PO number, never a real comma-separated list despite the plural SmartPAL
     # field name) — same assumption po_entries.requisition_no already makes. A PO with more than
@@ -369,7 +419,16 @@ def _attach_live_data(db: Session, entries: list[DdTrackerEntry]) -> list[DdTrac
         for inv in rows:
             invoices.setdefault(inv.po_nos, inv)
 
-    return [_to_out(e, prs.get(e.requisition_no), pos.get(e.po_no), invoices.get(e.po_no)) for e in entries]
+    return [
+        _to_out(
+            e,
+            prs.get(e.requisition_no),
+            pos.get(e.po_no),
+            invoices.get(e.po_no),
+            po_account_codes.get(e.po_no, []),
+        )
+        for e in entries
+    ]
 
 
 @router.get("", response_model=PaginatedResult[DdTrackerEntryOut])
@@ -392,6 +451,7 @@ def list_dd_tracker_entries(
     invoice_type: list[str] | None = Query(default=None),
     invoice_status: list[str] | None = Query(default=None),
     payment_status: list[str] | None = Query(default=None),
+    account_code: str | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -405,6 +465,7 @@ def list_dd_tracker_entries(
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
         delivery_status, remarks, invoice_type, invoice_status, payment_status,
+        account_code,
     )
     items, total = _filter_and_paginate_enriched(db, query, live_filters, page, page_size)
     return PaginatedResult[DdTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
@@ -422,6 +483,7 @@ _EXPORT_COLUMNS: list[tuple[str, str]] = [
     ("PR Status", "pr_status_live"),
     ("PO Number", "po_no"),
     ("PO Status", "po_approved_status"),
+    ("Account Code", "account_codes"),
     ("Vendor", "po_vendor"),
     ("PO Amount", "po_base_amount"),
     ("PO Currency", "po_base_currency"),
@@ -461,6 +523,7 @@ def export_dd_tracker_entries(
     invoice_type: list[str] | None = Query(default=None),
     invoice_status: list[str] | None = Query(default=None),
     payment_status: list[str] | None = Query(default=None),
+    account_code: str | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
@@ -475,6 +538,7 @@ def export_dd_tracker_entries(
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
         delivery_status, remarks, invoice_type, invoice_status, payment_status,
+        account_code,
     )
     rows, _total = _filter_and_paginate_enriched(db, query, live_filters, None, None)
 
@@ -497,7 +561,9 @@ def export_dd_tracker_entries(
         values = []
         for _label, field in _EXPORT_COLUMNS:
             value = data.get(field)
-            if isinstance(value, datetime):
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value) if value else None
+            elif isinstance(value, datetime):
                 value = value.replace(tzinfo=None)
             values.append(value)
         sheet.append(values)
@@ -626,8 +692,8 @@ def create_dd_tracker_entry(
         has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
         if not has_items:
             background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
-    pr, po, invoice = _fetch_live(db, entry)
-    return _to_out(entry, pr, po, invoice)
+    pr, po, invoice, account_codes = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice, account_codes)
 
 
 @router.patch("/{entry_id}", response_model=DdTrackerEntryOut)
@@ -652,8 +718,8 @@ def update_dd_tracker_entry(
         has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
         if not has_items:
             background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
-    pr, po, invoice = _fetch_live(db, entry)
-    return _to_out(entry, pr, po, invoice)
+    pr, po, invoice, account_codes = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice, account_codes)
 
 
 @router.post("/bulk-delete", response_model=DdTrackerBulkDeleteResult)
@@ -775,6 +841,19 @@ def _compute_account_code_analysis(
 
     po_nos = {r.po_no for r in rows}
     pos_map = {p.po_no: p for p in db.query(PoEntry).filter(PoEntry.po_no.in_(po_nos)).all()} if po_nos else {}
+    
+    # Live-link invoices from SmartPAL so each PO carries its real payment currency (EUR, USD, INR, etc.)
+    # and payment status (Paid / Not Paid), matching the "By PO" view.
+    invoices_map: dict[str, SmartpalInvoiceEntry] = {}
+    if po_nos:
+        inv_rows = (
+            db.query(SmartpalInvoiceEntry)
+            .filter(SmartpalInvoiceEntry.po_nos.in_(po_nos))
+            .order_by(SmartpalInvoiceEntry.last_scraped_at.desc())
+            .all()
+        )
+        for inv in inv_rows:
+            invoices_map.setdefault(inv.po_nos, inv)
 
     accts_dict: dict[str, dict] = {}
     pos_dict: dict[str, dict] = {}
@@ -782,6 +861,7 @@ def _compute_account_code_analysis(
     distinct_accounts = set()
     grand_total_inr = Decimal(0)
     grand_total_usd = Decimal(0)
+    grand_total_eur = Decimal(0)
 
     for r in rows:
         po_key = r.po_no
@@ -789,12 +869,34 @@ def _compute_account_code_analysis(
         distinct_vessels.add(r.vessel_name)
         distinct_accounts.add(acct_key)
 
-        spend_inr = r.total_amount_inr or Decimal(0)
-        spend_usd = r.total_amount_usd or Decimal(0)
-        grand_total_inr += spend_inr
-        grand_total_usd += spend_usd
-
         po_info = pos_map.get(po_key)
+        inv_info = invoices_map.get(po_key)
+
+        # Resolve vessel base currency and PO payment currency
+        vsl_cur = r.vessel_currency or (po_info.base_currency if po_info else ("INR" if r.vessel_name and "AMNS" in r.vessel_name else "USD"))
+        po_cur = r.po_currency or (inv_info.currency_code if inv_info and inv_info.currency_code else vsl_cur)
+        payment_status = _compute_payment_status(inv_info)
+        invoice_no = inv_info.invoice_no if inv_info else None
+        invoice_amt = inv_info.amount if inv_info else None
+
+        # raw_po_amt is the item amount in PO/payment currency; raw_vsl_amt is in vessel base currency
+        r_json = r.raw_json or {}
+        raw_po_amt = Decimal(str(r_json.get("totalPoCurrency") or r_json.get("netAmount") or r.total_amount_inr or 0))
+        raw_vsl_amt = Decimal(str(r_json.get("totalVesselCurrency") or r_json.get("netAmountVsl") or r.total_amount_usd or 0))
+
+        # Real spend tracking per currency
+        if vsl_cur == "USD":
+            spend_usd = raw_vsl_amt
+            spend_inr = raw_po_amt if po_cur == "INR" else Decimal(0)
+            grand_total_usd += raw_vsl_amt
+        else:  # INR vessel
+            spend_usd = Decimal(0)
+            spend_inr = raw_vsl_amt
+            grand_total_inr += raw_vsl_amt
+
+        if po_cur == "EUR":
+            grand_total_eur += raw_po_amt
+
         item_out = PoItemDetailOut(
             id=r.id,
             po_no=r.po_no,
@@ -808,8 +910,12 @@ def _compute_account_code_analysis(
             unit_price=r.unit_price,
             quantity=r.quantity,
             discount_pct=r.discount_pct,
-            total_amount_inr=r.total_amount_inr,
-            total_amount_usd=r.total_amount_usd,
+            total_amount_inr=raw_po_amt,
+            total_amount_usd=raw_vsl_amt,
+            po_currency=po_cur,
+            vessel_currency=vsl_cur,
+            amount_po_currency=raw_po_amt,
+            amount_vessel_currency=raw_vsl_amt,
             vat_key=r.vat_key,
             vat_pct=r.vat_pct,
             sub_account_code=r.sub_account_code,
@@ -841,14 +947,23 @@ def _compute_account_code_analysis(
                 "vessel_name": r.vessel_name or (po_info.vessel_name if po_info else None),
                 "po_title": po_info.title if po_info else None,
                 "vendor": po_info.vendor if po_info else None,
-                "currency": po_info.base_currency if po_info else None,
+                "currency": vsl_cur,
                 "po_base_amount": po_info.base_amount if po_info else None,
+                "payment_currency": po_cur,
+                "payment_status": payment_status,
+                "invoice_number": invoice_no,
+                "invoice_amount": invoice_amt,
+                "spend_po_currency": Decimal(0),
+                "spend_base_currency": Decimal(0),
+                "base_currency": vsl_cur,
                 "total_spend_inr": Decimal(0),
                 "total_spend_usd": Decimal(0),
                 "item_count": 0,
                 "items": [],
             }
         po_in_acct = acct_entry["pos_map"][po_key]
+        po_in_acct["spend_po_currency"] += raw_po_amt
+        po_in_acct["spend_base_currency"] += raw_vsl_amt
         po_in_acct["total_spend_inr"] += spend_inr
         po_in_acct["total_spend_usd"] += spend_usd
         po_in_acct["item_count"] += 1
@@ -861,7 +976,7 @@ def _compute_account_code_analysis(
                 "vessel_name": r.vessel_name or (po_info.vessel_name if po_info else None),
                 "po_title": po_info.title if po_info else None,
                 "vendor": po_info.vendor if po_info else None,
-                "currency": po_info.base_currency if po_info else None,
+                "currency": vsl_cur,
                 "po_base_amount": po_info.base_amount if po_info else None,
                 "total_spend_inr": Decimal(0),
                 "total_spend_usd": Decimal(0),
@@ -892,7 +1007,7 @@ def _compute_account_code_analysis(
     account_groups = []
     for acct_data in accts_dict.values():
         po_list = [PoSpendForAccountCode(**p) for p in acct_data["pos_map"].values()]
-        po_list.sort(key=lambda p: p.total_spend_usd, reverse=True)
+        po_list.sort(key=lambda p: p.total_spend_usd or p.spend_base_currency, reverse=True)
         account_groups.append(
             AccountCodeGroup(
                 account_code=acct_data["account_code"],
@@ -904,7 +1019,7 @@ def _compute_account_code_analysis(
                 pos=po_list,
             )
         )
-    account_groups.sort(key=lambda a: a.total_spend_usd, reverse=True)
+    account_groups.sort(key=lambda a: a.total_spend_usd or a.total_spend_inr, reverse=True)
 
     # Build po_groups (PO -> Account Codes)
     po_groups = []
@@ -937,6 +1052,7 @@ def _compute_account_code_analysis(
         total_items=len(rows),
         grand_total_spend_inr=grand_total_inr,
         grand_total_spend_usd=grand_total_usd,
+        grand_total_spend_eur=grand_total_eur,
         vessel_options=vessel_options,
         account_code_options=account_code_options,
     )
@@ -954,10 +1070,17 @@ _ACCOUNT_GROUP_SORT_KEYS = {
     "totalItems": lambda g: g.total_items,
     "totalSpendInr": lambda g: g.total_spend_inr,
     "totalSpendUsd": lambda g: g.total_spend_usd,
+    "spendBaseCurrency": lambda g: g.total_spend_usd or g.total_spend_inr,
+    "spendPoCurrency": lambda g: g.total_spend_usd or g.total_spend_inr,
 }
 _PO_WITHIN_GROUP_SORT_KEYS = {
     "vesselName": lambda p: (p.vessel_name or "").lower(),
     "poNo": lambda p: p.po_no or "",
+    "spendBaseCurrency": lambda p: p.spend_base_currency,
+    "spendPoCurrency": lambda p: p.spend_po_currency,
+    "paymentCurrency": lambda p: (p.payment_currency or "").lower(),
+    "paymentStatus": lambda p: (p.payment_status or "").lower(),
+    "vendor": lambda p: (p.vendor or "").lower(),
 }
 
 
@@ -986,11 +1109,10 @@ def get_account_code_analysis(
 
 
 # Flattened (account_code, po) row per line, matching exactly what DdAccountCodeTable.tsx renders
-# — confirmed with the user 2026-11-11 this summary level (not every individual PO line item) is
-# what the export should contain.
 _ACCOUNT_CODE_EXPORT_COLUMNS = [
     "Account Code", "Account Code Description", "Vessel", "PO Number", "Vendor",
-    "Currency", "Item Count", "Spend (INR)", "Spend (USD)",
+    "Base Currency", "Base Spend", "Payment Currency", "Payment Spend",
+    "Invoice Number", "Invoice Amount", "Payment Status", "Item Count",
 ]
 
 
@@ -1022,8 +1144,19 @@ def export_account_code_analysis(
     for group in response.account_codes:
         for po in group.pos:
             sheet.append([
-                group.account_code, group.account_code_desc, po.vessel_name, po.po_no, po.vendor,
-                po.currency, po.item_count, po.total_spend_inr, po.total_spend_usd,
+                group.account_code,
+                group.account_code_desc,
+                po.vessel_name,
+                po.po_no,
+                po.vendor,
+                po.base_currency or po.currency,
+                float(po.spend_base_currency),
+                po.payment_currency or po.currency,
+                float(po.spend_po_currency),
+                po.invoice_number,
+                float(po.invoice_amount) if po.invoice_amount is not None else None,
+                po.payment_status,
+                po.item_count,
             ])
 
     buffer = BytesIO()

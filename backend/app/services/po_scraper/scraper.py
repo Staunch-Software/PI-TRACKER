@@ -41,6 +41,7 @@ from app.models.dd_tracker_entry import DdTrackerEntry
 from app.models.po_entry import PoEntry
 from app.models.po_item_entry import PoItemEntry
 from app.models.pr_entry import PrEntry
+from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 import urllib.parse
 import json as _json
 from app.services.pir_scraper.generate_auth import run_automated_login
@@ -541,6 +542,16 @@ def _sync_dd_po_items(page, db: Session, target_po_nos: list[str] | None = None,
             now = datetime.now(timezone.utc)
             resolved_vessel = po.vessel_name or vessel_name
 
+            # Resolve vessel base currency and PO payment currency
+            inv_record = (
+                db.query(SmartpalInvoiceEntry)
+                .filter(SmartpalInvoiceEntry.po_nos == po_no)
+                .order_by(SmartpalInvoiceEntry.last_scraped_at.desc())
+                .first()
+            )
+            vsl_cur = po.base_currency if po and po.base_currency else ("INR" if resolved_vessel and "AMNS" in resolved_vessel else "USD")
+            po_cur = inv_record.currency_code if inv_record and inv_record.currency_code else vsl_cur
+
             for item in items_data:
                 acct_code = (item.get("accountCode") or "").strip()
                 acct_name = (item.get("accountName") or "").strip()
@@ -562,6 +573,8 @@ def _sync_dd_po_items(page, db: Session, target_po_nos: list[str] | None = None,
                         discount_pct=_num(item.get("discountPercentage")),
                         total_amount_inr=_num(item.get("totalPoCurrency")),
                         total_amount_usd=_num(item.get("totalVesselCurrency")),
+                        po_currency=po_cur,
+                        vessel_currency=vsl_cur,
                         sub_account_code=item.get("subAccountCode"),
                         analysis_code=item.get("analysisCode"),
                         client_code=item.get("clientCode"),
@@ -595,6 +608,8 @@ def _sync_dd_po_items(page, db: Session, target_po_nos: list[str] | None = None,
                         discount_pct=_num(add.get("discountPercentage")),
                         total_amount_inr=_num(add.get("netAmount")),
                         total_amount_usd=_num(add.get("netAmountVsl")),
+                        po_currency=po_cur,
+                        vessel_currency=vsl_cur,
                         vat_key=add.get("vatKeyName"),
                         vat_pct=_num(add.get("vatPercentage")),
                         sub_account_code=add.get("subAccountCode"),

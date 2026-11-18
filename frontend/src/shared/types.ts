@@ -580,6 +580,7 @@ export interface DdTrackerEntry {
   poWarehouseName: string | null;
   poGrnNos: string | null;
   poDoNos: string | null;
+  accountCodes?: string[];
 
   // Live-joined from smartpal_invoice_entries by po_nos — see backend/app/api/routes/dd_tracker.py.
   invoiceNumber: string | null;
@@ -645,6 +646,15 @@ export interface VendorMasterLookupResult {
   state: string | null;
 }
 
+export interface VendorAttachmentSummary {
+  id: string;
+  fileName: string;
+  contentType: string | null;
+  sizeBytes: number;
+  source: 'smartpal' | 'bank';
+  downloadUrl: string;
+}
+
 // Mirrors backend/app/schemas/vendor_management.py VendorTrackerEntryOut. id/seqNo/createdAt/
 // updatedAt are null for an "All Vendors" tab row with no vendor_tracker_entries row yet — every
 // row action lazily materializes one via ensure-tracking on first use (see
@@ -693,6 +703,7 @@ export interface VendorTrackerEntry {
   bankDetailsCount: number;
   bankDetailsInPalComplete: boolean;
   bankDetailsInPalMissingFields: string[];
+  attachments: VendorAttachmentSummary[];
 }
 
 // A VendorTrackerEntry known to have a real backing vendor_tracker_entries row — used by every
@@ -805,6 +816,10 @@ export interface PoItemDetail {
   discountPct: number | null;
   totalAmountInr: number | null;
   totalAmountUsd: number | null;
+  poCurrency?: string | null;
+  vesselCurrency?: string | null;
+  amountPoCurrency?: number | null;
+  amountVesselCurrency?: number | null;
   vatKey: string | null;
   vatPct: number | null;
   subAccountCode: string | null;
@@ -844,6 +859,13 @@ export interface PoSpendForAccountCode {
   vendor: string | null;
   currency: string | null;
   poBaseAmount: number | null;
+  paymentCurrency?: string | null;
+  paymentStatus?: string | null;
+  invoiceNumber?: string | null;
+  invoiceAmount?: number | null;
+  spendPoCurrency?: number;
+  spendBaseCurrency?: number;
+  baseCurrency?: string | null;
   totalSpendInr: number;
   totalSpendUsd: number;
   itemCount: number;
@@ -869,6 +891,7 @@ export interface AccountCodeAnalysisResponse {
   totalItems: number;
   grandTotalSpendInr: number;
   grandTotalSpendUsd: number;
+  grandTotalSpendEur?: number;
   vesselOptions: string[];
   accountCodeOptions: string[];
 }

@@ -11,10 +11,12 @@ from app.models.user import User
 from app.models.vendor_bank_attachment import VendorBankAttachment
 from app.models.vendor_bank_detail import VendorBankDetail
 from app.models.vendor_detail_bulk_scrape_run import VendorDetailBulkScrapeRun
+from app.models.vendor_master_attachment import VendorMasterAttachment
 from app.models.vendor_master_entry import VendorMasterEntry
 from app.models.vendor_tracker_entry import VendorTrackerEntry
 from app.schemas.common import PaginatedResult
 from app.schemas.vendor_management import (
+    VendorAttachmentSummaryOut,
     VendorBankDetailOut,
     VendorBankRequestPreview,
     VendorBankRequestSend,
@@ -27,6 +29,7 @@ from app.schemas.vendor_management import (
     VendorVerificationReminderSend,
 )
 from app.services.audit import write_audit_log
+from app.services.blob_storage import generate_download_sas_url
 from app.services.pi_reminder_mailer import ALWAYS_CC, send_mail
 from app.services.pi_reminder_templates import bank_details_request_email, verification_reminder_email
 from app.services.vendor_master_scraper.detail_scraper import run_bulk_detail_scrape, scrape_vendor_detail
@@ -93,24 +96,95 @@ def _pal_bank_completeness(bank_row: VendorBankDetail | None) -> tuple[bool, lis
     return len(missing) == 0, missing
 
 
+def _attachments_map(
+    db: Session,
+    vendor_codes: set[str],
+    tracker_entries_by_code: dict[str, VendorTrackerEntry | None],
+) -> dict[str, list[VendorAttachmentSummaryOut]]:
+    if not vendor_codes:
+        return {}
+
+    result: dict[str, list[VendorAttachmentSummaryOut]] = {code: [] for code in vendor_codes}
+
+    master_rows = (
+        db.query(VendorMasterAttachment)
+        .filter(VendorMasterAttachment.vendor_code.in_(vendor_codes))
+        .order_by(VendorMasterAttachment.downloaded_at.desc())
+        .all()
+    )
+    for ma in master_rows:
+        if ma.vendor_code in result:
+            result[ma.vendor_code].append(
+                VendorAttachmentSummaryOut(
+                    id=ma.id,
+                    file_name=ma.file_name,
+                    content_type=ma.content_type,
+                    size_bytes=ma.size_bytes,
+                    source="smartpal",
+                    download_url=generate_download_sas_url(ma.blob_key),
+                )
+            )
+
+    entry_id_to_code: dict[uuid.UUID, str] = {}
+    for code, entry in tracker_entries_by_code.items():
+        if entry and entry.id:
+            entry_id_to_code[entry.id] = code
+
+    if entry_id_to_code:
+        bank_rows = (
+            db.query(VendorBankAttachment)
+            .filter(VendorBankAttachment.vendor_tracker_entry_id.in_(list(entry_id_to_code.keys())))
+            .order_by(VendorBankAttachment.uploaded_at.desc())
+            .all()
+        )
+        for ba in bank_rows:
+            code = entry_id_to_code.get(ba.vendor_tracker_entry_id)
+            if code and code in result:
+                result[code].append(
+                    VendorAttachmentSummaryOut(
+                        id=ba.id,
+                        file_name=ba.file_name,
+                        content_type=ba.content_type,
+                        size_bytes=ba.size_bytes,
+                        source="bank",
+                        download_url=generate_download_sas_url(ba.blob_key),
+                    )
+                )
+
+    return result
+
+
+def _single_vendor_attachments(
+    db: Session, vendor_code: str, entry: VendorTrackerEntry | None
+) -> list[VendorAttachmentSummaryOut]:
+    if not vendor_code:
+        return []
+    t_map = {vendor_code: entry} if entry else {}
+    return _attachments_map(db, {vendor_code}, t_map).get(vendor_code, [])
+
+
 def _to_out(
     entry: VendorTrackerEntry | None,
     master: VendorMasterEntry | None,
     bank_row: VendorBankDetail | None,
     bank_count: int,
     db: Session,
+    attachments: list[VendorAttachmentSummaryOut] | None = None,
 ) -> VendorTrackerEntryOut:
     """entry is None for an "All Vendors" row with no vendor_tracker_entries row yet — every
     tracker-owned field below falls back to its untracked default in that case (see
     VendorTrackerEntryOut's nullable id/seq_no/created_at/updated_at). See
     /vendor-management/by-vendor-code/{vendor_code}/ensure-tracking for how such a row becomes
     real on first user action."""
+    code = entry.vendor_code if entry else (master.vendor_code if master else "")
+    if attachments is None and code:
+        attachments = _single_vendor_attachments(db, code, entry)
     has_mandatory = bool(master and master.email and master.address and master.phone_1)
     pal_complete, pal_missing = _pal_bank_completeness(bank_row)
     return VendorTrackerEntryOut(
         id=entry.id if entry else None,
         seq_no=entry.seq_no if entry else None,
-        vendor_code=entry.vendor_code if entry else (master.vendor_code if master else ""),
+        vendor_code=code,
         is_dd_vendor=entry.is_dd_vendor if entry else False,
         bank_details_status=entry.bank_details_status if entry else BankDetailsStatus.MISSING.value,
         bank_request_sent_at=entry.bank_request_sent_at if entry else None,
@@ -143,6 +217,7 @@ def _to_out(
         bank_details_count=bank_count,
         bank_details_in_pal_complete=pal_complete,
         bank_details_in_pal_missing_fields=pal_missing,
+        attachments=attachments or [],
     )
 
 
@@ -184,11 +259,14 @@ def _attach_live_data(db: Session, entries: list[VendorTrackerEntry]) -> list[Ve
         m.vendor_code: m for m in db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code.in_(vendor_codes)).all()
     } if vendor_codes else {}
     bank_reps = _bank_rep_map(db, vendor_codes)
+    tracker_entries_by_code = {e.vendor_code: e for e in entries}
+    attachments_map = _attachments_map(db, vendor_codes, tracker_entries_by_code)
 
     out = []
     for e in entries:
         rep, count = bank_reps.get(e.vendor_code, (None, 0))
-        out.append(_to_out(e, masters.get(e.vendor_code), rep, count, db))
+        atts = attachments_map.get(e.vendor_code, [])
+        out.append(_to_out(e, masters.get(e.vendor_code), rep, count, db, attachments=atts))
     return out
 
 
@@ -242,11 +320,56 @@ def list_all_vendors(
         for e in db.query(VendorTrackerEntry).filter(VendorTrackerEntry.vendor_code.in_(vendor_codes)).all()
     } if vendor_codes else {}
     bank_reps = _bank_rep_map(db, vendor_codes)
+    attachments_map = _attachments_map(db, vendor_codes, tracker_entries)
 
     items = []
     for m in masters:
         rep, count = bank_reps.get(m.vendor_code, (None, 0))
-        items.append(_to_out(tracker_entries.get(m.vendor_code), m, rep, count, db))
+        atts = attachments_map.get(m.vendor_code, [])
+        items.append(_to_out(tracker_entries.get(m.vendor_code), m, rep, count, db, attachments=atts))
+    return PaginatedResult[VendorTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/anms", response_model=PaginatedResult[VendorTrackerEntryOut])
+def list_anms_vendors(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=1000),
+) -> PaginatedResult[VendorTrackerEntryOut]:
+    """Every vendor in the SmartPAL master matching ANMS / AMNS in vendor_name or vendor_code,
+    LEFT-joined to its vendor_tracker_entries row if one exists — the "ANMS Vendor" tab."""
+    query = db.query(VendorMasterEntry).filter(
+        (VendorMasterEntry.vendor_code.ilike("%ANMS%"))
+        | (VendorMasterEntry.vendor_code.ilike("%AMNS%"))
+        | (VendorMasterEntry.vendor_name.ilike("%ANMS%"))
+        | (VendorMasterEntry.vendor_name.ilike("%AMNS%"))
+    )
+    if search and search.strip():
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.filter(
+            (VendorMasterEntry.vendor_code.ilike(pattern, escape="\\"))
+            | (VendorMasterEntry.vendor_name.ilike(pattern, escape="\\"))
+        )
+    query = query.order_by(VendorMasterEntry.vendor_name.asc())
+
+    total = query.count()
+    masters = query.offset((page - 1) * page_size).limit(page_size).all()
+    vendor_codes = {m.vendor_code for m in masters}
+
+    tracker_entries = {
+        e.vendor_code: e
+        for e in db.query(VendorTrackerEntry).filter(VendorTrackerEntry.vendor_code.in_(vendor_codes)).all()
+    } if vendor_codes else {}
+    bank_reps = _bank_rep_map(db, vendor_codes)
+    attachments_map = _attachments_map(db, vendor_codes, tracker_entries)
+
+    items = []
+    for m in masters:
+        rep, count = bank_reps.get(m.vendor_code, (None, 0))
+        atts = attachments_map.get(m.vendor_code, [])
+        items.append(_to_out(tracker_entries.get(m.vendor_code), m, rep, count, db, attachments=atts))
     return PaginatedResult[VendorTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
 
 

@@ -96,6 +96,7 @@ class DdTrackerEntryOut(CamelModel):
     po_warehouse_name: str | None = None
     po_grn_nos: str | None = None
     po_do_nos: str | None = None
+    account_codes: list[str] = []
 
     # ── Live-joined from smartpal_invoice_entries (matched by its po_nos field against this
     # row's po_no) — see api/routes/dd_tracker.py and dd_tracker_entry.py docstring. None when no
@@ -170,6 +171,10 @@ class PoItemDetailOut(CamelModel):
     discount_pct: Decimal | None = None
     total_amount_inr: Decimal | None = None
     total_amount_usd: Decimal | None = None
+    po_currency: str | None = None
+    vessel_currency: str | None = None
+    amount_po_currency: Decimal | None = None
+    amount_vessel_currency: Decimal | None = None
     vat_key: str | None = None
     vat_pct: Decimal | None = None
     sub_account_code: str | None = None
@@ -209,6 +214,13 @@ class PoSpendForAccountCode(CamelModel):
     vendor: str | None = None
     currency: str | None = None
     po_base_amount: Decimal | None = None
+    payment_currency: str | None = None
+    payment_status: str | None = None
+    invoice_number: str | None = None
+    invoice_amount: Decimal | None = None
+    spend_po_currency: Decimal = Decimal(0)
+    spend_base_currency: Decimal = Decimal(0)
+    base_currency: str | None = None
     total_spend_inr: Decimal = Decimal(0)
     total_spend_usd: Decimal = Decimal(0)
     item_count: int = 0
@@ -234,6 +246,7 @@ class AccountCodeAnalysisResponse(CamelModel):
     total_items: int = 0
     grand_total_spend_inr: Decimal = Decimal(0)
     grand_total_spend_usd: Decimal = Decimal(0)
+    grand_total_spend_eur: Decimal = Decimal(0)
     vessel_options: list[str] = []
     account_code_options: list[str] = []
 

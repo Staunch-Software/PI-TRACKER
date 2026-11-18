@@ -128,18 +128,12 @@ export function PendingDashboardTable({
                   <span>Invoices</span>
                 </div>
               </th>
-              <th style={{ width: '135px', textAlign: 'center' }}>
-                <div className="th-content-wrap center">
-                  <span className="th-dot dot-total" />
-                  <span>Total Pending</span>
-                </div>
-              </th>
             </tr>
           </thead>
           <tbody>
             {filteredGroups.length === 0 ? (
               <tr>
-                <td colSpan={6} className="pending-items-empty">
+                <td colSpan={5} className="pending-items-empty">
                   No {role} pending items match the search criteria.
                 </td>
               </tr>
@@ -222,22 +216,6 @@ export function PendingDashboardTable({
                           <span className="dashboard-zero-cell">—</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        {v.totalCount > 0 ? (
-                          <button
-                            type="button"
-                            className="dashboard-cell-badge badge-total"
-                            onClick={() =>
-                              onDrillDown(null, role, g.ownerName, v.vesselName)
-                            }
-                            title={`View all ${v.totalCount} items for ${v.vesselName}`}
-                          >
-                            {v.totalCount}
-                          </button>
-                        ) : (
-                          <span className="dashboard-zero-cell">0</span>
-                        )}
-                      </td>
                     </tr>
                   ))}
                   {/* Owner Subtotal Row */}
@@ -296,20 +274,6 @@ export function PendingDashboardTable({
                         <span className="dashboard-zero-cell">—</span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {g.totalCount > 0 ? (
-                        <button
-                          type="button"
-                          className="dashboard-subtotal-badge badge-total"
-                          onClick={() => onDrillDown(null, role, g.ownerName)}
-                          title={`View all ${g.totalCount} items for ${g.ownerName}`}
-                        >
-                          {g.totalCount}
-                        </button>
-                      ) : (
-                        <span className="dashboard-zero-cell">0</span>
-                      )}
-                    </td>
                   </tr>
                 </React.Fragment>
               ))
@@ -351,16 +315,6 @@ export function PendingDashboardTable({
                   title={`View all ${displayedTotals.invoiceTotal} ${role} Invoices`}
                 >
                   {displayedTotals.invoiceTotal}
-                </button>
-              </td>
-              <td style={{ textAlign: 'center' }}>
-                <button
-                  type="button"
-                  className="dashboard-grand-badge badge-total"
-                  onClick={() => onDrillDown(null, role)}
-                  title={`View all ${displayedTotals.grandTotal} ${role} Pending Items`}
-                >
-                  {displayedTotals.grandTotal}
                 </button>
               </td>
             </tr>

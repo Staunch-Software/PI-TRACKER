@@ -457,7 +457,7 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
     grand_fill = PatternFill("solid", fgColor="E2E8F0")
     grand_font = Font(bold=True, color="0F4C81", name="Calibri", size=11)
 
-    headers = ["Owner", "Vessel", "Requisitions", "Purchase Orders", "Invoices", "Total Pending"]
+    headers = ["Owner", "Vessel", "Requisitions", "Purchase Orders", "Invoices"]
 
     for sheet, groups, totals, role_label in [
         (sheet_tsi, tsi_groups, tsi_totals, "TSI"),
@@ -473,10 +473,10 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
         current_row = 2
         for g in groups:
             for v in g.vessels:
-                sheet.append([g.owner_name, v.vessel_name, v.requisition_count, v.po_count, v.invoice_count, v.total_count])
+                sheet.append([g.owner_name, v.vessel_name, v.requisition_count, v.po_count, v.invoice_count])
                 current_row += 1
             # Subtotal row
-            sub_row = [f"{g.owner_name} Subtotal", "All Assigned Vessels", g.requisition_total, g.po_total, g.invoice_total, g.total_count]
+            sub_row = [f"{g.owner_name} Subtotal", "All Assigned Vessels", g.requisition_total, g.po_total, g.invoice_total]
             sheet.append(sub_row)
             for col_idx in range(1, len(headers) + 1):
                 c = sheet.cell(row=current_row, column=col_idx)
@@ -485,7 +485,7 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
             current_row += 1
 
         # Grand total row
-        grand_row = [f"{role_label} Fleet Total", "All Vessels", totals.requisition_total, totals.po_total, totals.invoice_total, totals.grand_total]
+        grand_row = [f"{role_label} Fleet Total", "All Vessels", totals.requisition_total, totals.po_total, totals.invoice_total]
         sheet.append(grand_row)
         for col_idx in range(1, len(headers) + 1):
             c = sheet.cell(row=current_row, column=col_idx)

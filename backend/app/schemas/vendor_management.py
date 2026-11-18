@@ -39,6 +39,15 @@ class VendorBankDetailOut(CamelModel):
     is_active: bool
 
 
+class VendorAttachmentSummaryOut(CamelModel):
+    id: uuid.UUID
+    file_name: str
+    content_type: str | None = None
+    size_bytes: int = 0
+    source: str  # "smartpal" or "bank"
+    download_url: str
+
+
 class VendorTrackerEntryOut(CamelModel):
     # Nullable: an "All Vendors" tab row for a vendor with no vendor_tracker_entries row yet has
     # no id — every row action lazily creates one via ensure-tracking on first use (see
@@ -98,6 +107,7 @@ class VendorTrackerEntryOut(CamelModel):
     # email/phone/address) and from the manually-keyed bank_* fields above.
     bank_details_in_pal_complete: bool = False
     bank_details_in_pal_missing_fields: list[str] = []
+    attachments: list[VendorAttachmentSummaryOut] = []
 
 
 class VendorBankRequestPreview(CamelModel):

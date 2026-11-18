@@ -140,6 +140,7 @@ const EMPTY_COLUMN_FILTERS: DdTrackerColumnFilters = {
   entryType: [],
   requisitionNo: '',
   poNo: '',
+  accountCode: '',
   readinessDate: { from: '', to: '' },
   prStatus: [],
   poStatus: [],
@@ -159,6 +160,7 @@ const EMPTY_COLUMN_FILTERS: DdTrackerColumnFilters = {
 const FILTER_PARAM_NAME: Partial<Record<keyof DdTrackerColumnFilters, string>> = {
   requisitionNo: 'requisition_no',
   poNo: 'po_no',
+  accountCode: 'account_code',
   prStatus: 'pr_status',
   poStatus: 'po_status',
   supplyPort: 'supply_port',

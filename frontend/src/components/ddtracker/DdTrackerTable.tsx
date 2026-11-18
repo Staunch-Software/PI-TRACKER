@@ -37,6 +37,7 @@ export const DEFAULT_COL_WIDTHS = {
   prStatus: 180,
   poNumber: 170,
   poStatus: 150,
+  accountCode: 190,
   title: 320,
   vendor: 220,
   poAmount: 130,
@@ -64,7 +65,7 @@ export type ReorderableColumnKey = keyof typeof DEFAULT_COL_WIDTHS;
 export const DEFAULT_COLUMN_ORDER = [
   'entryType', 'title',
   'prNumber', 'prStatus',
-  'poNumber', 'poStatus', 'vendor', 'poAmount', 'poCurrency', 'supplyPort',
+  'poNumber', 'poStatus', 'accountCode', 'vendor', 'poAmount', 'poCurrency', 'supplyPort',
   'orderStatus', 'leadDays', 'readinessDate', 'exStock', 'supplyConfirmation', 'remarks',
   'invoiceNumber', 'invoiceType', 'invoiceAmount', 'invoiceCurrency', 'invoiceStatus', 'paymentStatus',
 ] as const satisfies readonly ReorderableColumnKey[];
@@ -83,6 +84,7 @@ export interface DdTrackerColumnFilters {
   entryType: string[];
   requisitionNo: string;
   poNo: string;
+  accountCode: string;
   readinessDate: { from: string; to: string };
   prStatus: string[];
   poStatus: string[];
@@ -138,6 +140,70 @@ interface ColumnDef {
   // renderEditCell above.
   sortColumn?: SortColumn;
   filter?: { kind: 'multi'; options: { value: string; label: string }[] } | { kind: 'text' } | { kind: 'date' };
+}
+
+function parseAccountCodeSimple(raw: string): { code: string; desc: string } {
+  if (!raw) return { code: '—', desc: '' };
+  const parts = raw.split(' - ');
+  if (parts.length > 1) {
+    const code = parts[0].trim();
+    let desc = parts.slice(1).join(' - ').trim();
+    if (/^DD\s*-\s*/i.test(desc)) desc = desc.replace(/^DD\s*-\s*/i, '');
+    return { code, desc };
+  }
+  return { code: raw.trim(), desc: '' };
+}
+
+function AccountCodesCell({ accountCodes }: { accountCodes?: string[] | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const codes = (accountCodes ?? []).filter((c): c is string => typeof c === 'string' && c.trim().length > 0);
+
+  if (codes.length === 0) {
+    return <span className="dd-empty-cell">—</span>;
+  }
+
+  const maxInitial = 2;
+  const visibleCodes = expanded || codes.length <= maxInitial ? codes : codes.slice(0, maxInitial);
+  const remainingCount = codes.length - visibleCodes.length;
+
+  return (
+    <div className="dd-account-codes-stack">
+      {visibleCodes.map((codeStr, idx) => {
+        const { code, desc } = parseAccountCodeSimple(codeStr);
+        return (
+          <div key={idx} className="dd-account-pill" title={codeStr}>
+            <span className="dd-account-pill-code">{code}</span>
+            {desc ? <span className="dd-account-pill-desc">{desc}</span> : null}
+          </div>
+        );
+      })}
+      {remainingCount > 0 && (
+        <button
+          type="button"
+          className="dd-account-more-badge"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(true);
+          }}
+          title={codes.slice(maxInitial).join('\n')}
+        >
+          +{remainingCount} more
+        </button>
+      )}
+      {expanded && codes.length > maxInitial && (
+        <button
+          type="button"
+          className="dd-account-less-badge"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(false);
+          }}
+        >
+          show less
+        </button>
+      )}
+    </div>
+  );
 }
 
 const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
@@ -205,6 +271,14 @@ const COLUMNS: Record<ReorderableColumnKey, ColumnDef> = {
     group: 'Purchase Order',
     renderCell: (e) => e.poApprovedStatus ?? '—',
     filter: { kind: 'multi', options: [] },
+  },
+  accountCode: {
+    label: 'Account Code',
+    group: 'Purchase Order',
+    headerClassName: 'col-left',
+    cellClassName: 'col-left dd-account-code-cell',
+    filter: { kind: 'text' },
+    renderCell: (e) => <AccountCodesCell accountCodes={e.accountCodes} />,
   },
   title: {
     label: 'Title',
@@ -354,6 +428,7 @@ const COLUMN_FILTER_FIELD: Partial<Record<ReorderableColumnKey, keyof DdTrackerC
   prStatus: 'prStatus',
   poNumber: 'poNo',
   poStatus: 'poStatus',
+  accountCode: 'accountCode',
   vendor: 'vendor',
   supplyPort: 'supplyPort',
   orderStatus: 'orderStatus',

@@ -1,5 +1,6 @@
 import type { VendorTrackerEntry } from '../../shared';
 import { BANK_DETAILS_STATUS_LABELS, BankDetailsStatus } from '../../shared/enums';
+import { formatSize, getFileKindInfo } from './VendorAttachmentsModal';
 
 // The 3 vendor-level fields this module checks for completeness (Vendor Details column).
 const VENDOR_DETAIL_FIELDS: Array<[keyof VendorTrackerEntry, string]> = [
@@ -145,7 +146,7 @@ export function VendorManagementTable({
               Verification Reminder
             </th>
             <th className="col-center col-verification">Bank Verification</th>
-            <th className="col-center col-docs" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
+            <th className="col-docs" title="SmartPAL scraped master documents and verified bank reply attachments">Full Documents</th>
           </tr>
         </thead>
         <tbody>
@@ -278,15 +279,65 @@ export function VendorManagementTable({
                     )}
                   </div>
                 </td>
-                <td className="col-center col-docs">
-                  <button
-                    className="vendor-full-docs-btn"
-                    title="View all SmartPAL scraped documents & verified bank reply attachments"
-                    onClick={() => onOpenDocuments(entry)}
-                  >
-                    <DocumentsIcon />
-                    <span>Full Documents</span>
-                  </button>
+                <td className="col-docs">
+                  <div className="vendor-table-docs-cell">
+                    {entry.attachments && entry.attachments.length > 0 ? (
+                      <div className="vendor-table-docs-list">
+                        {entry.attachments.map((att) => {
+                          const kind = getFileKindInfo(att.fileName, att.contentType ?? undefined);
+                          return (
+                            <a
+                              key={att.id}
+                              href={att.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="vendor-table-doc-link"
+                              title={`${att.fileName} (${formatSize(att.sizeBytes)}) • Click to open/download`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span
+                                className="vendor-doc-mini-badge"
+                                style={{ color: kind.color, background: kind.bg, borderColor: kind.border }}
+                              >
+                                {kind.label}
+                              </span>
+                              <span className="vendor-table-doc-name">{att.fileName}</span>
+                              <svg
+                                className="vendor-table-doc-arrow"
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                              </svg>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="vendor-table-docs-empty">No documents</span>
+                    )}
+                    <button
+                      type="button"
+                      className="vendor-docs-open-modal-btn"
+                      title="View all details, preview or upload bank reply attachments"
+                      onClick={() => onOpenDocuments(entry)}
+                    >
+                      <DocumentsIcon />
+                      <span>
+                        {entry.attachments && entry.attachments.length > 0
+                          ? `Full Documents (${entry.attachments.length})`
+                          : '+ Add / Manage'}
+                      </span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

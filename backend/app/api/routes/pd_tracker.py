@@ -93,6 +93,7 @@ def list_pd_tracker_entries(
     invoice_type: list[str] | None = Query(default=None),
     invoice_status: list[str] | None = Query(default=None),
     payment_status: list[str] | None = Query(default=None),
+    account_code: str | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -105,6 +106,7 @@ def list_pd_tracker_entries(
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
         delivery_status, remarks, invoice_type, invoice_status, payment_status,
+        account_code,
     )
     items, total = _filter_and_paginate_enriched(db, query, live_filters, page, page_size)
     return PaginatedResult[DdTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
@@ -129,6 +131,7 @@ def export_pd_tracker_entries(
     invoice_type: list[str] | None = Query(default=None),
     invoice_status: list[str] | None = Query(default=None),
     payment_status: list[str] | None = Query(default=None),
+    account_code: str | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
@@ -142,6 +145,7 @@ def export_pd_tracker_entries(
     live_filters = _LiveFilters(
         pr_status, po_status, vendor, supply_port, order_status,
         delivery_status, remarks, invoice_type, invoice_status, payment_status,
+        account_code,
     )
     rows, _total = _filter_and_paginate_enriched(db, query, live_filters, None, None)
 
@@ -164,7 +168,9 @@ def export_pd_tracker_entries(
         values = []
         for _label, field in _EXPORT_COLUMNS:
             value = data.get(field)
-            if isinstance(value, datetime):
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value) if value else None
+            elif isinstance(value, datetime):
                 value = value.replace(tzinfo=None)
             values.append(value)
         sheet.append(values)
@@ -289,8 +295,8 @@ def create_pd_tracker_entry(
         has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
         if not has_items:
             background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
-    pr, po, invoice = _fetch_live(db, entry)
-    return _to_out(entry, pr, po, invoice)
+    pr, po, invoice, account_codes = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice, account_codes)
 
 
 @router.patch("/{entry_id}", response_model=DdTrackerEntryOut)
@@ -317,8 +323,8 @@ def update_pd_tracker_entry(
         has_items = db.query(PoItemEntry.id).filter(PoItemEntry.po_no == entry.po_no).first() is not None
         if not has_items:
             background_tasks.add_task(scrape_dd_po_items, target_po_nos=[entry.po_no])
-    pr, po, invoice = _fetch_live(db, entry)
-    return _to_out(entry, pr, po, invoice)
+    pr, po, invoice, account_codes = _fetch_live(db, entry)
+    return _to_out(entry, pr, po, invoice, account_codes)
 
 
 @router.post("/bulk-delete", response_model=DdTrackerBulkDeleteResult)
@@ -388,7 +394,8 @@ def export_pd_account_code_analysis(
     header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
     columns = [
         "Account Code", "Account Code Description", "Vessel", "PO Number", "Vendor",
-        "Currency", "Item Count", "Spend (INR)", "Spend (USD)",
+        "Base Currency", "Base Spend", "Payment Currency", "Payment Spend",
+        "Invoice Number", "Invoice Amount", "Payment Status", "Item Count",
     ]
     sheet.append(columns)
     for col_idx in range(1, len(columns) + 1):
@@ -400,8 +407,19 @@ def export_pd_account_code_analysis(
     for group in response.account_codes:
         for po in group.pos:
             sheet.append([
-                group.account_code, group.account_code_desc, po.vessel_name, po.po_no, po.vendor,
-                po.currency, po.item_count, po.total_spend_inr, po.total_spend_usd,
+                group.account_code,
+                group.account_code_desc,
+                po.vessel_name,
+                po.po_no,
+                po.vendor,
+                po.base_currency or po.currency,
+                float(po.spend_base_currency),
+                po.payment_currency or po.currency,
+                float(po.spend_po_currency),
+                po.invoice_number,
+                float(po.invoice_amount) if po.invoice_amount is not None else None,
+                po.payment_status,
+                po.item_count,
             ])
 
     buffer = BytesIO()

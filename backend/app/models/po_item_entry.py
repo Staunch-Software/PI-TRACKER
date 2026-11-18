@@ -36,6 +36,9 @@ class PoItemEntry(Base):
     total_amount_inr: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
     total_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
 
+    po_currency: Mapped[str | None] = mapped_column(Text, nullable=True)
+    vessel_currency: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     vat_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     vat_pct: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
     sub_account_code: Mapped[str | None] = mapped_column(Text, nullable=True)

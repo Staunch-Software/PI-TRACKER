@@ -28,7 +28,7 @@ const PAGE_SIZE = 50;
 const PENDING_REFETCH_MS = 4000;
 const BULK_SCRAPE_POLL_MS = 4000;
 
-type VendorTab = 'dd' | 'all';
+type VendorTab = 'dd' | 'all' | 'anms';
 
 function anyRowPending(items: VendorTrackerEntry[]): boolean {
   return items.some((e) => e.detailScrapePending);
@@ -61,8 +61,10 @@ export function VendorManagementPage() {
   function invalidateLists() {
     queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] });
     queryClient.invalidateQueries({ queryKey: ['vendor-tracker-all'] });
+    queryClient.invalidateQueries({ queryKey: ['vendor-tracker-anms'] });
     queryClient.invalidateQueries({ queryKey: ['vendor-tracker-count'] });
     queryClient.invalidateQueries({ queryKey: ['vendor-tracker-all-count'] });
+    queryClient.invalidateQueries({ queryKey: ['vendor-tracker-anms-count'] });
   }
 
   const vendorOptionsQuery = useQuery({
@@ -79,6 +81,10 @@ export function VendorManagementPage() {
   const allCountQuery = useQuery({
     queryKey: ['vendor-tracker-all-count'],
     queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management/all', '', 1, 1)),
+  });
+  const anmsCountQuery = useQuery({
+    queryKey: ['vendor-tracker-anms-count'],
+    queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management/anms', '', 1, 1)),
   });
 
   const ddEntriesQuery = useQuery({
@@ -97,7 +103,20 @@ export function VendorManagementPage() {
     refetchInterval: (query) => (anyRowPending(query.state.data?.items ?? []) ? PENDING_REFETCH_MS : false),
   });
 
-  const entriesQuery = activeTab === 'dd' ? ddEntriesQuery : allEntriesQuery;
+  const anmsEntriesQuery = useQuery({
+    queryKey: ['vendor-tracker-anms', search, page],
+    queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management/anms', search, page)),
+    enabled: activeTab === 'anms',
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => (anyRowPending(query.state.data?.items ?? []) ? PENDING_REFETCH_MS : false),
+  });
+
+  const entriesQuery =
+    activeTab === 'dd'
+      ? ddEntriesQuery
+      : activeTab === 'all'
+      ? allEntriesQuery
+      : anmsEntriesQuery;
   const totalPages = entriesQuery.data ? Math.max(1, Math.ceil(entriesQuery.data.total / PAGE_SIZE)) : 1;
 
   const vendorPickerOptions: SearchableSelectOption[] = useMemo(() => {
@@ -217,8 +236,8 @@ export function VendorManagementPage() {
       </div>
       <p className="vendor-management-auto-note">
         "DD Vendors" are vendors explicitly added for the bank-details-request/verification workflow — "All Vendors"
-        is the full SmartPAL vendor master. Every action works the same in either tab; taking one on a vendor that
-        isn't a DD Vendor yet just starts tracking it.
+        is the full SmartPAL vendor master — "ANMS Vendor" shows only AMNS / ANMS fleet vendors. Every action works
+        the same in any tab; taking one on a vendor that isn't a DD Vendor yet just starts tracking it.
       </p>
 
       <div className="vendor-docs-tabs" style={{ marginBottom: 14 }}>
@@ -230,6 +249,10 @@ export function VendorManagementPage() {
           All Vendors
           <span className="vendor-docs-tab-count">{allCountQuery.data?.total ?? '—'}</span>
         </button>
+        <button type="button" className={`vendor-docs-tab-btn ${activeTab === 'anms' ? 'active' : ''}`} onClick={() => switchTab('anms')}>
+          ANMS Vendor
+          <span className="vendor-docs-tab-count">{anmsCountQuery.data?.total ?? '—'}</span>
+        </button>
       </div>
 
       <div className="tracker-toolbar">
@@ -237,7 +260,13 @@ export function VendorManagementPage() {
           <SearchIcon />
           <input
             type="search"
-            placeholder={activeTab === 'dd' ? 'Search tracked vendors by code…' : 'Search vendors by code or name…'}
+            placeholder={
+              activeTab === 'dd'
+                ? 'Search tracked vendors by code…'
+                : activeTab === 'anms'
+                ? 'Search ANMS vendors by code or name…'
+                : 'Search vendors by code or name…'
+            }
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -305,7 +334,13 @@ export function VendorManagementPage() {
             onSendVerificationReminder={handleSendVerificationReminder}
             onOpenVerificationComplete={handleOpenVerificationComplete}
             onOpenDocuments={handleOpenDocuments}
-            emptyMessage={activeTab === 'dd' ? 'No vendors are being tracked yet.' : 'No vendors match the current search.'}
+            emptyMessage={
+              activeTab === 'dd'
+                ? 'No vendors are being tracked yet.'
+                : activeTab === 'anms'
+                ? 'No ANMS vendors match the current search.'
+                : 'No vendors match the current search.'
+            }
           />
           <div className="tracker-pagination">
             <div className="pagination-center">

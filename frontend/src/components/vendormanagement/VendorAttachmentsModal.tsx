@@ -13,7 +13,7 @@ interface Props {
 
 type TabKey = 'all' | 'smartpal' | 'bank';
 
-interface FileKindInfo {
+export interface FileKindInfo {
   label: string;
   color: string;
   bg: string;
@@ -21,7 +21,7 @@ interface FileKindInfo {
   type: 'pdf' | 'image' | 'word' | 'excel' | 'file';
 }
 
-function getFileKindInfo(fileName: string, contentType?: string): FileKindInfo {
+export function getFileKindInfo(fileName: string, contentType?: string): FileKindInfo {
   const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'pdf' || contentType === 'application/pdf') {
     return { label: 'PDF', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', type: 'pdf' };
@@ -87,7 +87,7 @@ function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
   }
 }
 
-function formatSize(bytes: number): string {
+export function formatSize(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -126,6 +126,9 @@ export function VendorAttachmentsModal({ entry, canEdit, onClose }: Props) {
     mutationFn: (file: File) => uploadVendorBankAttachment(entry.id, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-bank-attachments', entry.id] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker-all'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker-anms'] });
     },
     onError: (err) => setError(err instanceof ApiError || err instanceof Error ? err.message : 'Upload failed.'),
   });
@@ -134,6 +137,9 @@ export function VendorAttachmentsModal({ entry, canEdit, onClose }: Props) {
     mutationFn: (attachmentId: string) => api.delete(`/vendor-management/${entry.id}/attachments/${attachmentId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-bank-attachments', entry.id] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker-all'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-tracker-anms'] });
       setDeleteConfirmId(null);
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to delete attachment.'),
