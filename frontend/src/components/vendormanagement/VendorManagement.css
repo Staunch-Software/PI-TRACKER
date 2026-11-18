@@ -687,7 +687,7 @@ table.data-table.vendor-management-table td.col-center {
   justify-content: space-between;
   padding: 0 0 5px;
   border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .vendor-table-docs-count-badge {
@@ -695,19 +695,19 @@ table.data-table.vendor-management-table td.col-center {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  font-weight: 700;
-  color: #0f4c81;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  padding: 2px 7px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 1.5px 7px;
   border-radius: 12px;
   letter-spacing: -0.01em;
 }
 
 .vendor-table-docs-count-badge svg {
-  width: 12px;
-  height: 12px;
-  color: #0f4c81;
+  width: 11px;
+  height: 11px;
+  color: #64748b;
 }
 
 .vendor-table-docs-manage-link {
@@ -716,17 +716,15 @@ table.data-table.vendor-management-table td.col-center {
   gap: 3px;
   font-size: 11px;
   font-weight: 600;
-  color: #0f4c81;
+  color: #0284c7;
   background: none;
   border: none;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 2px 4px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .vendor-table-docs-manage-link:hover {
-  background: #e0f2fe;
   color: #0369a1;
   text-decoration: underline;
 }
@@ -734,7 +732,7 @@ table.data-table.vendor-management-table td.col-center {
 .vendor-table-docs-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   flex: 1 1 auto;
   max-height: 255px;
   overflow-y: auto;
@@ -759,106 +757,160 @@ table.data-table.vendor-management-table td.col-center {
   background: #94a3b8;
 }
 
+/* ── Simple, Clean Document Link Card ── */
 .vendor-table-doc-link {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4.5px 8px;
-  min-height: 28px;
+  gap: 7px;
+  padding: 4px 8px;
+  min-height: 27px;
   border-radius: 6px;
+  text-decoration: none;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  text-decoration: none;
-  color: #1e293b;
-  font-size: 11.5px;
-  line-height: 1.3;
-  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
   box-sizing: border-box;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease;
 }
 
 .vendor-table-doc-link:hover {
-  background: #f0f7ff;
-  border-color: #93c5fd;
-  color: #0f4c81;
+  background: #f8fafc;
+  border-color: #cbd5e1;
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(15, 76, 129, 0.12);
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.06);
 }
 
+/* ── Crisp, Flat File-Type Badges ── */
 .vendor-doc-mini-badge {
-  font-size: 9.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 5px;
+  padding: 1.5px 5px;
   border-radius: 4px;
-  border: 1px solid;
+  line-height: 1;
+  letter-spacing: 0.02em;
   flex-shrink: 0;
-  letter-spacing: 0.03em;
   text-transform: uppercase;
-  line-height: 1.2;
 }
 
+.vendor-doc-mini-badge svg {
+  flex-shrink: 0;
+}
+
+.vendor-doc-mini-badge.doc-badge-pdf {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.vendor-doc-mini-badge.doc-badge-excel {
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.vendor-doc-mini-badge.doc-badge-word {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bfdbfe;
+}
+
+.vendor-doc-mini-badge.doc-badge-image {
+  background: #f3e8ff;
+  color: #9333ea;
+  border: 1px solid #ddd6fe;
+}
+
+.vendor-doc-mini-badge.doc-badge-archive {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.vendor-doc-mini-badge.doc-badge-file {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* ── Clean Filename, Size, and Arrow ── */
 .vendor-table-doc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: #334155;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-  font-weight: 500;
-  font-size: 11.5px;
-  color: #1e293b;
+  transition: color 0.15s ease;
 }
 
 .vendor-table-doc-link:hover .vendor-table-doc-name {
-  color: #0f4c81;
-  font-weight: 600;
+  color: #0284c7;
 }
 
 .vendor-table-doc-size {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 9.5px;
   color: #94a3b8;
+  font-weight: 400;
   flex-shrink: 0;
   letter-spacing: -0.01em;
 }
 
-.vendor-table-doc-link:hover .vendor-table-doc-size {
-  color: #64748b;
-}
-
-.vendor-table-doc-arrow {
-  flex-shrink: 0;
-  color: #94a3b8;
-  transition: transform 0.15s ease, color 0.15s ease;
-}
-
-.vendor-table-doc-link:hover .vendor-table-doc-arrow {
-  color: #0f4c81;
-  transform: translate(1px, -1px);
-}
-
-.vendor-docs-toggle-expand-btn {
+.vendor-table-doc-arrow-wrap {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: #cbd5e1;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.vendor-table-doc-arrow {
+  display: block;
+}
+
+.vendor-table-doc-link:hover .vendor-table-doc-arrow-wrap {
+  color: #0284c7;
+  transform: translate(1px, -1px);
+}
+
+/* ── Simple Expand/Collapse Toggle Button ── */
+.vendor-docs-toggle-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #0f4c81;
-  background: #f0f7ff;
-  border: 1px dashed #93c5fd;
-  border-radius: 6px;
-  cursor: pointer;
   width: 100%;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
   margin-top: 3px;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 
 .vendor-docs-toggle-expand-btn:hover {
-  background: #dbeafe;
-  border-color: #60a5fa;
-  color: #1d4ed8;
-  transform: translateY(-1px);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.vendor-docs-toggle-count-pill {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 4.5px;
+  border-radius: 4px;
 }
 
 .vendor-docs-toggle-expand-btn .expand-arrow {
@@ -866,24 +918,41 @@ table.data-table.vendor-management-table td.col-center {
   transition: transform 0.15s ease;
 }
 
+/* ── Simple Clean Empty State Box ── */
 .vendor-table-docs-empty-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 8px;
+  gap: 6px;
+  padding: 14px 10px;
   background: #f8fafc;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed #cbd5e1;
   border-radius: 8px;
   width: 100%;
   box-sizing: border-box;
 }
 
-.vendor-table-docs-empty-text {
-  font-size: 11.5px;
+.vendor-table-docs-empty-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f1f5f9;
   color: #94a3b8;
-  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vendor-table-docs-empty-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.vendor-table-docs-empty-text {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .vendor-docs-add-first-btn {
@@ -891,25 +960,21 @@ table.data-table.vendor-management-table td.col-center {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 28px;
+  height: 26px;
   padding: 0 12px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
+  border-radius: 5px;
+  border: 1px solid #0284c7;
+  background: #0284c7;
+  color: #ffffff;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .vendor-docs-add-first-btn:hover {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #0f4c81;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(15, 76, 129, 0.1);
+  background: #0369a1;
+  border-color: #0369a1;
 }
 
 .vendor-docs-open-modal-btn {

@@ -18,7 +18,7 @@ export interface FileKindInfo {
   color: string;
   bg: string;
   border: string;
-  type: 'pdf' | 'image' | 'word' | 'excel' | 'file';
+  type: 'pdf' | 'image' | 'word' | 'excel' | 'archive' | 'file';
 }
 
 export function getFileKindInfo(fileName: string, contentType?: string): FileKindInfo {
@@ -35,14 +35,17 @@ export function getFileKindInfo(fileName: string, contentType?: string): FileKin
   if (['xls', 'xlsx', 'csv'].includes(ext) || contentType?.includes('excel') || contentType?.includes('spreadsheet')) {
     return { label: 'XLS', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', type: 'excel' };
   }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext) || contentType?.includes('zip') || contentType?.includes('compressed')) {
+    return { label: 'ZIP', color: '#b45309', bg: '#fef3c7', border: '#fde68a', type: 'archive' };
+  }
   return { label: ext.toUpperCase() || 'FILE', color: '#334155', bg: '#f1f5f9', border: '#cbd5e1', type: 'file' };
 }
 
-function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
+export function FileTypeIcon({ type, size = 16 }: { type: FileKindInfo['type']; size?: number }) {
   switch (type) {
     case 'pdf':
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="16" y1="13" x2="8" y2="13" />
@@ -52,7 +55,7 @@ function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
       );
     case 'image':
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
@@ -60,7 +63,7 @@ function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
       );
     case 'word':
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="12" y1="18" x2="12" y2="12" />
@@ -69,7 +72,7 @@ function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
       );
     case 'excel':
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <path d="M8 13h8" />
@@ -77,9 +80,17 @@ function FileTypeIcon({ type }: { type: FileKindInfo['type'] }) {
           <path d="M10 9h4" />
         </svg>
       );
+    case 'archive':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="21 8 21 21 3 21 3 8" />
+          <rect x="1" y="3" width="22" height="5" />
+          <line x1="10" y1="12" x2="14" y2="12" />
+        </svg>
+      );
     default:
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>

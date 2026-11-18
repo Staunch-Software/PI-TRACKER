@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { VendorTrackerEntry } from '../../shared';
 import { BANK_DETAILS_STATUS_LABELS, BankDetailsStatus } from '../../shared/enums';
-import { formatSize, getFileKindInfo } from './VendorAttachmentsModal';
+import { formatSize, getFileKindInfo, FileTypeIcon } from './VendorAttachmentsModal';
 
 // The 3 vendor-level fields this module checks for completeness (Vendor Details column).
 const VENDOR_DETAIL_FIELDS: Array<[keyof VendorTrackerEntry, string]> = [
@@ -309,19 +309,7 @@ export function VendorManagementTable({
                               onOpenDocuments(entry);
                             }}
                           >
-                            <span>Manage / Add</span>
-                            <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
+                            <span>Manage →</span>
                           </button>
                         </div>
 
@@ -354,21 +342,17 @@ export function VendorManagementTable({
                                       href={att.downloadUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="vendor-table-doc-link"
+                                      className={`vendor-table-doc-link doc-theme-${kind.type}`}
                                       title={`${att.fileName} (${formatSize(
                                         att.sizeBytes
                                       )}) • Click to open/download`}
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <span
-                                        className="vendor-doc-mini-badge"
-                                        style={{
-                                          color: kind.color,
-                                          background: kind.bg,
-                                          borderColor: kind.border,
-                                        }}
+                                        className={`vendor-doc-mini-badge doc-badge-${kind.type}`}
                                       >
-                                        {kind.label}
+                                        <FileTypeIcon type={kind.type} size={11} />
+                                        <span>{kind.label}</span>
                                       </span>
                                       <span className="vendor-table-doc-name">
                                         {att.fileName}
@@ -376,21 +360,23 @@ export function VendorManagementTable({
                                       <span className="vendor-table-doc-size">
                                         {formatSize(att.sizeBytes)}
                                       </span>
-                                      <svg
-                                        className="vendor-table-doc-arrow"
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2.2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                        <polyline points="15 3 21 3 21 9" />
-                                        <line x1="10" y1="14" x2="21" y2="3" />
-                                      </svg>
+                                      <span className="vendor-table-doc-arrow-wrap" aria-hidden="true">
+                                        <svg
+                                          className="vendor-table-doc-arrow"
+                                          width="11"
+                                          height="11"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2.4"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                          <polyline points="15 3 21 3 21 9" />
+                                          <line x1="10" y1="14" x2="21" y2="3" />
+                                        </svg>
+                                      </span>
                                     </a>
                                   );
                                 })}
@@ -399,7 +385,7 @@ export function VendorManagementTable({
                               {hasMore && (
                                 <button
                                   type="button"
-                                  className="vendor-docs-toggle-expand-btn"
+                                  className={`vendor-docs-toggle-expand-btn ${isExpanded ? 'is-expanded' : ''}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleDocsExpanded(rowKey);
@@ -417,7 +403,10 @@ export function VendorManagementTable({
                                     </>
                                   ) : (
                                     <>
-                                      <span>+{remainingCount} more documents</span>
+                                      <span className="vendor-docs-toggle-count-pill">
+                                        +{remainingCount}
+                                      </span>
+                                      <span>more documents</span>
                                       <span className="expand-arrow">▼</span>
                                     </>
                                   )}
@@ -429,6 +418,9 @@ export function VendorManagementTable({
                       </>
                     ) : (
                       <div className="vendor-table-docs-empty-box">
+                        <div className="vendor-table-docs-empty-icon">
+                          <DocumentsIcon />
+                        </div>
                         <span className="vendor-table-docs-empty-text">
                           No documents
                         </span>
@@ -438,8 +430,7 @@ export function VendorManagementTable({
                           title="Open modal to upload attachments"
                           onClick={() => onOpenDocuments(entry)}
                         >
-                          <DocumentsIcon />
-                          <span>+ Add / Manage</span>
+                          <span>+ Upload / Manage</span>
                         </button>
                       </div>
                     )}
