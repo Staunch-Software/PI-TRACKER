@@ -454,12 +454,10 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
     sheet_tsi.title = "TSI Pending Summary"
     sheet_ta = workbook.create_sheet(title="TA Pending Summary")
 
-    header_fill = PatternFill("solid", fgColor="0F4C81")
     header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
     subtotal_fill = PatternFill("solid", fgColor="F1F5F9")
     subtotal_font = Font(bold=True, color="0F172A", name="Calibri", size=11)
     grand_fill = PatternFill("solid", fgColor="E2E8F0")
-    grand_font = Font(bold=True, color="0F4C81", name="Calibri", size=11)
 
     headers = ["Owner", "Vessel", "Requisitions", "Purchase Orders", "Invoices"]
 
@@ -468,9 +466,11 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
         (sheet_ta, ta_groups, ta_totals, "TA"),
     ]:
         sheet.append(headers)
+        hdr_bg = "0F4C81" if role_label == "TSI" else "581C87"
+        h_fill = PatternFill("solid", fgColor=hdr_bg)
         for col_idx in range(1, len(headers) + 1):
             cell = sheet.cell(row=1, column=col_idx)
-            cell.fill = header_fill
+            cell.fill = h_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
@@ -491,10 +491,11 @@ def export_pending_items_dashboard_summary(db: Session = Depends(get_db)) -> Str
         # Grand total row
         grand_row = [f"{role_label} Fleet Total", "All Vessels", totals.requisition_total, totals.po_total, totals.invoice_total]
         sheet.append(grand_row)
+        g_font = Font(bold=True, color=hdr_bg, name="Calibri", size=11)
         for col_idx in range(1, len(headers) + 1):
             c = sheet.cell(row=current_row, column=col_idx)
             c.fill = grand_fill
-            c.font = grand_font
+            c.font = g_font
 
         # Adjust column widths
         for col in sheet.columns:
@@ -830,11 +831,11 @@ def _build_pending_items_ageing_workbook(
                 block_title = f"  ■  {v_name}   |   {role_key} IN-CHARGE: {owner_name}   |   {len(b_items)} Item(s) Pending"
                 ws.cell(row=curr_r, column=1, value=block_title)
 
-                # Rich vibrant distinctive highlights: Sapphire Blue for TSI, Marine Teal for TA
+                # Rich vibrant distinctive highlights: Sapphire Blue for TSI, Royal Amethyst Purple for TA
                 if role_key == "TSI":
                     hdr_color = "1E3A8A"
                 elif role_key == "TA":
-                    hdr_color = "0E7490"
+                    hdr_color = "581C87"
                 else:
                     hdr_color = "334155"
 
@@ -942,10 +943,13 @@ def _build_pending_items_ageing_workbook(
         return row_map
 
     # Build the 4 detail sheets with distinct block layout and track coordinates
-    map_0_30 = build_block_detail_sheet("0 - 30 Days", f"{role_banner_prefix} — 0 TO 30 DAYS (NORMAL)", COLOR_0_30_HDR, items_0_30)
+    d_role = clean_roles[0] if clean_roles else None
+    all_hdr_color = "1E3A8A" if d_role == "TSI" else ("581C87" if d_role == "TA" else COLOR_TOTAL_HDR)
+
+    map_0_30 = build_block_detail_sheet("0 - 30 Days", f"{role_banner_prefix} — 0 TO 30 DAYS (NORMAL)", "6D28D9" if d_role == "TA" else COLOR_0_30_HDR, items_0_30)
     map_30_90 = build_block_detail_sheet("30 - 90 Days", f"{role_banner_prefix} — 30 TO 90 DAYS (ATTENTION)", COLOR_30_90_HDR, items_30_90)
     map_90_plus = build_block_detail_sheet("Above 90 Days", f"{role_banner_prefix} — ABOVE 90 DAYS (CRITICAL)", COLOR_90_PLUS_HDR, items_90_plus)
-    map_all = build_block_detail_sheet("All Details", f"{role_banner_prefix} — ALL DETAILED ITEMS", COLOR_TOTAL_HDR, items)
+    map_all = build_block_detail_sheet("All Details", f"{role_banner_prefix} — ALL DETAILED ITEMS", all_hdr_color, items)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Sheet 1: The Main Vessel Matrix Summary Table
@@ -968,10 +972,13 @@ def _build_pending_items_ageing_workbook(
     else:
         summary_main_title = "TSI / TA PENDING ITEMS — VESSEL AGEING MATRIX"
 
+    title_bg = "1E3A8A" if single_role == "TSI" else ("581C87" if single_role == "TA" else NAVY_TOP)
+    fill_summary_title = PatternFill("solid", fgColor=title_bg)
+
     ws_main.merge_cells(start_row=1, start_column=1, end_row=1, end_column=TOTAL_COLS)
     ws_main.row_dimensions[1].height = 36
     ws_main.cell(row=1, column=1, value=summary_main_title)
-    style_range(ws_main, 1, 1, TOTAL_COLS, 1, fill=fill_title, font=font_title, alignment=align_center)
+    style_range(ws_main, 1, 1, TOTAL_COLS, 1, fill=fill_summary_title, font=font_title, alignment=align_center)
 
     # 2. Subtitle Banner
     ws_main.merge_cells(start_row=2, start_column=1, end_row=2, end_column=TOTAL_COLS)
@@ -985,10 +992,17 @@ def _build_pending_items_ageing_workbook(
     ws_main.row_dimensions[4].height = 16
     ws_main.row_dimensions[5].height = 24
 
-    if single_role:
+    if single_role == "TSI":
         kpi_defs = [
-            ("TOTAL PENDING", len(items), "FFFFFF", COLOR_TOTAL_HDR, 1, 2, "All Details"),
+            ("TOTAL TSI PENDING", len(items), "FFFFFF", "1E3A8A", 1, 2, "All Details"),
             ("0 - 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 3, 3, "0 - 30 Days"),
+            ("30 - 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "30 - 90 Days"),
+            ("ABOVE 90 DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 5, 6, "Above 90 Days"),
+        ]
+    elif single_role == "TA":
+        kpi_defs = [
+            ("TOTAL TA PENDING", len(items), "FFFFFF", "581C87", 1, 2, "All Details"),
+            ("0 - 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", "6D28D9", 3, 3, "0 - 30 Days"),
             ("30 - 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "30 - 90 Days"),
             ("ABOVE 90 DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 5, 6, "Above 90 Days"),
         ]
@@ -1018,13 +1032,21 @@ def _build_pending_items_ageing_workbook(
     # 4. Table Header Tier 1 (Category Banners) — Pure bold white text, NO hyperlinks
     ws_main.row_dimensions[7].height = 28
 
-    if single_role:
+    if single_role == "TSI":
         tier1_groups = [
             ("VESSEL & IN-CHARGE", 1, 2, "1E293B"),
             ("0 - 30 DAYS (NORMAL)", 3, 3, "1E40AF"),
             ("30 - 90 DAYS (ATTENTION)", 4, 4, "B45309"),
             ("ABOVE 90 DAYS (CRITICAL)", 5, 5, "BE123C"),
-            ("TOTAL PENDING", 6, 6, "0F2942"),
+            ("TOTAL PENDING", 6, 6, "1E3A8A"),
+        ]
+    elif single_role == "TA":
+        tier1_groups = [
+            ("VESSEL & IN-CHARGE", 1, 2, "1E293B"),
+            ("0 - 30 DAYS (NORMAL)", 3, 3, "6D28D9"),
+            ("30 - 90 DAYS (ATTENTION)", 4, 4, "B45309"),
+            ("ABOVE 90 DAYS (CRITICAL)", 5, 5, "BE123C"),
+            ("TOTAL PENDING", 6, 6, "581C87"),
         ]
     else:
         tier1_groups = [
@@ -1061,33 +1083,33 @@ def _build_pending_items_ageing_workbook(
             ("TSI", 16, align_center, "2563EB", 9.5),
             ("TSI", 16, align_center, "D97706", 9.5),
             ("TSI", 16, align_center, "E11D48", 9.5),
-            ("TSI Total", 16, align_center, "0F172A", 9.5),
+            ("TSI Total", 16, align_center, "1E3A8A", 9.5),
         ]
     elif single_role == "TA":
         tier2_cols = [
             ("Vessel Name", 24, align_left, "1E293B", 9.5),
-            ("TA In-charge", 18, align_center, "0E7490", 9.5),
-            ("TA", 16, align_center, "2563EB", 9.5),
+            ("TA In-charge", 18, align_center, "581C87", 9.5),
+            ("TA", 16, align_center, "7C3AED", 9.5),
             ("TA", 16, align_center, "D97706", 9.5),
             ("TA", 16, align_center, "E11D48", 9.5),
-            ("TA Total", 16, align_center, "0F172A", 9.5),
+            ("TA Total", 16, align_center, "581C87", 9.5),
         ]
     else:
         tier2_cols = [
             ("Vessel Name", 22, align_left, "1E293B", 9.5),
             ("TSI In-charge", 16, align_center, "1E3A8A", 9.5),
-            ("TA In-charge", 16, align_center, "0E7490", 9.5),
+            ("TA In-charge", 16, align_center, "581C87", 9.5),
             ("TSI", 10, align_center, "2563EB", 9.5),
-            ("TA", 10, align_center, "2563EB", 9.5),
+            ("TA", 10, align_center, "7C3AED", 9.5),
             ("Total", 11, align_center, "1D4ED8", 9.5),
             ("TSI", 10, align_center, "D97706", 9.5),
-            ("TA", 10, align_center, "D97706", 9.5),
+            ("TA", 10, align_center, "8B5CF6", 9.5),
             ("Total", 11, align_center, "B45309", 9.5),
             ("TSI", 10, align_center, "E11D48", 9.5),
-            ("TA", 10, align_center, "E11D48", 9.5),
+            ("TA", 10, align_center, "C026D3", 9.5),
             ("Total", 11, align_center, "BE123C", 9.5),
-            ("TSI Total", 12, align_center, "1E293B", 9.5),
-            ("TA Total", 12, align_center, "1E293B", 9.5),
+            ("TSI Total", 12, align_center, "1E3A8A", 9.5),
+            ("TA Total", 12, align_center, "581C87", 9.5),
             ("Fleet Total", 13, align_center, "0F172A", 10.0),
         ]
 
@@ -1200,16 +1222,16 @@ def _build_pending_items_ageing_workbook(
         elif single_role == "TA":
             # TA In-charge (Col 2)
             cell_ta = ws_main.cell(row=curr_row, column=2, value=ta_incharge)
-            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF0E7490")
+            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF6D28D9")
             cell_ta.alignment = align_center
             cell_ta.fill = row_fill
             cell_ta.border = border_cell
 
             count_mappings = [
-                (3, c_0_30_ta, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
+                (3, c_0_30_ta, "6D28D9", "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
                 (4, c_30_90_ta, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_ta}" if r_30_90_ta else None),
                 (5, c_90_ta, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_ta}" if r_90_ta else None),
-                (6, c_tot_ta, COLOR_TOTAL_NUM, "All Details", f"A{r_all_ta}" if r_all_ta else None),
+                (6, c_tot_ta, "581C87", "All Details", f"A{r_all_ta}" if r_all_ta else None),
             ]
         else:
             # Full 15-column matrix
@@ -1222,14 +1244,14 @@ def _build_pending_items_ageing_workbook(
 
             # TA In-charge (Col 3)
             cell_ta = ws_main.cell(row=curr_row, column=3, value=ta_incharge)
-            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF0E7490")
+            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF6D28D9")
             cell_ta.alignment = align_center
             cell_ta.fill = row_fill
             cell_ta.border = border_cell
 
             count_mappings = [
                 (4, c_0_30_tsi, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_tsi}" if r_0_30_tsi else None),
-                (5, c_0_30_ta, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
+                (5, c_0_30_ta, "6D28D9", "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
                 (6, c_0_30_tot, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_all}" if r_0_30_all else None),
 
                 (7, c_30_90_tsi, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_tsi}" if r_30_90_tsi else None),
@@ -1240,8 +1262,8 @@ def _build_pending_items_ageing_workbook(
                 (11, c_90_ta, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_ta}" if r_90_ta else None),
                 (12, c_90_tot, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_all}" if r_90_all else None),
 
-                (13, c_tot_tsi, COLOR_TOTAL_NUM, "All Details", f"A{r_all_tsi}" if r_all_tsi else None),
-                (14, c_tot_ta, COLOR_TOTAL_NUM, "All Details", f"A{r_all_ta}" if r_all_ta else None),
+                (13, c_tot_tsi, "1E3A8A", "All Details", f"A{r_all_tsi}" if r_all_tsi else None),
+                (14, c_tot_ta, "581C87", "All Details", f"A{r_all_ta}" if r_all_ta else None),
                 (15, c_tot_all, COLOR_TOTAL_NUM, "All Details", f"A{r_all_all}" if r_all_all else None),
             ]
 
@@ -1270,7 +1292,15 @@ def _build_pending_items_ageing_workbook(
     ws_main.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=label_cols)
     ws_main.row_dimensions[curr_row].height = 26
     ws_main.cell(row=curr_row, column=1, value="   FLEET GRAND TOTAL")
-    style_range(ws_main, 1, curr_row, label_cols, curr_row, fill=fill_grand, font=Font(name="Calibri", size=10, bold=True, color="FFFFFFFF"), alignment=align_left, border=border_grand)
+    fleet_grand_bg = "1E3A8A" if single_role == "TSI" else ("581C87" if single_role == "TA" else COLOR_TOTAL_HDR)
+    fill_fleet_grand = PatternFill("solid", fgColor=fleet_grand_bg)
+    border_fleet_grand = Border(
+        left=Side(style="thin", color=fleet_grand_bg),
+        right=Side(style="thin", color=fleet_grand_bg),
+        top=Side(style="medium", color=fleet_grand_bg),
+        bottom=Side(style="double", color=fleet_grand_bg),
+    )
+    style_range(ws_main, 1, curr_row, label_cols, curr_row, fill=fill_fleet_grand, font=Font(name="Calibri", size=10, bold=True, color="FFFFFFFF"), alignment=align_left, border=border_fleet_grand)
 
     if single_role == "TSI":
         fleet_col_map = [
@@ -1304,10 +1334,10 @@ def _build_pending_items_ageing_workbook(
 
     for col_idx, tot_val in fleet_col_map:
         cell = ws_main.cell(row=curr_row, column=col_idx, value=tot_val)
-        cell.fill = fill_grand
+        cell.fill = fill_fleet_grand
         cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFFFF")
         cell.alignment = align_center
-        cell.border = border_grand
+        cell.border = border_fleet_grand
 
     # Freeze panes on summary sheet at row 9 so headers stay locked
     ws_main.freeze_panes = "A9"

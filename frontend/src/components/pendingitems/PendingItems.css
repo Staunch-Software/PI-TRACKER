@@ -181,15 +181,15 @@ body:has(.pending-items-page) .page-content {
 
 .pending-role-pill-ta.active {
   background: #ffffff;
-  color: #9a5b00;
-  border-color: #9a5b00;
-  box-shadow: 0 1px 3px rgba(154, 91, 0, 0.16);
+  color: #6d28d9;
+  border-color: #7c3aed;
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.2);
   font-weight: 700;
 }
 
 .pending-role-pill-ta.active .pending-role-pill-count {
-  background: rgba(154, 91, 0, 0.12);
-  color: #9a5b00;
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
 }
 
 .pending-breakdown-meta {
@@ -293,7 +293,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-card-avatar-ta {
-  background: #d97706;
+  background: #7c3aed;
 }
 
 .pending-card-owner-name {
@@ -315,8 +315,8 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-card-role-chip-ta {
-  background: #fef3c7;
-  color: #b45309;
+  background: #faf5ff;
+  color: #6d28d9;
 }
 
 .pending-card-header-right {
@@ -639,7 +639,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .owner-role-badge-text.role-ta {
-  color: #d97706;
+  color: #7c3aed;
 }
 
 .ageing-chip {
@@ -871,9 +871,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .compact-split-pill.ta {
-  background: #fefce8;
-  color: #854d0e;
-  border: 1px solid #fef08a;
+  background: #faf5ff;
+  color: #6d28d9;
+  border: 1px solid #e9d5ff;
 }
 
 /* Drill-down guide banner */
@@ -1062,7 +1062,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-dashboard-card.card-role-ta {
-  border-top: 4px solid #d97706;
+  border-top: 4px solid #7c3aed;
 }
 
 .pending-dashboard-card-header {
@@ -1099,9 +1099,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-dashboard-role-badge.role-badge-ta {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
+  background: linear-gradient(135deg, #581c87, #7c3aed);
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
 }
 
 .pending-dashboard-card-title {
@@ -1246,7 +1246,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .dashboard-vessel-row:hover td {
-  background: #fffdf8;
+  background: #fbf8ff;
 }
 
 .dashboard-owner-cell {
@@ -1286,7 +1286,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .dashboard-owner-avatar.avatar-ta {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
+  background: linear-gradient(135deg, #581c87, #7c3aed);
   color: #ffffff;
 }
 
@@ -1333,8 +1333,8 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .vessel-icon-circle {
-  background: #fefce8;
-  border-color: #fef08a;
+  background: #faf5ff;
+  border-color: #e9d5ff;
 }
 
 .vessel-ship-icon {
@@ -1342,7 +1342,7 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .vessel-ship-icon {
-  color: #b45309;
+  color: #7c3aed;
 }
 
 .vessel-text-bold {
@@ -1426,9 +1426,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .dashboard-cell-badge.badge-total:hover {
-  background: #b45309;
-  border-color: #b45309;
-  box-shadow: 0 2px 6px rgba(180, 83, 9, 0.3);
+  background: #7c3aed;
+  border-color: #7c3aed;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
 }
 
 .dashboard-zero-cell {
@@ -1451,11 +1451,11 @@ body:has(.pending-items-page) .page-content {
   border-bottom: 2px solid #93c5fd;
 }
 
-/* Distinct TA Subtotal Row - Soft Light Warm Tint */
+/* Distinct TA Subtotal Row - Soft Light Amethyst Tint */
 .card-role-ta .dashboard-subtotal-row td {
-  background: linear-gradient(90deg, #fffdfa 0%, #fbf9f5 100%);
-  border-top: 1.5px solid #f2ede4;
-  border-bottom: 2px solid #e7ded4;
+  background: linear-gradient(90deg, #faf5ff 0%, #f3e8ff 100%);
+  border-top: 1.5px solid #e9d5ff;
+  border-bottom: 2px solid #d8b4fe;
 }
 
 .dashboard-subtotal-label {
@@ -1490,9 +1490,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .subtotal-chip-badge {
-  background: #d97706;
+  background: #7c3aed;
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(217, 119, 6, 0.25);
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.25);
 }
 
 .subtotal-sigma-symbol {
@@ -1531,9 +1531,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .subtotal-vessel-count-chip {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: rgba(124, 58, 237, 0.09);
+  color: #6d28d9;
+  border: 1px solid rgba(124, 58, 237, 0.2);
 }
 
 .dashboard-subtotal-badge {
@@ -1649,9 +1649,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .dashboard-subtotal-badge.badge-total:hover {
-  background: #1e293b;
-  border-color: #1e293b;
-  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.3);
+  background: #581c87;
+  border-color: #581c87;
+  box-shadow: 0 2px 5px rgba(88, 28, 135, 0.35);
 }
 
 /* Grand Total Footer Row */
@@ -1663,9 +1663,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .dashboard-grand-total-row td {
-  background: linear-gradient(180deg, #fffdf8 0%, #f7f3ec 100%);
-  border-top: 2px solid #d97706;
-  border-bottom: 2px solid #d97706;
+  background: linear-gradient(180deg, #faf5ff 0%, #f3e8ff 100%);
+  border-top: 2px solid #7c3aed;
+  border-bottom: 2px solid #7c3aed;
   padding: 10px 14px;
 }
 
@@ -1754,14 +1754,14 @@ body:has(.pending-items-page) .page-content {
 }
 
 .card-role-ta .dashboard-grand-badge.badge-total {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
+  background: linear-gradient(135deg, #581c87, #7c3aed);
   color: #ffffff;
 }
 
 .card-role-ta .dashboard-grand-badge.badge-total:hover {
-  background: #d97706;
+  background: #7c3aed;
   transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(217, 119, 6, 0.35);
+  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.35);
 }
 
 /* ==========================================================================
