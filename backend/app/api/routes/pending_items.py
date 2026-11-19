@@ -1,11 +1,15 @@
+import os
 from collections import Counter, defaultdict
 from datetime import date, datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+import openpyxl
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.hyperlink import Hyperlink
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_module_access
@@ -182,25 +186,25 @@ def _filtered(
     ageing_bracket: str | None = None,
 ) -> list[PendingItemOut]:
     s_clean = search.strip().lower() if isinstance(search, str) and search.strip() else None
-    v_clean = vessel_name if isinstance(vessel_name, list) and vessel_name else None
-    st_clean = stage if isinstance(stage, list) and stage else None
+    v_clean = [v.strip().upper() for v in vessel_name if v and v.strip()] if isinstance(vessel_name, list) and vessel_name else None
+    st_clean = [s.strip().lower() for s in stage if s and s.strip()] if isinstance(stage, list) and stage else None
     or_clean = owner_role if isinstance(owner_role, list) and owner_role else None
-    on_clean = owner_name if isinstance(owner_name, list) and owner_name else None
+    on_clean = [o.strip() for o in owner_name if o and o.strip()] if isinstance(owner_name, list) and owner_name else None
 
-    or_filter = None
+    or_filter: list[str] | None = None
     if or_clean:
-        valid_roles = [r for r in or_clean if r.upper() != "ALL"]
+        valid_roles = [r.strip().upper() for r in or_clean if r and r.strip().upper() != "ALL"]
         if valid_roles:
             or_filter = valid_roles
 
     def matches(item: PendingItemOut) -> bool:
-        if v_clean and (item.vessel_name or "").strip().upper() not in [v.strip().upper() for v in v_clean]:
+        if v_clean and (item.vessel_name or "").strip().upper() not in v_clean:
             return False
-        if st_clean and item.stage not in st_clean:
+        if st_clean and (item.stage or "").strip().lower() not in st_clean:
             return False
-        if or_filter and item.owner_role not in or_filter:
+        if or_filter and (item.owner_role or "").strip().upper() not in or_filter:
             return False
-        if on_clean and item.owner_name not in on_clean:
+        if on_clean and (item.owner_name or "").strip() not in on_clean:
             return False
         if ageing_bracket:
             age = item.ageing_days if item.ageing_days is not None else 0
@@ -522,18 +526,796 @@ def get_pending_items_filter_options(db: Session = Depends(get_db)) -> PendingIt
     )
 
 
-_EXPORT_COLUMNS: list[tuple[str, str]] = [
-    ("Stage", "stage"),
-    ("Reference No.", "reference_no"),
-    ("Title / Description", "title"),
-    ("Vessel", "vessel_name"),
-    ("Vendor", "vendor"),
-    ("Status", "status"),
-    ("Owner Role", "owner_role"),
-    ("Owner Name", "owner_name"),
-    ("Ageing (Days)", "ageing_days"),
-    ("Reference Date", "reference_date"),
+_BLOCK_COLUMNS: list[tuple[str, int, Alignment]] = [
+    ("Sl No.", 8, Alignment(horizontal="center", vertical="center")),
+    ("Stage", 16, Alignment(horizontal="center", vertical="center")),
+    ("Reference No.", 22, Alignment(horizontal="center", vertical="center")),
+    ("Title / Description", 38, Alignment(horizontal="left", vertical="center", wrap_text=True)),
+    ("Vendor", 26, Alignment(horizontal="left", vertical="center")),
+    ("Status", 16, Alignment(horizontal="center", vertical="center")),
+    ("Ageing (Days)", 14, Alignment(horizontal="center", vertical="center")),
+    ("Reference Date", 16, Alignment(horizontal="center", vertical="center")),
 ]
+
+
+def _build_pending_items_ageing_workbook(
+    items: list[PendingItemOut],
+    stage_filter: list[str] | None = None,
+    role_filter: list[str] | None = None,
+    search_filter: str | None = None,
+    vessel_filter: list[str] | None = None,
+    owner_filter: list[str] | None = None,
+    ageing_bracket_filter: str | None = None,
+) -> Workbook:
+    """Build an interactive, modern standard Excel report (.xlsx) with 5 clean sheets:
+    - Sheet 1 ('Ageing Summary'): A comprehensive matrix showing all vessels in rows,
+      columns grouped by Ageing (0-30 Days, 30-90 Days, Above 90 Days) with TSI/TA
+      separation. All non-zero counts are clickable hyperlinks without ugly underlines.
+    - Sheet 2 ('0 - 30 Days'): Items <= 30 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
+    - Sheet 3 ('30 - 90 Days'): Items 31-90 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
+    - Sheet 4 ('Above 90 Days'): Critical items > 90 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
+    - Sheet 5 ('All Details'): Complete fleet items list, organized into dedicated visual cards / blocks per Vessel & In-charge.
+
+    Clicking any cell count in the Summary matrix jumps directly to that specific Vessel & In-charge block!
+    """
+    workbook = Workbook()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # REFINED MODERN PROFESSIONAL PALETTE (Sophisticated & Harmonious)
+    # ─────────────────────────────────────────────────────────────────────────
+    NAVY_TOP = "0F2942"          # Deep Maritime Navy
+    SLATE_SUBTITLE = "F8FAFC"    # Crisp light slate
+    BORDER_LIGHT = "E2E8F0"      # Light slate border
+    BORDER_CARD = "CBD5E1"       # Subtle card outline
+    ZEBRA_FILL = "F8FAFC"        # Very subtle row alternation
+
+    # Harmonious Header Colors (Balanced, corporate, elegant)
+    COLOR_VESSEL_HDR = "1E293B"   # Slate 800 (used for TSI block headers & vessel columns)
+    COLOR_VESSEL_SUB = "334155"   # Slate 700 (used for TA block headers & subheaders)
+    COLOR_0_30_HDR = "1E3A8A"     # Deep Sapphire Navy
+    COLOR_30_90_HDR = "854D0E"    # Refined Warm Bronze / Ochre
+    COLOR_90_PLUS_HDR = "831843"  # Refined Deep Wine / Burgundy
+    COLOR_TOTAL_HDR = "0F172A"    # Executive Charcoal Navy
+
+    # Subheaders (Tier 2 in Summary)
+    COLOR_0_30_SUB = "2563EB"
+    COLOR_30_90_SUB = "B45309"
+    COLOR_90_PLUS_SUB = "9F1239"
+    COLOR_TOTAL_SUB = "1E293B"
+
+    # Number Colors in Data Rows (NO UNDERLINE, Clean and Bold!)
+    COLOR_0_30_NUM = "1E3A8A"
+    COLOR_30_90_NUM = "854D0E"
+    COLOR_90_PLUS_NUM = "831843"
+    COLOR_TOTAL_NUM = "0F172A"
+
+    # Soft Badge Colors in Detail Sheets
+    PILL_0_30_BG = "EFF6FF"
+    PILL_0_30_FG = "1E40AF"
+    PILL_30_90_BG = "FEF3C7"
+    PILL_30_90_FG = "92400E"
+    PILL_90_PLUS_BG = "FCE7F3"
+    PILL_90_PLUS_FG = "831843"
+
+    # Fonts (Full 8-char ARGB hex for crisp rendering)
+    font_title = Font(name="Calibri", size=14, bold=True, color="FFFFFFFF")
+    font_subtitle = Font(name="Calibri", size=9, italic=True, color="FF475569")
+    font_tier1 = Font(name="Calibri", size=10, bold=True, color="FFFFFFFF")
+    font_tier2 = Font(name="Calibri", size=9.5, bold=True, color="FFFFFFFF")
+    font_vessel_name = Font(name="Calibri", size=9.5, bold=True, color="FF0F172A")
+    font_incharge = Font(name="Calibri", size=9.5, color="FF475569")
+    font_cell_muted = Font(name="Calibri", size=9.5, color="FF94A3B8")
+    font_nav_back = Font(name="Calibri", size=9.5, bold=True, color="FFFFFFFF")
+    font_detail_data = Font(name="Calibri", size=9.5, color="FF1E293B")
+    font_detail_data_bold = Font(name="Calibri", size=9.5, bold=True, color="FF0F172A")
+
+    font_block_hdr = Font(name="Calibri", size=11, bold=True, color="FFFFFFFF")
+    font_block_subhdr = Font(name="Calibri", size=9, bold=True, color="FFFFFFFF")
+    font_block_tot = Font(name="Calibri", size=9.5, bold=True, color="FF0F172A")
+
+    # Fills
+    fill_title = PatternFill("solid", fgColor=NAVY_TOP)
+    fill_subtitle = PatternFill("solid", fgColor=SLATE_SUBTITLE)
+    fill_white = PatternFill("solid", fgColor="FFFFFF")
+    fill_zebra = PatternFill("solid", fgColor=ZEBRA_FILL)
+    fill_grand = PatternFill("solid", fgColor=COLOR_TOTAL_HDR)
+
+    # Borders
+    border_cell = Border(
+        left=Side(style="thin", color=BORDER_LIGHT),
+        right=Side(style="thin", color=BORDER_LIGHT),
+        top=Side(style="thin", color=BORDER_LIGHT),
+        bottom=Side(style="thin", color=BORDER_LIGHT),
+    )
+    border_grand = Border(
+        left=Side(style="thin", color=COLOR_TOTAL_HDR),
+        right=Side(style="thin", color=COLOR_TOTAL_HDR),
+        top=Side(style="medium", color=COLOR_TOTAL_HDR),
+        bottom=Side(style="double", color=COLOR_TOTAL_HDR),
+    )
+    border_card = Border(
+        left=Side(style="thin", color=BORDER_CARD),
+        right=Side(style="thin", color=BORDER_CARD),
+        top=Side(style="thin", color=BORDER_CARD),
+        bottom=Side(style="thin", color=BORDER_CARD),
+    )
+    border_block_tot = Border(
+        left=Side(style="thin", color=BORDER_CARD),
+        right=Side(style="thin", color=BORDER_CARD),
+        top=Side(style="thin", color=BORDER_CARD),
+        bottom=Side(style="medium", color=COLOR_VESSEL_HDR),
+    )
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_text_wrap = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    def style_range(ws, min_col: int, min_row: int, max_col: int, max_row: int, fill=None, font=None, alignment=None, border=None):
+        for r in range(min_row, max_row + 1):
+            for c in range(min_col, max_col + 1):
+                cell = ws.cell(row=r, column=c)
+                if fill is not None:
+                    cell.fill = fill
+                if font is not None:
+                    cell.font = font
+                if alignment is not None:
+                    cell.alignment = alignment
+                if border is not None:
+                    cell.border = border
+
+    def set_link(cell, sheet_name: str, target_coord: str = "A1", font=None):
+        cell.hyperlink = Hyperlink(ref=cell.coordinate, location=f"'{sheet_name}'!{target_coord}")
+        if font is not None:
+            cell.font = font
+
+    # Classify items into buckets
+    def bucket_key(age: int | None) -> str:
+        if age is None or age <= 30:
+            return "0_30"
+        elif age <= 90:
+            return "30_90"
+        else:
+            return "90_plus"
+
+    items_0_30 = [i for i in items if bucket_key(i.ageing_days) == "0_30"]
+    items_30_90 = [i for i in items if bucket_key(i.ageing_days) == "30_90"]
+    items_90_plus = [i for i in items if bucket_key(i.ageing_days) == "90_plus"]
+
+    # Active vessels list
+    if vessel_filter:
+        active_vessels = sorted({v.strip().upper() for v in vessel_filter if v.strip()})
+    else:
+        all_v = set(_VESSEL_OWNERS.keys())
+        for itm in items:
+            if itm.vessel_name:
+                all_v.add(itm.vessel_name.strip().upper())
+        active_vessels = sorted(all_v)
+
+    # Subtitle metadata & active filters
+    clean_roles = [r.strip().upper() for r in (role_filter or []) if r and r.strip().upper() != "ALL"]
+    if clean_roles:
+        role_label = f"{clean_roles[0]} Pending"
+        role_banner_prefix = f"{clean_roles[0]} PENDING ITEMS"
+    else:
+        role_label = "All Pending (TSI & TA)"
+        role_banner_prefix = "TSI / TA PENDING ITEMS"
+
+    meta_parts: list[str] = []
+    if stage_filter:
+        meta_parts.append(f"Stage: {', '.join(stage_filter)}")
+    meta_parts.append(f"Role: {role_label}")
+    if vessel_filter:
+        meta_parts.append(f"Vessels: {len(vessel_filter)} selected")
+    if owner_filter:
+        meta_parts.append(f"Owners: {', '.join(owner_filter)}")
+    if ageing_bracket_filter:
+        meta_parts.append(f"Bracket: {ageing_bracket_filter}")
+    if search_filter:
+        meta_parts.append(f"Search: '{search_filter}'")
+    meta_parts.append(f"Generated: {datetime.now().strftime('%d-%b-%Y %H:%M')}")
+    meta_parts.append(f"Total Pending: {len(items)}")
+    subtitle_text = "   |   ".join(meta_parts)
+
+    # For Invoice stage, items have no title/description (title=None). Omit column entirely!
+    is_invoice = (
+        (stage_filter and len(stage_filter) == 1 and stage_filter[0].strip().lower() == "invoice")
+        or (bool(items) and all(i.stage == "Invoice" for i in items))
+    )
+
+    if is_invoice:
+        block_columns: list[tuple[str, int, Alignment]] = [
+            ("Sl No.", 8, align_center),
+            ("Stage", 16, align_center),
+            ("Reference No.", 24, align_center),
+            ("Vendor", 32, align_left),
+            ("Status", 18, align_center),
+            ("Ageing (Days)", 14, align_center),
+            ("Reference Date", 16, align_center),
+        ]
+    else:
+        block_columns: list[tuple[str, int, Alignment]] = [
+            ("Sl No.", 8, align_center),
+            ("Stage", 16, align_center),
+            ("Reference No.", 22, align_center),
+            ("Title / Description", 38, align_text_wrap),
+            ("Vendor", 26, align_left),
+            ("Status", 16, align_center),
+            ("Ageing (Days)", 14, align_center),
+            ("Reference Date", 16, align_center),
+        ]
+
+    num_detail_cols = len(block_columns)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Function to build detail sheets with DISTINCT VISUAL BLOCKS / CARDS
+    # ─────────────────────────────────────────────────────────────────────────
+    def build_block_detail_sheet(sheet_title: str, banner_label: str, hdr_color: str, sheet_items: list[PendingItemOut]) -> dict[tuple[str, str], int]:
+        ws = workbook.create_sheet(title=sheet_title)
+        ws.views.sheetView[0].showGridLines = True
+
+        # Row 1: Return Button & Title
+        ws.row_dimensions[1].height = 34
+        ws.cell(row=1, column=1, value="⟵ Back to Summary")
+        style_range(ws, 1, 1, 1, 1, fill=fill_title, font=font_nav_back, alignment=align_center)
+        set_link(ws.cell(row=1, column=1), "Ageing Summary", "A1", font=font_nav_back)
+
+        ws.merge_cells(start_row=1, start_column=2, end_row=1, end_column=num_detail_cols)
+        ws.cell(row=1, column=2, value=banner_label)
+        style_range(ws, 2, 1, num_detail_cols, 1, fill=PatternFill("solid", fgColor=hdr_color), font=font_title, alignment=align_center)
+
+        # Row 2: Subtitle
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_detail_cols)
+        ws.row_dimensions[2].height = 20
+        ws.cell(row=2, column=1, value=f"{len(sheet_items)} item(s) in this view   |   Organized by Vessel & In-charge Blocks   |   Click '⟵ Back to Summary' in A1 anytime")
+        style_range(ws, 1, 2, num_detail_cols, 2, fill=fill_subtitle, font=font_subtitle, alignment=align_center)
+
+        # Row 3: Gap
+        ws.row_dimensions[3].height = 6
+
+        # Set column widths
+        for col_idx, (_name, width, _al) in enumerate(block_columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            ws.column_dimensions[col_letter].width = width
+
+        # Group sheet_items by (vessel_name, owner_role)
+        grouped: dict[str, dict[str, list[PendingItemOut]]] = defaultdict(lambda: defaultdict(list))
+        for itm in sheet_items:
+            v = (itm.vessel_name or "UNASSIGNED").strip().upper()
+            role = (itm.owner_role or "UNASSIGNED").strip().upper()
+            grouped[v][role].append(itm)
+
+        # Sort items inside each group by ageing desc
+        for v in grouped:
+            for role in grouped[v]:
+                grouped[v][role].sort(key=lambda x: (-(x.ageing_days if x.ageing_days is not None else -1), x.reference_no or ""))
+
+        # Track row jumps: (vessel, role) -> row, and (vessel, "ALL") -> row
+        row_map: dict[tuple[str, str], int] = {}
+        curr_r = 4
+
+        if not sheet_items:
+            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols)
+            ws.row_dimensions[curr_r].height = 24
+            ws.cell(row=curr_r, column=1, value=f"— No pending items match {sheet_title} bracket under current filters —")
+            style_range(ws, 1, curr_r, num_detail_cols, curr_r, fill=fill_white, font=font_subtitle, alignment=align_center, border=border_cell)
+            curr_r += 1
+            ws.freeze_panes = "A4"
+            return row_map
+
+        ordered_vessels = list(active_vessels)
+        for v in sorted(grouped.keys()):
+            if v not in ordered_vessels:
+                ordered_vessels.append(v)
+
+        # Build each vessel & in-charge block
+        for v_name in ordered_vessels:
+            if v_name not in grouped:
+                continue
+
+            tsi_name, ta_name = _VESSEL_OWNERS.get(v_name, ("—", "—"))
+            roles_order = [("TSI", tsi_name), ("TA", ta_name)]
+            for r_extra in grouped[v_name]:
+                if r_extra not in ("TSI", "TA"):
+                    extra_owner = grouped[v_name][r_extra][0].owner_name if grouped[v_name][r_extra] else "—"
+                    roles_order.append((r_extra, extra_owner or "—"))
+
+            for role_key, owner_name in roles_order:
+                b_items = grouped[v_name].get(role_key, [])
+                if not b_items:
+                    continue
+
+                # 1. Block Header Banner (Prominently Highlighted!)
+                ws.row_dimensions[curr_r].height = 28
+                ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols)
+                block_title = f"  ■  {v_name}   |   {role_key} IN-CHARGE: {owner_name}   |   {len(b_items)} Item(s) Pending"
+                ws.cell(row=curr_r, column=1, value=block_title)
+
+                # Rich vibrant distinctive highlights: Sapphire Blue for TSI, Marine Teal for TA
+                if role_key == "TSI":
+                    hdr_color = "1E3A8A"
+                elif role_key == "TA":
+                    hdr_color = "0E7490"
+                else:
+                    hdr_color = "334155"
+
+                hdr_fill = PatternFill("solid", fgColor=hdr_color)
+                style_range(ws, 1, curr_r, num_detail_cols, curr_r, fill=hdr_fill, font=font_block_hdr, alignment=align_left)
+
+                # Record coordinate for hyperlinks
+                row_map[(v_name, role_key)] = curr_r
+                if (v_name, "ALL") not in row_map:
+                    row_map[(v_name, "ALL")] = curr_r
+
+                curr_r += 1
+
+                # 2. Block Mini-Table Headers (Dark executive slate for strong contrast with block banner)
+                ws.row_dimensions[curr_r].height = 22
+                for col_idx, (col_name, _w, _al) in enumerate(block_columns, start=1):
+                    c = ws.cell(row=curr_r, column=col_idx, value=col_name)
+                    c.fill = PatternFill("solid", fgColor="1E293B")
+                    c.font = font_block_subhdr
+                    c.alignment = align_center
+                    c.border = border_cell
+                curr_r += 1
+
+                # 3. Block Data Rows
+                for b_idx, itm in enumerate(b_items, start=1):
+                    ws.row_dimensions[curr_r].height = 20
+                    row_fill = fill_white if b_idx % 2 != 0 else fill_zebra
+
+                    age = itm.ageing_days
+                    if age is None or age <= 30:
+                        age_pill = PatternFill("solid", fgColor=PILL_0_30_BG)
+                        age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_0_30_FG)
+                    elif age <= 90:
+                        age_pill = PatternFill("solid", fgColor=PILL_30_90_BG)
+                        age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_30_90_FG)
+                    else:
+                        age_pill = PatternFill("solid", fgColor=PILL_90_PLUS_BG)
+                        age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_90_PLUS_FG)
+
+                    ref_date_val = itm.reference_date
+                    if isinstance(ref_date_val, datetime):
+                        ref_date_val = ref_date_val.date()
+
+                    if is_invoice:
+                        row_vals = [
+                            (b_idx, align_center, font_detail_data_bold, row_fill, None),
+                            (itm.stage or "—", align_center, font_detail_data, row_fill, None),
+                            (itm.reference_no or "—", align_center, font_detail_data_bold, row_fill, None),
+                            (itm.vendor or "—", align_left, font_detail_data, row_fill, None),
+                            (itm.status or "—", align_center, font_detail_data, row_fill, None),
+                            (f"{itm.ageing_days}d" if itm.ageing_days is not None else "—", align_center, age_font, age_pill, None),
+                            (ref_date_val if isinstance(ref_date_val, (date, datetime)) else "—", align_center, font_detail_data, row_fill, "DD-MMM-YYYY" if isinstance(ref_date_val, (date, datetime)) else None),
+                        ]
+                    else:
+                        row_vals = [
+                            (b_idx, align_center, font_detail_data_bold, row_fill, None),
+                            (itm.stage or "—", align_center, font_detail_data, row_fill, None),
+                            (itm.reference_no or "—", align_center, font_detail_data_bold, row_fill, None),
+                            (itm.title or "—", align_text_wrap, font_detail_data, row_fill, None),
+                            (itm.vendor or "—", align_left, font_detail_data, row_fill, None),
+                            (itm.status or "—", align_center, font_detail_data, row_fill, None),
+                            (f"{itm.ageing_days}d" if itm.ageing_days is not None else "—", align_center, age_font, age_pill, None),
+                            (ref_date_val if isinstance(ref_date_val, (date, datetime)) else "—", align_center, font_detail_data, row_fill, "DD-MMM-YYYY" if isinstance(ref_date_val, (date, datetime)) else None),
+                        ]
+
+                    for col_idx, (val, al, fnt, fll, num_fmt) in enumerate(row_vals, start=1):
+                        c = ws.cell(row=curr_r, column=col_idx, value=val)
+                        c.alignment = al
+                        c.font = fnt
+                        c.fill = fll
+                        c.border = border_cell
+                        if num_fmt:
+                            c.number_format = num_fmt
+
+                    curr_r += 1
+
+                # 4. Block Subtotal Row
+                ws.row_dimensions[curr_r].height = 20
+                ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols - 2)
+                ws.cell(row=curr_r, column=1, value=f"   Subtotal {v_name} ({role_key} - {owner_name})")
+                style_range(ws, 1, curr_r, num_detail_cols - 2, curr_r, fill=PatternFill("solid", fgColor="F1F5F9"), font=font_block_tot, alignment=align_left, border=border_block_tot)
+
+                ws.merge_cells(start_row=curr_r, start_column=num_detail_cols - 1, end_row=curr_r, end_column=num_detail_cols)
+                ws.cell(row=curr_r, column=num_detail_cols - 1, value=f"{len(b_items)} item(s)")
+                style_range(ws, num_detail_cols - 1, curr_r, num_detail_cols, curr_r, fill=PatternFill("solid", fgColor="F1F5F9"), font=font_block_tot, alignment=align_center, border=border_block_tot)
+                curr_r += 1
+
+                # 5. Spacer between blocks (creates the visual card / block feel!)
+                ws.row_dimensions[curr_r].height = 12
+                curr_r += 1
+
+        # Sheet Grand Total Row
+        ws.row_dimensions[curr_r].height = 24
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols - 2)
+        ws.cell(row=curr_r, column=1, value=f"   TOTAL {sheet_title.upper()} ITEMS")
+        style_range(ws, 1, curr_r, num_detail_cols - 2, curr_r, fill=fill_grand, font=font_tier1, alignment=align_left, border=border_grand)
+
+        ws.merge_cells(start_row=curr_r, start_column=num_detail_cols - 1, end_row=curr_r, end_column=num_detail_cols)
+        ws.cell(row=curr_r, column=num_detail_cols - 1, value=f"{len(sheet_items)} item(s)")
+        style_range(ws, num_detail_cols - 1, curr_r, num_detail_cols, curr_r, fill=fill_grand, font=font_tier1, alignment=align_center, border=border_grand)
+
+        # Freeze panes at row 4 so Rows 1-3 stay pinned at top
+        ws.freeze_panes = "A4"
+
+        return row_map
+
+    # Build the 4 detail sheets with distinct block layout and track coordinates
+    map_0_30 = build_block_detail_sheet("0 - 30 Days", f"{role_banner_prefix} — 0 TO 30 DAYS (NORMAL)", COLOR_0_30_HDR, items_0_30)
+    map_30_90 = build_block_detail_sheet("30 - 90 Days", f"{role_banner_prefix} — 30 TO 90 DAYS (ATTENTION)", COLOR_30_90_HDR, items_30_90)
+    map_90_plus = build_block_detail_sheet("Above 90 Days", f"{role_banner_prefix} — ABOVE 90 DAYS (CRITICAL)", COLOR_90_PLUS_HDR, items_90_plus)
+    map_all = build_block_detail_sheet("All Details", f"{role_banner_prefix} — ALL DETAILED ITEMS", COLOR_TOTAL_HDR, items)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Sheet 1: The Main Vessel Matrix Summary Table
+    # ─────────────────────────────────────────────────────────────────────────
+    ws_main = workbook.active
+    ws_main.title = "Ageing Summary"
+    ws_main.views.sheetView[0].showGridLines = True
+
+    single_role = clean_roles[0] if len(clean_roles) == 1 and clean_roles[0] in ("TSI", "TA") else None
+    TOTAL_COLS = 6 if single_role else 15
+
+    # 1. Main Title Banner
+    stage_upper = " / ".join(stage_filter).upper() if stage_filter else ""
+    if stage_upper and single_role:
+        summary_main_title = f"{stage_upper} ({single_role} PENDING) — VESSEL AGEING MATRIX"
+    elif stage_upper:
+        summary_main_title = f"{stage_upper} (ALL PENDING) — VESSEL AGEING MATRIX"
+    elif single_role:
+        summary_main_title = f"{single_role} PENDING ITEMS — VESSEL AGEING MATRIX"
+    else:
+        summary_main_title = "TSI / TA PENDING ITEMS — VESSEL AGEING MATRIX"
+
+    ws_main.merge_cells(start_row=1, start_column=1, end_row=1, end_column=TOTAL_COLS)
+    ws_main.row_dimensions[1].height = 36
+    ws_main.cell(row=1, column=1, value=summary_main_title)
+    style_range(ws_main, 1, 1, TOTAL_COLS, 1, fill=fill_title, font=font_title, alignment=align_center)
+
+    # 2. Subtitle Banner
+    ws_main.merge_cells(start_row=2, start_column=1, end_row=2, end_column=TOTAL_COLS)
+    ws_main.row_dimensions[2].height = 20
+    ws_main.cell(row=2, column=1, value=f"{subtitle_text}   |   💡 Click any number to jump directly to that vessel & in-charge block")
+    style_range(ws_main, 1, 2, TOTAL_COLS, 2, fill=fill_subtitle, font=font_subtitle, alignment=align_center)
+
+    ws_main.row_dimensions[3].height = 8
+
+    # 3. KPI Summary Cards (Minimalist & Clean)
+    ws_main.row_dimensions[4].height = 16
+    ws_main.row_dimensions[5].height = 24
+
+    if single_role:
+        kpi_defs = [
+            ("TOTAL PENDING", len(items), "FFFFFF", COLOR_TOTAL_HDR, 1, 2, "All Details"),
+            ("0 - 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 3, 3, "0 - 30 Days"),
+            ("30 - 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "30 - 90 Days"),
+            ("ABOVE 90 DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 5, 6, "Above 90 Days"),
+        ]
+    else:
+        kpi_defs = [
+            ("TOTAL FLEET PENDING", len(items), "FFFFFF", COLOR_TOTAL_HDR, 2, 4, "All Details"),
+            ("0 - 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 5, 7, "0 - 30 Days"),
+            ("30 - 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 8, 10, "30 - 90 Days"),
+            ("ABOVE 90 DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 11, 13, "Above 90 Days"),
+        ]
+
+    for label, count_val, bg_hex, fg_hex, c_start, c_end, target_sheet in kpi_defs:
+        if c_end > c_start:
+            ws_main.merge_cells(start_row=4, start_column=c_start, end_row=4, end_column=c_end)
+        ws_main.cell(row=4, column=c_start, value=label)
+        style_range(ws_main, c_start, 4, c_end, 4, fill=PatternFill("solid", fgColor=bg_hex), font=Font(name="Calibri", size=8.5, bold=True, color="FF64748B"), alignment=align_center, border=border_card)
+
+        if c_end > c_start:
+            ws_main.merge_cells(start_row=5, start_column=c_start, end_row=5, end_column=c_end)
+        c_val = ws_main.cell(row=5, column=c_start, value=count_val)
+        f_kpi = Font(name="Calibri", size=14, bold=True, color=f"FF{fg_hex}")
+        style_range(ws_main, c_start, 5, c_end, 5, fill=PatternFill("solid", fgColor=bg_hex), font=f_kpi, alignment=align_center, border=border_card)
+        set_link(c_val, target_sheet, "A1", font=f_kpi)
+
+    ws_main.row_dimensions[6].height = 12
+
+    # 4. Table Header Tier 1 (Category Banners) — Pure bold white text, NO hyperlinks
+    ws_main.row_dimensions[7].height = 28
+
+    if single_role:
+        tier1_groups = [
+            ("VESSEL & IN-CHARGE", 1, 2, "1E293B"),
+            ("0 - 30 DAYS (NORMAL)", 3, 3, "1E40AF"),
+            ("30 - 90 DAYS (ATTENTION)", 4, 4, "B45309"),
+            ("ABOVE 90 DAYS (CRITICAL)", 5, 5, "BE123C"),
+            ("TOTAL PENDING", 6, 6, "0F2942"),
+        ]
+    else:
+        tier1_groups = [
+            ("VESSEL & IN-CHARGE", 1, 3, "1E293B"),
+            ("0 - 30 DAYS (NORMAL)", 4, 6, "1E40AF"),
+            ("30 - 90 DAYS (ATTENTION)", 7, 9, "B45309"),
+            ("ABOVE 90 DAYS (CRITICAL)", 10, 12, "BE123C"),
+            ("TOTAL PENDING", 13, 15, "0F2942"),
+        ]
+
+    for title_text, c_start, c_end, color_hex in tier1_groups:
+        if c_end > c_start:
+            ws_main.merge_cells(start_row=7, start_column=c_start, end_row=7, end_column=c_end)
+        ws_main.cell(row=7, column=c_start, value=title_text)
+        style_range(
+            ws_main,
+            c_start,
+            7,
+            c_end,
+            7,
+            fill=PatternFill("solid", fgColor=color_hex),
+            font=Font(name="Calibri", size=10.5, bold=True, color="FFFFFFFF"),
+            alignment=align_center,
+            border=border_cell,
+        )
+
+    # 5. Table Header Tier 2 (Column Headers) — High-contrast bold white text, NO hyperlinks
+    ws_main.row_dimensions[8].height = 24
+
+    if single_role == "TSI":
+        tier2_cols = [
+            ("Vessel Name", 24, align_left, "1E293B", 9.5),
+            ("TSI In-charge", 18, align_center, "1E3A8A", 9.5),
+            ("TSI", 16, align_center, "2563EB", 9.5),
+            ("TSI", 16, align_center, "D97706", 9.5),
+            ("TSI", 16, align_center, "E11D48", 9.5),
+            ("TSI Total", 16, align_center, "0F172A", 9.5),
+        ]
+    elif single_role == "TA":
+        tier2_cols = [
+            ("Vessel Name", 24, align_left, "1E293B", 9.5),
+            ("TA In-charge", 18, align_center, "0E7490", 9.5),
+            ("TA", 16, align_center, "2563EB", 9.5),
+            ("TA", 16, align_center, "D97706", 9.5),
+            ("TA", 16, align_center, "E11D48", 9.5),
+            ("TA Total", 16, align_center, "0F172A", 9.5),
+        ]
+    else:
+        tier2_cols = [
+            ("Vessel Name", 22, align_left, "1E293B", 9.5),
+            ("TSI In-charge", 16, align_center, "1E3A8A", 9.5),
+            ("TA In-charge", 16, align_center, "0E7490", 9.5),
+            ("TSI", 10, align_center, "2563EB", 9.5),
+            ("TA", 10, align_center, "2563EB", 9.5),
+            ("Total", 11, align_center, "1D4ED8", 9.5),
+            ("TSI", 10, align_center, "D97706", 9.5),
+            ("TA", 10, align_center, "D97706", 9.5),
+            ("Total", 11, align_center, "B45309", 9.5),
+            ("TSI", 10, align_center, "E11D48", 9.5),
+            ("TA", 10, align_center, "E11D48", 9.5),
+            ("Total", 11, align_center, "BE123C", 9.5),
+            ("TSI Total", 12, align_center, "1E293B", 9.5),
+            ("TA Total", 12, align_center, "1E293B", 9.5),
+            ("Fleet Total", 13, align_center, "0F172A", 10.0),
+        ]
+
+    for col_idx, (col_name, width, al, bg_hex, f_size) in enumerate(tier2_cols, start=1):
+        cell = ws_main.cell(row=8, column=col_idx, value=col_name)
+        cell.fill = PatternFill("solid", fgColor=bg_hex)
+        cell.font = Font(name="Calibri", size=f_size, bold=True, color="FFFFFFFF")
+        cell.alignment = align_center
+        cell.border = border_cell
+        col_letter = get_column_letter(col_idx)
+        ws_main.column_dimensions[col_letter].width = width
+
+    # Organize counts per vessel for summary table
+    vessel_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for item in items:
+        v = (item.vessel_name or "").strip().upper()
+        b = bucket_key(item.ageing_days)
+        role = (item.owner_role or "").strip().upper()
+        if role in ("TSI", "TA"):
+            vessel_counts[v][f"{b}_{role.lower()}"] += 1
+            vessel_counts[v][f"{b}_tot"] += 1
+            vessel_counts[v][f"tot_{role.lower()}"] += 1
+            vessel_counts[v]["tot_all"] += 1
+
+    # 6. Data Rows (Vessels)
+    curr_row = 9
+    fleet_sums = defaultdict(int)
+
+    for idx, v_name in enumerate(active_vessels, start=1):
+        ws_main.row_dimensions[curr_row].height = 21
+        row_fill = fill_white if idx % 2 != 0 else fill_zebra
+
+        tsi_incharge, ta_incharge = _VESSEL_OWNERS.get(v_name, ("—", "—"))
+        vc = vessel_counts[v_name]
+
+        c_0_30_tsi = vc["0_30_tsi"]
+        c_0_30_ta = vc["0_30_ta"]
+        c_0_30_tot = vc["0_30_tot"]
+
+        c_30_90_tsi = vc["30_90_tsi"]
+        c_30_90_ta = vc["30_90_ta"]
+        c_30_90_tot = vc["30_90_tot"]
+
+        c_90_tsi = vc["90_plus_tsi"]
+        c_90_ta = vc["90_plus_ta"]
+        c_90_tot = vc["90_plus_tot"]
+
+        c_tot_tsi = vc["tot_tsi"]
+        c_tot_ta = vc["tot_ta"]
+        c_tot_all = vc["tot_all"]
+
+        fleet_sums["0_30_tsi"] += c_0_30_tsi
+        fleet_sums["0_30_ta"] += c_0_30_ta
+        fleet_sums["0_30_tot"] += c_0_30_tot
+
+        fleet_sums["30_90_tsi"] += c_30_90_tsi
+        fleet_sums["30_90_ta"] += c_30_90_ta
+        fleet_sums["30_90_tot"] += c_30_90_tot
+
+        fleet_sums["90_plus_tsi"] += c_90_tsi
+        fleet_sums["90_plus_ta"] += c_90_ta
+        fleet_sums["90_plus_tot"] += c_90_tot
+
+        fleet_sums["tot_tsi"] += c_tot_tsi
+        fleet_sums["tot_ta"] += c_tot_ta
+        fleet_sums["tot_all"] += c_tot_all
+
+        # Determine exact row coordinates in detail sheets
+        r_0_30_tsi = map_0_30.get((v_name, "TSI"))
+        r_0_30_ta = map_0_30.get((v_name, "TA"))
+        r_0_30_all = map_0_30.get((v_name, "ALL"))
+
+        r_30_90_tsi = map_30_90.get((v_name, "TSI"))
+        r_30_90_ta = map_30_90.get((v_name, "TA"))
+        r_30_90_all = map_30_90.get((v_name, "ALL"))
+
+        r_90_tsi = map_90_plus.get((v_name, "TSI"))
+        r_90_ta = map_90_plus.get((v_name, "TA"))
+        r_90_all = map_90_plus.get((v_name, "ALL"))
+
+        r_all_tsi = map_all.get((v_name, "TSI"))
+        r_all_ta = map_all.get((v_name, "TA"))
+        r_all_all = map_all.get((v_name, "ALL"))
+
+        target_row_for_vessel = r_all_tsi if single_role == "TSI" else (r_all_ta if single_role == "TA" else r_all_all)
+
+        # Vessel name cell (links to that vessel's block in All Details) — Prominently bold
+        v_cell = ws_main.cell(row=curr_row, column=1, value=v_name)
+        v_cell.font = Font(name="Calibri", size=10, bold=True, color="FF0F172A")
+        v_cell.alignment = align_left
+        v_cell.fill = row_fill
+        v_cell.border = border_cell
+        if target_row_for_vessel:
+            set_link(v_cell, "All Details", f"A{target_row_for_vessel}", font=Font(name="Calibri", size=10, bold=True, color="FF0F172A"))
+
+        if single_role == "TSI":
+            # TSI In-charge (Col 2)
+            cell_tsi = ws_main.cell(row=curr_row, column=2, value=tsi_incharge)
+            cell_tsi.font = Font(name="Calibri", size=9.5, bold=True, color="FF1E40AF")
+            cell_tsi.alignment = align_center
+            cell_tsi.fill = row_fill
+            cell_tsi.border = border_cell
+
+            count_mappings = [
+                (3, c_0_30_tsi, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_tsi}" if r_0_30_tsi else None),
+                (4, c_30_90_tsi, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_tsi}" if r_30_90_tsi else None),
+                (5, c_90_tsi, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_tsi}" if r_90_tsi else None),
+                (6, c_tot_tsi, COLOR_TOTAL_NUM, "All Details", f"A{r_all_tsi}" if r_all_tsi else None),
+            ]
+        elif single_role == "TA":
+            # TA In-charge (Col 2)
+            cell_ta = ws_main.cell(row=curr_row, column=2, value=ta_incharge)
+            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF0E7490")
+            cell_ta.alignment = align_center
+            cell_ta.fill = row_fill
+            cell_ta.border = border_cell
+
+            count_mappings = [
+                (3, c_0_30_ta, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
+                (4, c_30_90_ta, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_ta}" if r_30_90_ta else None),
+                (5, c_90_ta, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_ta}" if r_90_ta else None),
+                (6, c_tot_ta, COLOR_TOTAL_NUM, "All Details", f"A{r_all_ta}" if r_all_ta else None),
+            ]
+        else:
+            # Full 15-column matrix
+            # TSI In-charge (Col 2)
+            cell_tsi = ws_main.cell(row=curr_row, column=2, value=tsi_incharge)
+            cell_tsi.font = Font(name="Calibri", size=9.5, bold=True, color="FF1E40AF")
+            cell_tsi.alignment = align_center
+            cell_tsi.fill = row_fill
+            cell_tsi.border = border_cell
+
+            # TA In-charge (Col 3)
+            cell_ta = ws_main.cell(row=curr_row, column=3, value=ta_incharge)
+            cell_ta.font = Font(name="Calibri", size=9.5, bold=True, color="FF0E7490")
+            cell_ta.alignment = align_center
+            cell_ta.fill = row_fill
+            cell_ta.border = border_cell
+
+            count_mappings = [
+                (4, c_0_30_tsi, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_tsi}" if r_0_30_tsi else None),
+                (5, c_0_30_ta, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_ta}" if r_0_30_ta else None),
+                (6, c_0_30_tot, COLOR_0_30_NUM, "0 - 30 Days", f"A{r_0_30_all}" if r_0_30_all else None),
+
+                (7, c_30_90_tsi, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_tsi}" if r_30_90_tsi else None),
+                (8, c_30_90_ta, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_ta}" if r_30_90_ta else None),
+                (9, c_30_90_tot, COLOR_30_90_NUM, "30 - 90 Days", f"A{r_30_90_all}" if r_30_90_all else None),
+
+                (10, c_90_tsi, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_tsi}" if r_90_tsi else None),
+                (11, c_90_ta, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_ta}" if r_90_ta else None),
+                (12, c_90_tot, COLOR_90_PLUS_NUM, "Above 90 Days", f"A{r_90_all}" if r_90_all else None),
+
+                (13, c_tot_tsi, COLOR_TOTAL_NUM, "All Details", f"A{r_all_tsi}" if r_all_tsi else None),
+                (14, c_tot_ta, COLOR_TOTAL_NUM, "All Details", f"A{r_all_ta}" if r_all_ta else None),
+                (15, c_tot_all, COLOR_TOTAL_NUM, "All Details", f"A{r_all_all}" if r_all_all else None),
+            ]
+
+        for col_idx, cnt, num_color, tgt_sheet, tgt_coord in count_mappings:
+            cell = ws_main.cell(row=curr_row, column=col_idx)
+            cell.alignment = align_center
+            cell.fill = row_fill
+            cell.border = border_cell
+
+            if cnt == 0:
+                cell.value = "—"
+                cell.font = font_cell_muted
+            else:
+                cell.value = cnt
+                # NO UNDERLINE! Clean, bold, elegant number!
+                f_num = Font(name="Calibri", size=10, bold=True, color=f"FF{num_color}")
+                cell.font = f_num
+
+                if tgt_sheet and tgt_coord:
+                    set_link(cell, tgt_sheet, tgt_coord, font=f_num)
+
+        curr_row += 1
+
+    # 7. Bottom Fleet Total Row — High-contrast bold white text, NO hyperlinks
+    label_cols = 2 if single_role else 3
+    ws_main.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=label_cols)
+    ws_main.row_dimensions[curr_row].height = 26
+    ws_main.cell(row=curr_row, column=1, value="   FLEET GRAND TOTAL")
+    style_range(ws_main, 1, curr_row, label_cols, curr_row, fill=fill_grand, font=Font(name="Calibri", size=10, bold=True, color="FFFFFFFF"), alignment=align_left, border=border_grand)
+
+    if single_role == "TSI":
+        fleet_col_map = [
+            (3, fleet_sums["0_30_tsi"]),
+            (4, fleet_sums["30_90_tsi"]),
+            (5, fleet_sums["90_plus_tsi"]),
+            (6, fleet_sums["tot_tsi"]),
+        ]
+    elif single_role == "TA":
+        fleet_col_map = [
+            (3, fleet_sums["0_30_ta"]),
+            (4, fleet_sums["30_90_ta"]),
+            (5, fleet_sums["90_plus_ta"]),
+            (6, fleet_sums["tot_ta"]),
+        ]
+    else:
+        fleet_col_map = [
+            (4, fleet_sums["0_30_tsi"]),
+            (5, fleet_sums["0_30_ta"]),
+            (6, fleet_sums["0_30_tot"]),
+            (7, fleet_sums["30_90_tsi"]),
+            (8, fleet_sums["30_90_ta"]),
+            (9, fleet_sums["30_90_tot"]),
+            (10, fleet_sums["90_plus_tsi"]),
+            (11, fleet_sums["90_plus_ta"]),
+            (12, fleet_sums["90_plus_tot"]),
+            (13, fleet_sums["tot_tsi"]),
+            (14, fleet_sums["tot_ta"]),
+            (15, fleet_sums["tot_all"]),
+        ]
+
+    for col_idx, tot_val in fleet_col_map:
+        cell = ws_main.cell(row=curr_row, column=col_idx, value=tot_val)
+        cell.fill = fill_grand
+        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFFFF")
+        cell.alignment = align_center
+        cell.border = border_grand
+
+    # Freeze panes on summary sheet at row 9 so headers stay locked
+    ws_main.freeze_panes = "A9"
+
+    # Ensure Ageing Summary is active tab when opened
+    workbook.active = ws_main
+
+    return workbook
 
 
 @router.get("/export")
@@ -554,47 +1336,35 @@ def export_pending_items(
         sort_dir,
     )
 
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "TSI-TA Pending"
-
-    header_fill = PatternFill("solid", fgColor="0F4C81")
-    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
-    headers = [label for label, _ in _EXPORT_COLUMNS]
-    sheet.append(headers)
-    for col_idx in range(1, len(headers) + 1):
-        cell = sheet.cell(row=1, column=col_idx)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-    for row in items:
-        data = row.model_dump()
-        values = []
-        for _label, field in _EXPORT_COLUMNS:
-            value = data.get(field)
-            if isinstance(value, datetime):
-                value = value.replace(tzinfo=None)
-            values.append(value)
-        sheet.append(values)
+    workbook = _build_pending_items_ageing_workbook(
+        items=items,
+        stage_filter=stage,
+        role_filter=owner_role,
+        search_filter=search,
+        vessel_filter=vessel_name,
+        owner_filter=owner_name,
+        ageing_bracket_filter=ageing_bracket,
+    )
 
     buffer = BytesIO()
     workbook.save(buffer)
     buffer.seek(0)
 
-    # Frontend always sends stage + optional owner_role (its tab/sub-tab selection), so
+    # Frontend sends stage + optional owner_role (its tab/sub-tab selection), so
     # name the file after them; falls back to a generic name for any other combination.
     stage_clean = [s for s in (stage or []) if s]
-    role_clean = [r for r in (owner_role or []) if r and r.upper() != "ALL"]
+    role_clean = [r.strip().upper() for r in (owner_role or []) if r and r.strip().upper() != "ALL"]
     if len(stage_clean) == 1 and len(role_clean) == 1:
-        filename = f"{stage_clean[0].replace(' ', '_')}_{role_clean[0]}_Pending.xlsx"
+        filename = f"{stage_clean[0].replace(' ', '_')}_{role_clean[0]}_Pending_Ageing.xlsx"
     elif len(stage_clean) == 1:
-        filename = f"{stage_clean[0].replace(' ', '_')}_All_Pending.xlsx"
+        filename = f"{stage_clean[0].replace(' ', '_')}_All_Pending_Ageing.xlsx"
+    elif len(role_clean) == 1:
+        filename = f"Fleet_{role_clean[0]}_Pending_Ageing.xlsx"
     else:
-        filename = "TSI_TA_Pending_Items.xlsx"
+        filename = "Fleet_All_Pending_Ageing.xlsx"
 
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
