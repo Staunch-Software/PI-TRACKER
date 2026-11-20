@@ -149,27 +149,12 @@ function AlertCircleIcon() {
   );
 }
 
-const TSI_KEYWORDS = ['abhinav', 'abhishek', 'abhisek', 'gaurav', 'murtuza', 'pavan'];
-const TA_KEYWORDS = ['sunil', 'sunilkumar', 'bharat', 'bharath', 'gayathri', 'jayasri', 'viswa', 'viswanathan'];
-
-function inferRank(text: string): string {
-  const lower = text.toLowerCase();
-  for (const kw of TSI_KEYWORDS) {
-    if (lower.includes(kw)) return 'TSI';
-  }
-  for (const kw of TA_KEYWORDS) {
-    if (lower.includes(kw)) return 'TA';
-  }
-  return '';
-}
-
 export function UserModal({ user, onClose }: Props) {
   const isEdit = user !== null;
   const [email, setEmail] = useState(user?.email ?? '');
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [role, setRole] = useState<UserRole>(user?.role ?? UserRole.VIEWER);
   const [rank, setRank] = useState<string>(user?.rank ?? '');
-  const [hasManuallySetRank, setHasManuallySetRank] = useState(isEdit && Boolean(user?.rank));
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [canAccessPi, setCanAccessPi] = useState(user?.canAccessPi ?? true);
   const [canAccessPir, setCanAccessPir] = useState(user?.canAccessPir ?? true);
@@ -308,14 +293,7 @@ export function UserModal({ user, onClose }: Props) {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEmail(val);
-                        if (!isEdit && !hasManuallySetRank) {
-                          const auto = inferRank(`${val} ${fullName}`);
-                          if (auto) setRank(auto);
-                        }
-                      }}
+                      onChange={(e) => setEmail(e.target.value)}
                       disabled={isEdit}
                       placeholder="user@ozellar.com"
                       required
@@ -330,14 +308,7 @@ export function UserModal({ user, onClose }: Props) {
                     <input
                       type="text"
                       value={fullName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFullName(val);
-                        if (!isEdit && !hasManuallySetRank) {
-                          const auto = inferRank(`${email} ${val}`);
-                          if (auto) setRank(auto);
-                        }
-                      }}
+                      onChange={(e) => setFullName(e.target.value)}
                       placeholder="e.g. John Doe"
                       required
                     />
@@ -384,10 +355,7 @@ export function UserModal({ user, onClose }: Props) {
                     <ModernDropdown
                       options={RANK_OPTIONS}
                       value={rank}
-                      onChange={(val) => {
-                        setRank(val);
-                        setHasManuallySetRank(true);
-                      }}
+                      onChange={(val) => setRank(val)}
                       ariaLabel="Select rank assignment"
                     />
                   </div>

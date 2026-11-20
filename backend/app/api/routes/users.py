@@ -15,21 +15,6 @@ from app.services.audit import diff_fields, write_audit_log
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-_TSI_KEYWORDS = {"abhinav", "abhishek", "abhisek", "gaurav", "murtuza", "pavan"}
-_TA_KEYWORDS = {"sunil", "sunilkumar", "bharat", "bharath", "gayathri", "jayasri", "viswa", "viswanathan"}
-
-
-def infer_rank(email: str, full_name: str | None = None) -> str | None:
-    text = f"{email} {full_name or ''}".lower()
-    for kw in _TSI_KEYWORDS:
-        if kw in text:
-            return "TSI"
-    for kw in _TA_KEYWORDS:
-        if kw in text:
-            return "TA"
-    return None
-
-
 @router.get("", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db), _: User = Depends(require_roles(UserRole.ADMIN))
@@ -46,14 +31,12 @@ def create_user(
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"'{payload.email}' is already registered")
 
-    assigned_rank = payload.rank or infer_rank(payload.email, payload.full_name)
-
     user = User(
         email=payload.email,
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         role=payload.role,
-        rank=assigned_rank,
+        rank=payload.rank,
         can_access_pi=payload.can_access_pi,
         can_access_pir=payload.can_access_pir,
         can_access_soa=payload.can_access_soa,
