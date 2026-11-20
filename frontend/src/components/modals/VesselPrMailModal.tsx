@@ -386,7 +386,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 Technical Review Email: <span className="vessel-mail-title-ship">M/V {vesselName}</span>
               </h2>
               <p className="vessel-mail-modal-subtitle">
-                {typeLabel} · Technical Review (Approve / Proceed / Cancel)
+                {typeLabel} · Technical Review (Review & Cancel Unwanted)
               </p>
             </div>
           </div>
@@ -592,7 +592,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                       Itemized Requisitions for M/V {vesselName} ({previewData?.itemsCount || 0})
                     </span>
                     <span className="vessel-mail-action-legend">
-                      Action requested: <strong>1. PROCEED</strong> · <strong>2. HOLD</strong> · <strong>3. CANCEL</strong>
+                      Please review the list and advise to cancel unwanted requisitions
                     </span>
                   </div>
 

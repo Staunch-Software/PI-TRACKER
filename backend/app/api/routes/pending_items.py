@@ -1916,7 +1916,7 @@ def _build_vessel_pr_review_html(
     </p>
 
     <p style="margin:0 0 16px 0;">
-        Kindly review the list below and advise whether each requisition should be <strong>approved / proceeded</strong> or <strong>cancelled</strong>:
+        Kindly review the list below and advise to cancel any unwanted requisitions that are no longer required:
     </p>
 
     <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;margin-bottom:16px;" cellpadding="0" cellspacing="0">
