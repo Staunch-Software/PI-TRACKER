@@ -942,7 +942,7 @@ export function PendingItemsPage() {
                                   <div className="pending-vessel-ship-badge">
                                     <ShipIcon />
                                   </div>
-                                  <span className="vessel-spanned-name">M/V {vName}</span>
+                                  <span className="vessel-spanned-name">{vName}</span>
                                 </div>
 
                                 <div className="vessel-spanned-owners">
@@ -967,7 +967,7 @@ export function PendingItemsPage() {
                                   type="button"
                                   className="btn-vessel-review-mail-compact"
                                   onClick={() => setSelectedVesselMail({ vesselName: vName, prType: 'ageing_90' })}
-                                  title={`Send technical review inquiry email for M/V ${vName}`}
+                                  title={`Send technical review inquiry email for ${vName}`}
                                 >
                                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="2" y="4" width="20" height="16" rx="2" />

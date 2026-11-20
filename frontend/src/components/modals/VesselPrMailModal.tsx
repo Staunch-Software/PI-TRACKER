@@ -187,7 +187,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
       } as VesselPrReviewEmailRequest),
     onSuccess: (res) => {
       onSuccess(
-        `Technical review inquiry for M/V ${res.vesselName} sent to ${res.recipients.join(', ')} with attachment "${res.attachmentFilename}".`
+        `Technical review inquiry for ${res.vesselName} sent to ${res.recipients.join(', ')} with attachment "${res.attachmentFilename}".`
       );
       onClose();
     },
@@ -383,7 +383,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
             </div>
             <div>
               <h2 className="vessel-mail-modal-title">
-                Technical Review Email: <span className="vessel-mail-title-ship">M/V {vesselName}</span>
+                Technical Review Email: <span className="vessel-mail-title-ship">{vesselName}</span>
               </h2>
               <p className="vessel-mail-modal-subtitle">
                 {typeLabel} · Review & Cancellation of Pending Requisitions
@@ -418,7 +418,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
         {isLoading ? (
           <div className="vessel-mail-loading-box">
             <div className="vessel-mail-spinner" />
-            <p>Compiling technical PR audit &amp; resolving TSI/TA recipients for M/V {vesselName}...</p>
+            <p>Compiling technical PR audit &amp; resolving TSI/TA recipients for {vesselName}...</p>
           </div>
         ) : fetchError ? (
           <div className="vessel-mail-error-banner">
@@ -589,7 +589,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 <div className="vessel-mail-items-section">
                   <div className="vessel-mail-items-header">
                     <span className="vessel-mail-items-title">
-                      Itemized Requisitions for M/V {vesselName} ({previewData?.itemsCount || 0})
+                      Itemized Requisitions for {vesselName} ({previewData?.itemsCount || 0})
                     </span>
                     <span className="vessel-mail-action-legend">
                       Please review the list and advise if any requisitions are no longer required and can be cancelled

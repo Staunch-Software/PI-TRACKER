@@ -1905,14 +1905,14 @@ def _build_vessel_pr_review_html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>M/V {vessel_name} - Review of Pending Requisitions</title>
+<title>{vessel_name} - Review of Pending Requisitions</title>
 </head>
 <body style="margin:0;padding:20px;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;font-size:13.5px;line-height:1.6;">
 
     <p style="margin:0 0 14px 0;font-size:14px;"><strong>Dear Capt,</strong></p>
 
     <p style="margin:0 0 12px 0;">
-        Please note that the following purchase requisition(s) for <strong>M/V {vessel_name}</strong> {scope_text}.
+        Please note that the following purchase requisition(s) for <strong>{vessel_name}</strong> {scope_text}.
     </p>
 
     <p style="margin:0 0 16px 0;">
@@ -1965,7 +1965,7 @@ def _build_vessel_pr_workbook(
     ws.merge_cells("A1:H1")
     ws.row_dimensions[1].height = 32
     c1 = ws["A1"]
-    c1.value = f"OZELLAR MARINE MANAGEMENT • M/V {vessel_name.upper()} REQUISITIONS TECHNICAL REVIEW"
+    c1.value = f"OZELLAR MARINE MANAGEMENT • {vessel_name.upper()} REQUISITIONS TECHNICAL REVIEW"
     c1.fill = PatternFill("solid", fgColor="0F2942")
     c1.font = Font(name="Calibri", size=11, bold=True, color="FFFFFFFF")
     c1.alignment = Alignment(horizontal="center", vertical="center")
@@ -2077,14 +2077,14 @@ def preview_vessel_pr_review_email(
 
     clean_v_name = target_vessel.replace(" ", "_")
     if pr_type == "ageing_90":
-        default_subject = f"M/V {target_vessel} – Review of Requisitions Pending Over 90 Days"
-        att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Requisitions Pending Over 90 Days"
+        att_filename = f"{clean_v_name}_Overdue_PR_Review.xlsx"
     elif pr_type == "critical":
-        default_subject = f"M/V {target_vessel} – Review of Critical Requisitions"
-        att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Critical Requisitions"
+        att_filename = f"{clean_v_name}_Critical_PR_Review.xlsx"
     else:
-        default_subject = f"M/V {target_vessel} – Review of Pending Requisitions"
-        att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Pending Requisitions"
+        att_filename = f"{clean_v_name}_Requisitions_Review.xlsx"
 
     html_body = _build_vessel_pr_review_html(
         vessel_name=target_vessel,
@@ -2135,14 +2135,14 @@ def send_vessel_pr_review_email(
     tsi_name, ta_name = _VESSEL_OWNERS.get(target_vessel, (None, None))
     clean_v_name = target_vessel.replace(" ", "_")
     if pr_type == "ageing_90":
-        default_subject = f"M/V {target_vessel} – Review of Requisitions Pending Over 90 Days"
-        att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Requisitions Pending Over 90 Days"
+        att_filename = f"{clean_v_name}_Overdue_PR_Review.xlsx"
     elif pr_type == "critical":
-        default_subject = f"M/V {target_vessel} – Review of Critical Requisitions"
-        att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Critical Requisitions"
+        att_filename = f"{clean_v_name}_Critical_PR_Review.xlsx"
     else:
-        default_subject = f"M/V {target_vessel} – Review of Pending Requisitions"
-        att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
+        default_subject = f"{target_vessel} – Review of Pending Requisitions"
+        att_filename = f"{clean_v_name}_Requisitions_Review.xlsx"
 
     subject = payload.subject.strip() if payload.subject and payload.subject.strip() else default_subject
 
