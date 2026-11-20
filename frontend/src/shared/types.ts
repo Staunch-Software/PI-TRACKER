@@ -5,6 +5,7 @@ export interface User {
   email: string;
   fullName: string;
   role: UserRole;
+  rank?: 'TSI' | 'TA' | string | null;
   isActive: boolean;
   // Per-user module access, independent of role — ADMIN always has full access regardless of
   // these (see useRole.ts / backend/app/api/deps.py require_module_access).
@@ -201,6 +202,10 @@ export interface PendingDashboardVesselRow {
   poCount: number;
   invoiceCount: number;
   totalCount: number;
+  weeklyTrend?: (number | null)[];
+  weeklyTrendStatuses?: ('increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string)[];
+  trendDiff?: number;
+  trendStatus?: 'increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string;
 }
 
 export interface PendingDashboardOwnerGroup {
@@ -211,6 +216,10 @@ export interface PendingDashboardOwnerGroup {
   invoiceTotal: number;
   totalCount: number;
   vessels: PendingDashboardVesselRow[];
+  weeklyTrend?: (number | null)[];
+  weeklyTrendStatuses?: ('increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string)[];
+  trendDiff?: number;
+  trendStatus?: 'increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string;
 }
 
 export interface PendingDashboardTotals {
@@ -218,6 +227,10 @@ export interface PendingDashboardTotals {
   poTotal: number;
   invoiceTotal: number;
   grandTotal: number;
+  weeklyTrend?: (number | null)[];
+  weeklyTrendStatuses?: ('increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string)[];
+  trendDiff?: number;
+  trendStatus?: 'increased_red' | 'increased_amber' | 'reduced_green' | 'neutral' | string;
 }
 
 export interface PendingDashboardSummaryResponse {
@@ -226,6 +239,42 @@ export interface PendingDashboardSummaryResponse {
   tsiTotals: PendingDashboardTotals;
   taTotals: PendingDashboardTotals;
   fleetTotals: PendingDashboardTotals;
+  weekLabels?: string[];
+}
+
+export interface SendPendingSummaryEmailRequest {
+  role?: string;
+  stage?: string | null;
+  testEmail?: string | null;
+  subject?: string | null;
+  toEmails?: string[] | null;
+  ccEmails?: string[] | null;
+}
+
+export interface SendPendingSummaryEmailResponse {
+  sent: boolean;
+  role: string;
+  stage: string | null;
+  recipients: string[];
+  ccRecipients: string[];
+  subject: string;
+  fromMailbox: string;
+  attachmentFilename: string;
+  attachmentFilenames?: string[];
+  itemsCount: number;
+}
+
+export interface PreviewPendingSummaryEmailResponse {
+  role: string;
+  stage: string | null;
+  subject: string;
+  fromMailbox: string;
+  defaultToEmails: string[];
+  defaultCcEmails: string[];
+  attachmentFilename: string;
+  attachmentFilenames?: string[];
+  itemsCount: number;
+  htmlBody: string;
 }
 
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.

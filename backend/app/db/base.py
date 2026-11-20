@@ -15,6 +15,7 @@ from app.models import (  # noqa: E402,F401
     invoice_mail_entry,
     landing_report,
     owner_recipient,
+    pending_weekly_snapshot,
     pi_entry,
     pir_entry,
     po_entry,

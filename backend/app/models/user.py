@@ -20,6 +20,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(user_role_enum, nullable=False, default=UserRole.VIEWER)
+    rank: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Per-user module access — independent of role, both default TRUE so this narrows access
     # rather than silently granting it. ADMIN always has full access regardless of these flags

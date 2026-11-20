@@ -9,6 +9,7 @@ class UserCreateRequest(CamelModel):
     full_name: str
     password: str
     role: UserRole = UserRole.VIEWER
+    rank: str | None = None
     # Both default True — a newly created user starts with full module access unless the admin
     # creating them explicitly unchecks one, same "narrows rather than silently restricts" stance
     # as the migration default (see 0009_user_module_access.py).
@@ -25,6 +26,7 @@ class UserCreateRequest(CamelModel):
 class UserUpdateRequest(CamelModel):
     full_name: str | None = None
     role: UserRole | None = None
+    rank: str | None = None
     is_active: bool | None = None
     can_access_pi: bool | None = None
     can_access_pir: bool | None = None

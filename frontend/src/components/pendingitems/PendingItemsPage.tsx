@@ -11,6 +11,7 @@ import type {
 } from '../../shared';
 import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardPage } from './PendingDashboardPage';
+import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
 
 import '../../pages/Tracker.css';
 import './PendingItems.css';
@@ -39,10 +40,9 @@ const DEFAULT_FILTERS: PendingItemFilters = {
 const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 150, 200];
 
 const AGEING_OPTIONS = [
-  { label: '< 7 Days', value: '< 7 Days' },
-  { label: '7 - 14 Days', value: '7 - 14 Days' },
-  { label: '15 - 30 Days', value: '15 - 30 Days' },
-  { label: '> 30 Days', value: '> 30 Days' },
+  { label: '90+ Days', value: '90+ Days' },
+  { label: '30 to 90 Days', value: '30 to 90 Days' },
+  { label: 'Below 30 Days', value: 'Below 30 Days' },
 ];
 
 function buildQueryParams(
@@ -97,9 +97,9 @@ function formatDisplayDate(dateStr: string | null): string {
 
 function getAgeingClass(days: number | null): string {
   if (days === null) return '';
-  if (days <= 7) return 'ageing-green';
-  if (days <= 30) return 'ageing-yellow';
-  return 'ageing-red';
+  if (days > 90) return 'ageing-red';
+  if (days >= 30) return 'ageing-yellow';
+  return 'ageing-green';
 }
 
 function renderStatusPill(stage: Stage, status: string | null, ownerRole: string) {
@@ -191,7 +191,11 @@ function Dropdown({ label, value, options, onChange }: DropdownProps) {
               }}
             >
               <span>{opt.label}</span>
-              {value === opt.value && <span>✓</span>}
+              {value === opt.value && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
             </button>
           ))}
         </div>
@@ -226,6 +230,8 @@ export function PendingItemsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [mailSuccessMessage, setMailSuccessMessage] = useState<string | null>(null);
 
   function handleDrillDown(
     targetStage: Stage | null,
@@ -432,6 +438,27 @@ export function PendingItemsPage() {
         ))}
       </div>
 
+      {/* Success Notification Banner */}
+      {mailSuccessMessage && (
+        <div className="pending-mail-success-toast">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{mailSuccessMessage}</span>
+          </div>
+          <button
+            type="button"
+            className="pending-mail-toast-close"
+            onClick={() => setMailSuccessMessage(null)}
+            aria-label="Close notification"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Sub-tabs row: All Pending / TSI Pending / TA Pending */}
       <div className="pending-subnav-row">
         <div className="pending-role-pills">
@@ -590,6 +617,25 @@ export function PendingItemsPage() {
         <div className="tracker-toolbar-spacer" />
 
         <button
+          type="button"
+          className="btn-tracker-action btn-pending-mail-trigger"
+          onClick={() => setIsMailModalOpen(true)}
+          title={`Preview and send summary email to ${activeRoleLabel}`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+          <span>
+            {ownerRoleFilter === 'ALL'
+              ? 'Email All (TSI & TA)'
+              : ownerRoleFilter === 'TSI'
+                ? 'Email TSI Summary'
+                : 'Email TA Summary'}
+          </span>
+        </button>
+
+        <button
           className="btn-tracker-action btn-tracker-secondary"
           onClick={handleExport}
           disabled={isExporting}
@@ -612,8 +658,9 @@ export function PendingItemsPage() {
                 type="button"
                 className="pending-filter-chip-remove"
                 onClick={() => updateFilters({ search: '' })}
+                aria-label="Remove search filter"
               >
-                ✕
+                ×
               </button>
             </span>
           )}
@@ -625,8 +672,9 @@ export function PendingItemsPage() {
                 type="button"
                 className="pending-filter-chip-remove"
                 onClick={() => updateFilters({ vesselName: filters.vesselName.filter((x) => x !== v) })}
+                aria-label={`Remove ${v} filter`}
               >
-                ✕
+                ×
               </button>
             </span>
           ))}
@@ -638,8 +686,9 @@ export function PendingItemsPage() {
                 type="button"
                 className="pending-filter-chip-remove"
                 onClick={() => updateFilters({ ownerName: filters.ownerName.filter((x) => x !== o) })}
+                aria-label={`Remove ${o} filter`}
               >
-                ✕
+                ×
               </button>
             </span>
           ))}
@@ -651,8 +700,9 @@ export function PendingItemsPage() {
                 type="button"
                 className="pending-filter-chip-remove"
                 onClick={() => updateFilters({ ageingBracket: '' })}
+                aria-label="Remove ageing filter"
               >
-                ✕
+                ×
               </button>
             </span>
           )}
@@ -890,6 +940,18 @@ export function PendingItemsPage() {
         </>
       )}
         </>
+      )}
+
+      {isMailModalOpen && (
+        <PendingItemsMailModal
+          role={ownerRoleFilter}
+          stage={stage}
+          onClose={() => setIsMailModalOpen(false)}
+          onSuccess={(msg) => {
+            setMailSuccessMessage(msg);
+            setTimeout(() => setMailSuccessMessage(null), 8000);
+          }}
+        />
       )}
     </div>
   );

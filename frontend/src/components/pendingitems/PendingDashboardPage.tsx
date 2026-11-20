@@ -4,6 +4,7 @@ import { api, ApiError } from '../../lib/api';
 import type { PendingDashboardSummaryResponse } from '../../shared';
 import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardTable } from './PendingDashboardTable';
+import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
 
 interface PendingDashboardPageProps {
   onDrillDown: (
@@ -21,6 +22,8 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
   const [searchTerm, setSearchTerm] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [mailSuccessMessage, setMailSuccessMessage] = useState<string | null>(null);
 
   const summaryQuery = useQuery({
     queryKey: ['pending-items-dashboard-summary'],
@@ -32,11 +35,13 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
     setExportError(null);
     setIsExporting(true);
     try {
-      const { blob, filename } = await api.getBlob('/pending-items/dashboard-summary/export');
+      const { blob, filename } = await api.getBlob(
+        `/pending-items/dashboard-summary/export?role=${roleFilter}`
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename ?? 'TSI_TA_Pending_Dashboard_Summary.xlsx';
+      link.download = filename ?? `${roleFilter}_Pending_Dashboard_Summary.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -145,6 +150,27 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
         </div>
       )}
 
+      {/* Success Notification Banner */}
+      {mailSuccessMessage && (
+        <div className="pending-mail-success-toast">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{mailSuccessMessage}</span>
+          </div>
+          <button
+            type="button"
+            className="pending-mail-toast-close"
+            onClick={() => setMailSuccessMessage(null)}
+            aria-label="Close notification"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Control / Filter Bar */}
       <div className="tracker-toolbar pending-dashboard-toolbar">
         <div className="tracker-search-wrap dashboard-search-wrap">
@@ -198,6 +224,25 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
         <div className="tracker-toolbar-spacer" />
 
         <div className="pending-dashboard-actions">
+          <button
+            type="button"
+            className="btn-tracker-action btn-pending-mail-trigger"
+            onClick={() => setIsMailModalOpen(true)}
+            title={`Preview and send dashboard summary email to ${roleFilter === 'ALL' ? 'Fleet (TSI & TA)' : roleFilter}`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+            <span>
+              {roleFilter === 'ALL'
+                ? 'Email All (TSI & TA)'
+                : roleFilter === 'TSI'
+                  ? 'Email TSI Summary'
+                  : 'Email TA Summary'}
+            </span>
+          </button>
+
           <button
             className="btn-tracker-action btn-tracker-secondary"
             onClick={() => summaryQuery.refetch()}
@@ -295,6 +340,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
                     groups={data.tsiGroups}
                     totals={data.tsiTotals}
                     searchFilter={searchTerm}
+                    weekLabels={data.weekLabels}
                     onDrillDown={onDrillDown}
                   />
                 )}
@@ -306,6 +352,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
                     groups={data.taGroups}
                     totals={data.taTotals}
                     searchFilter={searchTerm}
+                    weekLabels={data.weekLabels}
                     onDrillDown={onDrillDown}
                   />
                 )}
@@ -314,6 +361,19 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
           })()}
         </div>
       ) : null}
+
+      {isMailModalOpen && (
+        <PendingItemsMailModal
+          role={roleFilter}
+          stage={null}
+          mode="dashboard"
+          onClose={() => setIsMailModalOpen(false)}
+          onSuccess={(msg) => {
+            setMailSuccessMessage(msg);
+            setTimeout(() => setMailSuccessMessage(null), 8000);
+          }}
+        />
+      )}
     </div>
   );
 }

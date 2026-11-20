@@ -12,6 +12,7 @@ class UserOut(CamelModel):
     email: EmailStr
     full_name: str
     role: UserRole
+    rank: str | None = None
     is_active: bool
     can_access_pi: bool
     can_access_pir: bool

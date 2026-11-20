@@ -10,12 +10,113 @@ interface PendingDashboardTableProps {
   groups: PendingDashboardOwnerGroup[];
   totals: PendingDashboardTotals;
   searchFilter: string;
+  weekLabels?: string[];
   onDrillDown: (
     stage: 'Requisition' | 'Purchase Order' | 'Invoice' | null,
     role: 'TSI' | 'TA',
     ownerName?: string,
     vesselName?: string
   ) => void;
+}
+
+function TrendTimeline({
+  trend,
+  statuses,
+  diff,
+  status,
+  weekLabels,
+}: {
+  trend?: (number | null)[];
+  statuses?: string[];
+  diff?: number;
+  status?: string;
+  weekLabels?: string[];
+}) {
+  const points = trend && trend.length === 5 ? trend : [0, null, null, null, null];
+  const recordedIndices = points
+    .map((val, idx) => (val !== null && val !== undefined ? idx : -1))
+    .filter((idx) => idx !== -1);
+  const hasComparison = recordedIndices.length >= 2;
+  const lastRecordedIdx = recordedIndices.length > 0 ? recordedIndices[recordedIndices.length - 1] : 0;
+
+  const d = diff ?? 0;
+  const s = status ?? 'neutral';
+
+  const nodeStatuses = statuses && statuses.length === 5 ? statuses : points.map((val, i) => {
+    if (i === 0 || val === null || val === undefined) return 'neutral';
+    const prevVal = points[i - 1];
+    if (prevVal === null || prevVal === undefined) return 'neutral';
+    const stepDiff = val - prevVal;
+    return stepDiff > 0
+      ? (stepDiff > 10 && (val > 25 || stepDiff >= 15) ? 'increased_red' : 'increased_amber')
+      : stepDiff < 0 ? 'reduced_green' : 'neutral';
+  });
+
+  const prevLbl = recordedIndices.length >= 2 ? (weekLabels?.[recordedIndices[recordedIndices.length - 2]] || 'Previous') : 'Baseline';
+  const lastLbl = weekLabels?.[lastRecordedIdx] || `Week ${lastRecordedIdx + 1}`;
+
+  return (
+    <div className={`trend-timeline-wrap status-${s}`}>
+      <div className="trend-timeline-track">
+        <div className="trend-track-line" />
+        {points.map((val, idx) => {
+          const isUpcoming = val === null || val === undefined;
+          const isLatest = idx === lastRecordedIdx && !isUpcoming;
+          const nodeStatus = nodeStatuses[idx] || 'neutral';
+          const label = weekLabels?.[idx] || `Week ${idx + 1}`;
+          return (
+            <div
+              key={idx}
+              className={`trend-circle-node ${isUpcoming ? 'is-upcoming' : isLatest ? 'is-latest' : 'is-history'}`}
+              title={isUpcoming ? `${label}: Awaiting Saturday snapshot` : `${label}: ${val} pending`}
+            >
+              <div
+                className={`trend-circle-bubble ${isUpcoming ? 'bubble-upcoming' : `bubble-${nodeStatus}`} ${
+                  isLatest ? 'bubble-latest' : ''
+                }`}
+              >
+                <span>{isUpcoming ? '—' : val}</span>
+              </div>
+              <span className="trend-circle-lbl">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div
+        className={`trend-diff-badge ${hasComparison ? `badge-${s}` : 'badge-neutral'}`}
+        title={
+          hasComparison
+            ? `${lastLbl} vs ${prevLbl} net change: ${d > 0 ? `+${d}` : d}`
+            : 'Week 1 baseline active. Next Saturday snapshot will establish comparison.'
+        }
+      >
+        {!hasComparison ? (
+          <span style={{ fontSize: '9.5px', fontWeight: 600 }}>Week 1</span>
+        ) : d > 0 ? (
+          <>
+            <span>+{d}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </>
+        ) : d < 0 ? (
+          <>
+            <span>{d}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </>
+        ) : (
+          <>
+            <span>0</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function getInitials(name: string | null): string {
@@ -33,6 +134,7 @@ export function PendingDashboardTable({
   groups,
   totals,
   searchFilter,
+  weekLabels,
   onDrillDown,
 }: PendingDashboardTableProps) {
   const query = searchFilter.trim().toLowerCase();
@@ -65,6 +167,10 @@ export function PendingDashboardTable({
     poTotal: filteredGroups.reduce((acc, g) => acc + g.poTotal, 0),
     invoiceTotal: filteredGroups.reduce((acc, g) => acc + g.invoiceTotal, 0),
     grandTotal: filteredGroups.reduce((acc, g) => acc + g.totalCount, 0),
+    weeklyTrend: totals.weeklyTrend,
+    weeklyTrendStatuses: totals.weeklyTrendStatuses,
+    trendDiff: totals.trendDiff,
+    trendStatus: totals.trendStatus,
   } : totals;
 
   return (
@@ -128,12 +234,18 @@ export function PendingDashboardTable({
                   <span>Invoices</span>
                 </div>
               </th>
+              <th style={{ width: '290px', textAlign: 'center' }}>
+                <div className="th-content-wrap center">
+                  <span className="th-dot dot-trend" />
+                  <span>5-Week Trend {weekLabels && weekLabels.length >= 5 ? `(${weekLabels[0]} → ${weekLabels[4]})` : ''}</span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
             {filteredGroups.length === 0 ? (
               <tr>
-                <td colSpan={5} className="pending-items-empty">
+                <td colSpan={6} className="pending-items-empty">
                   No {role} pending items match the search criteria.
                 </td>
               </tr>
@@ -216,6 +328,15 @@ export function PendingDashboardTable({
                           <span className="dashboard-zero-cell">—</span>
                         )}
                       </td>
+                      <td style={{ textAlign: 'center', minWidth: '260px' }}>
+                        <TrendTimeline
+                          trend={v.weeklyTrend}
+                          statuses={v.weeklyTrendStatuses}
+                          diff={v.trendDiff}
+                          status={v.trendStatus}
+                          weekLabels={weekLabels}
+                        />
+                      </td>
                     </tr>
                   ))}
                   {/* Owner Subtotal Row */}
@@ -274,6 +395,15 @@ export function PendingDashboardTable({
                         <span className="dashboard-zero-cell">—</span>
                       )}
                     </td>
+                    <td style={{ textAlign: 'center', minWidth: '260px' }}>
+                      <TrendTimeline
+                        trend={g.weeklyTrend}
+                        statuses={g.weeklyTrendStatuses}
+                        diff={g.trendDiff}
+                        status={g.trendStatus}
+                        weekLabels={weekLabels}
+                      />
+                    </td>
                   </tr>
                 </React.Fragment>
               ))
@@ -316,6 +446,15 @@ export function PendingDashboardTable({
                 >
                   {displayedTotals.invoiceTotal}
                 </button>
+              </td>
+              <td style={{ textAlign: 'center', minWidth: '260px' }}>
+                <TrendTimeline
+                  trend={displayedTotals.weeklyTrend}
+                  statuses={displayedTotals.weeklyTrendStatuses}
+                  diff={displayedTotals.trendDiff}
+                  status={displayedTotals.trendStatus}
+                  weekLabels={weekLabels}
+                />
               </td>
             </tr>
           </tfoot>

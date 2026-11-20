@@ -58,6 +58,10 @@ class PendingDashboardVesselRow(CamelModel):
     po_count: int
     invoice_count: int
     total_count: int
+    weekly_trend: list[int | None] = []
+    weekly_trend_statuses: list[str] = []
+    trend_diff: int = 0
+    trend_status: str = "neutral"
 
 
 class PendingDashboardOwnerGroup(CamelModel):
@@ -68,6 +72,10 @@ class PendingDashboardOwnerGroup(CamelModel):
     invoice_total: int
     total_count: int
     vessels: list[PendingDashboardVesselRow]
+    weekly_trend: list[int | None] = []
+    weekly_trend_statuses: list[str] = []
+    trend_diff: int = 0
+    trend_status: str = "neutral"
 
 
 class PendingDashboardTotals(CamelModel):
@@ -75,6 +83,10 @@ class PendingDashboardTotals(CamelModel):
     po_total: int
     invoice_total: int
     grand_total: int
+    weekly_trend: list[int | None] = []
+    weekly_trend_statuses: list[str] = []
+    trend_diff: int = 0
+    trend_status: str = "neutral"
 
 
 class PendingDashboardSummaryResponse(CamelModel):
@@ -83,5 +95,42 @@ class PendingDashboardSummaryResponse(CamelModel):
     tsi_totals: PendingDashboardTotals
     ta_totals: PendingDashboardTotals
     fleet_totals: PendingDashboardTotals
+    week_labels: list[str] = []
+
+
+class SendPendingSummaryEmailRequest(CamelModel):
+    role: str = "ALL"  # "ALL", "TSI", "TA"
+    stage: str | None = None
+    test_email: str | None = None
+    subject: str | None = None
+    to_emails: list[str] | None = None
+    cc_emails: list[str] | None = None
+
+
+class SendPendingSummaryEmailResponse(CamelModel):
+    sent: bool
+    role: str
+    stage: str | None
+    recipients: list[str]
+    cc_recipients: list[str] = []
+    subject: str
+    from_mailbox: str
+    attachment_filename: str
+    attachment_filenames: list[str] = []
+    items_count: int
+
+
+class PreviewPendingSummaryEmailResponse(CamelModel):
+    role: str
+    stage: str | None
+    subject: str
+    from_mailbox: str
+    default_to_emails: list[str]
+    default_cc_emails: list[str] = []
+    attachment_filename: str
+    attachment_filenames: list[str] = []
+    items_count: int
+    html_body: str
+
 
 

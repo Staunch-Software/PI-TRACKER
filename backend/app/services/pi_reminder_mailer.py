@@ -16,6 +16,7 @@
 # for why (an Acronis DeviceLock DLP root CA that Windows trusts but Python's certifi bundle
 # doesn't; harmless no-op on a network without that TLS-inspecting proxy).
 # ===========================================================================
+import base64
 import logging
 
 import truststore
@@ -65,6 +66,7 @@ def send_mail(
     html_body: str,
     from_mailbox: str | None = None,
     cc_emails: list[str] | None = None,
+    attachments: list[dict] | None = None,
 ) -> None:
     """Raises requests.HTTPError on failure — callers surface this as a 502 to the frontend
     rather than silently swallowing a failed send (the user needs to know the email did NOT go
@@ -77,7 +79,9 @@ def send_mail(
     the PI reminder callers (vendor-notice/owner-reminder) leave this unset and keep the
     purchase@ozellar.com CC; the User Activity report (api/routes/user_activity.py) passes [] to
     suppress it, since that CC is specific to the Purchase team's PI follow-up workflow, not this
-    unrelated report."""
+    unrelated report.
+
+    attachments: list of dicts with keys 'name', 'contentType', and 'contentBytes' (raw bytes or base64 str)."""
     if not to_emails:
         raise ValueError("send_mail called with no recipients")
 
@@ -91,6 +95,19 @@ def send_mail(
     }
     if cc_list:
         message["ccRecipients"] = [{"emailAddress": {"address": e}} for e in cc_list]
+
+    if attachments:
+        message["attachments"] = [
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": att["name"],
+                "contentType": att.get("contentType", "application/octet-stream"),
+                "contentBytes": base64.b64encode(att["contentBytes"]).decode("utf-8")
+                if isinstance(att["contentBytes"], (bytes, bytearray))
+                else att["contentBytes"],
+            }
+            for att in attachments
+        ]
 
     token = _get_token()
     resp = requests.post(
