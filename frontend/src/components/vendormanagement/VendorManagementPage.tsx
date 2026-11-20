@@ -5,6 +5,7 @@ import { api, ApiError } from '../../lib/api';
 import type {
   PaginatedResult,
   TrackedVendorEntry,
+  VendorActivityEntry,
   VendorDetailBulkScrapeRun,
   VendorMasterLookupResult,
   VendorTrackerEntry,
@@ -14,6 +15,7 @@ import { Toast } from '../common/Toast';
 import { SearchIcon } from '../common/SearchIcon';
 import { VendorAttachmentsModal } from './VendorAttachmentsModal';
 import { VendorBankRequestModal } from './VendorBankRequestModal';
+import { VendorActivityTable } from './VendorActivityTable';
 import { VendorManagementTable } from './VendorManagementTable';
 import { VendorVerificationCompleteModal } from './VendorVerificationCompleteModal';
 import { VendorVerificationReminderModal } from './VendorVerificationReminderModal';
@@ -28,7 +30,7 @@ const PAGE_SIZE = 50;
 const PENDING_REFETCH_MS = 4000;
 const BULK_SCRAPE_POLL_MS = 4000;
 
-type VendorTab = 'dd' | 'all' | 'anms';
+type VendorTab = 'dd' | 'all' | 'anms' | 'activity';
 
 function anyRowPending(items: VendorTrackerEntry[]): boolean {
   return items.some((e) => e.detailScrapePending);
@@ -85,6 +87,10 @@ export function VendorManagementPage() {
   const anmsCountQuery = useQuery({
     queryKey: ['vendor-tracker-anms-count'],
     queryFn: () => api.get<PaginatedResult<VendorTrackerEntry>>(buildListUrl('/vendor-management/anms', '', 1, 1)),
+  });
+  const activityCountQuery = useQuery({
+    queryKey: ['vendor-activity-count'],
+    queryFn: () => api.get<PaginatedResult<VendorActivityEntry>>(buildListUrl('/vendor-management/activity', '', 1, 1)),
   });
 
   const ddEntriesQuery = useQuery({
@@ -230,14 +236,15 @@ export function VendorManagementPage() {
       <div className="tracker-page-header">
         <h1 className="tracker-page-title">Vendor Management</h1>
         <div className="tracker-page-count">
-          <span className="count-number">{entriesQuery.data?.total ?? 0}</span>
+          <span className="count-number">{activeTab === 'activity' ? activityCountQuery.data?.total ?? 0 : entriesQuery.data?.total ?? 0}</span>
           <span className="count-label">Vendors</span>
         </div>
       </div>
       <p className="vendor-management-auto-note">
         "DD Vendors" are vendors explicitly added for the bank-details-request/verification workflow — "All Vendors"
-        is the full SmartPAL vendor master — "ANMS Vendor" shows only AMNS / ANMS fleet vendors. Every action works
-        the same in any tab; taking one on a vendor that isn't a DD Vendor yet just starts tracking it.
+        is the full SmartPAL vendor master — "ANMS Vendor" shows only AMNS / ANMS fleet vendors — "Active/Inactive
+        Vendors" shows whether we've ever placed a PO with each vendor, with a vessel-wise breakdown. Every action
+        works the same in any tab; taking one on a vendor that isn't a DD Vendor yet just starts tracking it.
       </p>
 
       <div className="vendor-docs-tabs" style={{ marginBottom: 14 }}>
@@ -253,8 +260,16 @@ export function VendorManagementPage() {
           ANMS Vendor
           <span className="vendor-docs-tab-count">{anmsCountQuery.data?.total ?? '—'}</span>
         </button>
+        <button type="button" className={`vendor-docs-tab-btn ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => switchTab('activity')}>
+          Active/Inactive Vendors
+          <span className="vendor-docs-tab-count">{activityCountQuery.data?.total ?? '—'}</span>
+        </button>
       </div>
 
+      {activeTab === 'activity' ? (
+        <VendorActivityTable />
+      ) : (
+        <>
       <div className="tracker-toolbar">
         <div className="tracker-search-wrap">
           <SearchIcon />
@@ -364,6 +379,8 @@ export function VendorManagementPage() {
               </span>
             </div>
           </div>
+        </>
+      )}
         </>
       )}
 

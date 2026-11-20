@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import EmailStr, Field
 
@@ -149,6 +149,33 @@ class VendorTrackerEntryDetailOut(CamelModel):
 
     contacts: list[dict] = []
     bank_details: list[VendorBankDetailOut] = []
+
+
+class VendorVesselBreakdownOut(CamelModel):
+    vessel_name: str
+    po_count: int
+
+
+class VendorActivityOut(CamelModel):
+    """One row per SmartPAL vendor master entry, with PO-placement activity computed live from
+    po_entries — the "Active / Inactive Vendors" tab (see api/routes/vendor_management.py's
+    get_vendor_activity). "Active" means at least one po_entries row's own vendor (free-text
+    display name — there's no reliable vendor_code on PO rows to join against) matches this
+    vendor's name, case/whitespace-insensitively; "Inactive" means zero."""
+
+    vendor_code: str
+    vendor_name: str | None
+    vendor_type: str | None
+    email: str | None
+    city: str | None
+    country: str | None
+    currency: str | None
+
+    is_active: bool
+    total_pos: int = 0
+    latest_po_no: str | None = None
+    latest_po_date: date | None = None
+    vessel_breakdown: list[VendorVesselBreakdownOut] = []
 
 
 class VendorDetailBulkScrapeRunOut(CamelModel):

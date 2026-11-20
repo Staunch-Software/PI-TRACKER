@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -12,10 +12,12 @@ from app.models.vendor_bank_attachment import VendorBankAttachment
 from app.models.vendor_bank_detail import VendorBankDetail
 from app.models.vendor_detail_bulk_scrape_run import VendorDetailBulkScrapeRun
 from app.models.vendor_master_attachment import VendorMasterAttachment
+from app.models.po_entry import PoEntry
 from app.models.vendor_master_entry import VendorMasterEntry
 from app.models.vendor_tracker_entry import VendorTrackerEntry
 from app.schemas.common import PaginatedResult
 from app.schemas.vendor_management import (
+    VendorActivityOut,
     VendorAttachmentSummaryOut,
     VendorBankDetailOut,
     VendorBankRequestPreview,
@@ -27,6 +29,7 @@ from app.schemas.vendor_management import (
     VendorTrackerEntryOut,
     VendorVerificationReminderPreview,
     VendorVerificationReminderSend,
+    VendorVesselBreakdownOut,
 )
 from app.services.audit import write_audit_log
 from app.services.blob_storage import generate_download_sas_url
@@ -371,6 +374,108 @@ def list_anms_vendors(
         atts = attachments_map.get(m.vendor_code, [])
         items.append(_to_out(tracker_entries.get(m.vendor_code), m, rep, count, db, attachments=atts))
     return PaginatedResult[VendorTrackerEntryOut](items=items, total=total, page=page, page_size=page_size)
+
+
+def _normalize_vendor_name(name: str | None) -> str:
+    return (name or "").strip().casefold()
+
+
+@router.get("/activity", response_model=PaginatedResult[VendorActivityOut])
+def get_vendor_activity(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status", pattern="^(active|inactive)$"),
+    sort_by: str = Query(default="total_pos", pattern="^(vendor_name|total_pos|latest_po_date)$"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=1000),
+) -> PaginatedResult[VendorActivityOut]:
+    """"Active / Inactive Vendors" tab — every vendor in the SmartPAL master, with PO-placement
+    activity computed live from po_entries (see VendorActivityOut's own docstring on the
+    name-matching caveat: po_entries has no reliable vendor_code to join against).
+
+    Computed in Python rather than SQL-side pagination/filtering — at this scale (~1,100 vendors,
+    a few thousand PO rows) a single pass over both tables is simpler and plenty fast, and keeps
+    the is_active/total_pos/latest_po/vessel_breakdown fields (none of which are real columns)
+    available to filter and sort on uniformly."""
+    po_rows = (
+        db.query(PoEntry.vendor, PoEntry.po_no, PoEntry.created_date, PoEntry.vessel_name)
+        .filter(PoEntry.vendor.isnot(None))
+        .all()
+    )
+
+    # normalized vendor name -> aggregate state
+    activity: dict[str, dict] = {}
+    for vendor, po_no, created_date, vessel_name in po_rows:
+        key = _normalize_vendor_name(vendor)
+        if not key:
+            continue
+        state = activity.setdefault(key, {"total_pos": 0, "latest_po_no": None, "latest_po_date": None, "vessel_counts": {}})
+        state["total_pos"] += 1
+        if vessel_name:
+            state["vessel_counts"][vessel_name] = state["vessel_counts"].get(vessel_name, 0) + 1
+        # Latest PO = most recent created_date seen; a null created_date never overrides an
+        # already-found real date, but can still win if nothing else has a date at all.
+        if state["latest_po_date"] is None or (created_date is not None and created_date > state["latest_po_date"]):
+            state["latest_po_date"] = created_date
+            state["latest_po_no"] = po_no
+
+    masters_query = db.query(VendorMasterEntry)
+    if search and search.strip():
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        masters_query = masters_query.filter(
+            (VendorMasterEntry.vendor_code.ilike(pattern, escape="\\"))
+            | (VendorMasterEntry.vendor_name.ilike(pattern, escape="\\"))
+        )
+
+    items: list[VendorActivityOut] = []
+    for m in masters_query.all():
+        state = activity.get(_normalize_vendor_name(m.vendor_name))
+        is_active = state is not None and state["total_pos"] > 0
+        vessel_breakdown = (
+            sorted(
+                [VendorVesselBreakdownOut(vessel_name=v, po_count=c) for v, c in state["vessel_counts"].items()],
+                key=lambda vb: vb.po_count,
+                reverse=True,
+            )
+            if state
+            else []
+        )
+        items.append(
+            VendorActivityOut(
+                vendor_code=m.vendor_code,
+                vendor_name=m.vendor_name,
+                vendor_type=m.vendor_type,
+                email=m.email,
+                city=m.city,
+                country=m.country,
+                currency=m.currency,
+                is_active=is_active,
+                total_pos=state["total_pos"] if state else 0,
+                latest_po_no=state["latest_po_no"] if state else None,
+                latest_po_date=state["latest_po_date"] if state else None,
+                vessel_breakdown=vessel_breakdown,
+            )
+        )
+
+    if status_filter == "active":
+        items = [i for i in items if i.is_active]
+    elif status_filter == "inactive":
+        items = [i for i in items if not i.is_active]
+
+    reverse = sort_dir == "desc"
+    if sort_by == "vendor_name":
+        items.sort(key=lambda i: (i.vendor_name or "").lower(), reverse=reverse)
+    elif sort_by == "latest_po_date":
+        items.sort(key=lambda i: i.latest_po_date or date.min, reverse=reverse)
+    else:
+        items.sort(key=lambda i: i.total_pos, reverse=reverse)
+
+    total = len(items)
+    start = (page - 1) * page_size
+    page_items = items[start : start + page_size]
+    return PaginatedResult[VendorActivityOut](items=page_items, total=total, page=page, page_size=page_size)
 
 
 @router.post("/by-vendor-code/{vendor_code}/ensure-tracking", response_model=VendorTrackerEntryOut)

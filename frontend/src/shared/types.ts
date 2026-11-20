@@ -824,6 +824,32 @@ export interface VendorTrackerEntryCreateInput {
   vendorCode: string;
 }
 
+// Mirrors backend/app/schemas/vendor_management.py VendorVesselBreakdownOut.
+export interface VendorVesselBreakdown {
+  vesselName: string;
+  poCount: number;
+}
+
+// Mirrors backend/app/schemas/vendor_management.py VendorActivityOut — one row of the
+// "Active / Inactive Vendors" tab. isActive/totalPos/latestPoNo/latestPoDate/vesselBreakdown are
+// computed live from po_entries, not stored — see that schema's own docstring on the name-match
+// caveat (po_entries has no reliable vendorCode to join against).
+export interface VendorActivityEntry {
+  vendorCode: string;
+  vendorName: string | null;
+  vendorType: string | null;
+  email: string | null;
+  city: string | null;
+  country: string | null;
+  currency: string | null;
+
+  isActive: boolean;
+  totalPos: number;
+  latestPoNo: string | null;
+  latestPoDate: string | null;
+  vesselBreakdown: VendorVesselBreakdown[];
+}
+
 // Mirrors backend/app/schemas/vendor_management.py VendorDetailBulkScrapeRunOut — progress of a
 // "Scrape All Vendor Details" run (All Vendors tab).
 export interface VendorDetailBulkScrapeRun {
