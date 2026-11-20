@@ -386,7 +386,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 Technical Review Email: <span className="vessel-mail-title-ship">M/V {vesselName}</span>
               </h2>
               <p className="vessel-mail-modal-subtitle">
-                {typeLabel} · Formal Technical Inquiry (Proceed / Hold / Cancel)
+                {typeLabel} · Technical Review (Approve / Proceed / Cancel)
               </p>
             </div>
           </div>
@@ -451,7 +451,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 <div className="vessel-mail-field-row">
                   <div className="vessel-mail-field-label-group">
                     <span className="vessel-mail-field-label">To (Action):</span>
-                    <span className="vessel-mail-field-hint">TSI &amp; TA In-Charge</span>
+                    <span className="vessel-mail-field-hint">In-Charge (TSI, TA) &amp; Vessel Master</span>
                   </div>
                   <div
                     className={`vessel-mail-chip-container ${isToDragOver ? 'drag-over' : ''}`}
@@ -506,7 +506,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 <div className="vessel-mail-field-row">
                   <div className="vessel-mail-field-label-group">
                     <span className="vessel-mail-field-label">CC:</span>
-                    <span className="vessel-mail-field-hint">Management / Procurement</span>
+                    <span className="vessel-mail-field-hint">Purchase Team</span>
                   </div>
                   <div
                     className={`vessel-mail-chip-container ${isCcDragOver ? 'drag-over' : ''}`}

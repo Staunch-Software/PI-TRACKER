@@ -71,6 +71,77 @@ _VESSEL_OWNERS: dict[str, tuple[str, str]] = {
     "AM TARANG": ("Pavan", "Sunil"),
 }
 
+# Verified email address lookup for TSI and TA in-charge personnel to prevent
+# any substring matching errors (e.g. "Viswa" matching "Jayasri Viswanathan" instead of "Viswanathan Narayanan")
+_INCHARGE_EMAILS: dict[str, str] = {
+    # TSI In-Charges
+    "Abhinav": "abhinav.s@ozellar.com",
+    "Abhisek": "abhishek.s@ozellar.com",
+    "Abhishek": "abhishek.s@ozellar.com",
+    "Gaurav": "gauravsingh.r@ozellar.com",
+    "Murtuza": "Murtuza@ozellar.com",
+    "Pavan": "pavan@ozellar.com",
+    # TA In-Charges
+    "Sunil": "sunilkumar.s@ozellar.com",
+    "Bharath": "bharat.n@ozellar.com",
+    "Bharat": "bharat.n@ozellar.com",
+    "Gayathri": "gayathri.p@ozellar.com",
+    "Jayasri": "Jayasri.v@ozellar.com",
+    "Viswa": "viswanathan.n@ozellar.com",
+    "Viswanathan": "viswanathan.n@ozellar.com",
+}
+
+# Vessel master email mapping for technical review inquiries
+_VESSEL_MASTER_EMAILS: dict[str, str] = {
+    "GCL NARMADA": "master.gclnarmada@ozellar.com",
+    "GCL SABARMATI": "master.gclsabarmati@ozellar.com",
+    "GCL TAPI": "master.gcltapi@ozellar.com",
+    "GCL GANGA": "master.gclganga@ozellar.com",
+    "GCL YAMUNA": "master.gclyamuna@ozellar.com",
+    "GCL SARASWATI": "master.gclsaraswati@ozellar.com",
+    "GCL FOS": "master.gclfos@ozellar.com",
+    "AMNSI MAXIMUS": "master.amnsimaximus@ozellar.com",
+    "AMNSI STALLION": "master.amnsistallion@ozellar.com",
+    "AMNS POLAR": "master.amnspolar@ozellar.com",
+    "AMNS TUFMAX": "master.amnstufmax@ozellar.com",
+    "AM KIRTI": "master.amkirti@ozellar.com",
+    "AM TARANG": "master.amtarang@ozellar.com",
+    "AM UMANG": "master.amumang@ozellar.com",
+}
+
+
+def _resolve_incharge_email(name: str | None, role: str, db: Session) -> str | None:
+    if not name:
+        return None
+    # 1. Exact match from verified in-charge mapping
+    if name in _INCHARGE_EMAILS:
+        return _INCHARGE_EMAILS[name]
+    # 2. Strict startswith match by rank in DB
+    u = (
+        db.query(User)
+        .filter(User.rank == role, User.full_name.ilike(f"{name}%"), User.is_active.is_(True))
+        .first()
+    )
+    if u and u.email:
+        return u.email.strip()
+    # 3. Fallback any full_name match by rank
+    u = (
+        db.query(User)
+        .filter(User.rank == role, User.full_name.ilike(f"%{name}%"), User.is_active.is_(True))
+        .first()
+    )
+    if u and u.email:
+        return u.email.strip()
+    return None
+
+
+def _get_vessel_master_email(vessel_name: str) -> str:
+    v_clean = vessel_name.strip().upper()
+    if v_clean in _VESSEL_MASTER_EMAILS:
+        return _VESSEL_MASTER_EMAILS[v_clean]
+    slug = v_clean.lower().replace(" ", "").replace("-", "")
+    return f"master.{slug}@ozellar.com"
+
 # "Finally Approved" is a terminal state — fully done, not pending for anyone — confirmed with
 # the user 2026-11-15 it must NOT be lumped in with plain "Approved" (which still has an open
 # TSI/TA action against it). So it's deliberately excluded from both sets below: rows in that
@@ -1786,25 +1857,15 @@ def _build_vessel_pr_review_html(
     ta_name: str | None,
     filename: str,
 ) -> str:
-    date_str = datetime.now().strftime("%d %b %Y")
-    max_days = max([i.ageing_days or 0 for i in items], default=0)
-
-    if pr_type == "ageing_90":
-        type_title = "OVERDUE REQUISITIONS (90+ DAYS PENDING)"
-    elif pr_type == "critical":
-        type_title = "CRITICAL & HIGH PRIORITY REQUISITIONS"
-    else:
-        type_title = "OUTSTANDING REQUISITIONS REVIEW"
-
     rows_html = []
     for idx, item in enumerate(items, start=1):
         age = item.ageing_days or 0
         if age > 90:
-            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#FCE7F3;color:#831843;font-weight:700;font-size:11px;">{age} Days</span>'
+            age_badge = f'<span style="display:inline-block;padding:2px 7px;border-radius:4px;background:#FCE7F3;color:#831843;font-weight:700;font-size:11px;">{age}d</span>'
         elif age > 30:
-            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:11px;">{age} Days</span>'
+            age_badge = f'<span style="display:inline-block;padding:2px 7px;border-radius:4px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:11px;">{age}d</span>'
         else:
-            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:11px;">{age} Days</span>'
+            age_badge = f'<span style="display:inline-block;padding:2px 7px;border-radius:4px;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:11px;">{age}d</span>'
 
         prio_str = (item.priority or "NORMAL").upper()
         if item.critical:
@@ -1818,20 +1879,27 @@ def _build_vessel_pr_review_html(
         dept = item.department or item.req_category or "Technical"
         title = item.title or "Requisition Items"
         st = item.status or "Pending"
-        role_cls = "#1E40AF" if item.owner_role == "TSI" else "#047857"
+        role_color = "#1E40AF" if item.owner_role == "TSI" else "#047857"
 
         rows_html.append(f"""
         <tr style="background:{'#FFFFFF' if idx % 2 != 0 else '#F8FAFC'};">
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;font-size:11px;color:#64748B;">{idx}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:11.5px;white-space:nowrap;">{item.reference_no}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11px;color:#334155;white-space:nowrap;">{date_formatted}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11px;color:#475569;font-weight:600;">{dept}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11.5px;color:#1E293B;">{title}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;">{prio_badge}</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;font-size:11px;font-weight:700;color:{role_cls};">{st} ({item.owner_role})</td>
-            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;">{age_badge}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;font-size:11px;color:#64748B;">{idx}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-weight:700;color:#0F172A;font-size:11.5px;white-space:nowrap;">{item.reference_no}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11px;color:#334155;white-space:nowrap;">{date_formatted}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11px;color:#475569;font-weight:600;">{dept}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11.5px;color:#1E293B;">{title}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;">{prio_badge}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;font-size:11px;font-weight:700;color:{role_color};">{st} ({item.owner_role})</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;">{age_badge}</td>
         </tr>
         """)
+
+    rows_str = "".join(rows_html)
+
+    if pr_type == "critical":
+        scope_text = "are marked as Critical / High Priority and currently pending technical action"
+    else:
+        scope_text = "have been pending for more than 90 days"
 
     body_html = f"""<!DOCTYPE html>
 <html>
@@ -1840,113 +1908,45 @@ def _build_vessel_pr_review_html(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Technical Requisition Review - M/V {vessel_name}</title>
 </head>
-<body style="margin:0;padding:24px 12px;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;">
-<div style="max-width:960px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,0.06);">
+<body style="margin:0;padding:20px;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;font-size:13.5px;line-height:1.6;">
 
-    <!-- Header Banner -->
-    <div style="background:linear-gradient(135deg, #0F2942 0%, #1E3A8A 100%);padding:24px 28px;color:#FFFFFF;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.85;margin-bottom:4px;font-weight:700;">
-            OZELLAR MARINE MANAGEMENT &bull; TECHNICAL FLEET PROCUREMENT
-        </div>
-        <h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-0.2px;">
-            TECHNICAL REVIEW: {type_title} &bull; M/V {vessel_name}
-        </h1>
-        <div style="margin-top:6px;font-size:12px;opacity:0.9;">
-            Generated on {date_str} &bull; Official Superintendent Operational Disposition Notice
-        </div>
-    </div>
+    <p style="margin:0 0 14px 0;font-size:14px;"><strong>Dear Capt,</strong></p>
 
-    <div style="padding:24px 28px;">
-        <!-- Vessel & In-Charge Quick Glance -->
-        <table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:16px;" cellpadding="0" cellspacing="0">
-            <tr>
-                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
-                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Target Vessel</div>
-                    <div style="font-size:15px;font-weight:800;color:#0F172A;margin-top:2px;">M/V {vessel_name}</div>
-                </td>
-                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
-                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Assigned TSI</div>
-                    <div style="font-size:14px;font-weight:700;color:#1E3A8A;margin-top:2px;">{tsi_name or 'Unassigned'}</div>
-                </td>
-                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
-                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Assigned TA</div>
-                    <div style="font-size:14px;font-weight:700;color:#581C87;margin-top:2px;">{ta_name or 'Unassigned'}</div>
-                </td>
-                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
-                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Pending Scope</div>
-                    <div style="font-size:15px;font-weight:800;color:#DC2626;margin-top:2px;">{len(items)} Requisition(s) (Max {max_days}d)</div>
-                </td>
+    <p style="margin:0 0 12px 0;">
+        Please note that the following purchase requisition(s) for <strong>M/V {vessel_name}</strong> {scope_text}.
+    </p>
+
+    <p style="margin:0 0 16px 0;">
+        Kindly review the list below and advise whether each requisition should be <strong>approved / proceeded</strong> or <strong>cancelled</strong>:
+    </p>
+
+    <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;margin-bottom:16px;" cellpadding="0" cellspacing="0">
+        <thead>
+            <tr style="background:#0F172A;color:#FFFFFF;">
+                <th style="padding:8px 10px;text-align:center;width:35px;">#</th>
+                <th style="padding:8px 10px;text-align:left;width:155px;">PR Number</th>
+                <th style="padding:8px 10px;text-align:left;width:95px;">Date</th>
+                <th style="padding:8px 10px;text-align:left;width:85px;">Dept</th>
+                <th style="padding:8px 10px;text-align:left;">Description / Equipment</th>
+                <th style="padding:8px 10px;text-align:center;width:80px;">Priority</th>
+                <th style="padding:8px 10px;text-align:center;width:115px;">In-Charge</th>
+                <th style="padding:8px 10px;text-align:center;width:75px;">Ageing</th>
             </tr>
-        </table>
+        </thead>
+        <tbody>
+{rows_str}
+        </tbody>
+    </table>
 
-        <!-- Formal Salutation & Operational Context -->
-        <div style="font-size:13px;line-height:1.6;color:#334155;margin-bottom:18px;">
-            <p style="margin:0 0 10px 0;"><strong>Dear Technical Superintendent &amp; Technical Assistant,</strong></p>
-            <p style="margin:0 0 10px 0;">
-                During our regular fleet technical procurement audit, the following purchase requisition(s) for <strong>M/V {vessel_name}</strong> have remained pending for an extended duration (up to <strong>{max_days} days</strong>).
-            </p>
-            <p style="margin:0;">
-                Prolonged pending requisitions impact procurement forecasting, lead-time planning, and inventory tracking. Please technically assess the items listed below and communicate your operational requirement.
-            </p>
-        </div>
+    <p style="margin:0 0 14px 0;font-size:12.5px;color:#64748B;">
+        The itemized Excel review workbook (<strong>{filename}</strong>) has been generated and attached for your records and reference.
+    </p>
 
-        <!-- PR Data Table -->
-        <div style="margin-bottom:20px;overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;" cellpadding="0" cellspacing="0">
-                <thead>
-                    <tr style="background:#1E293B;color:#FFFFFF;">
-                        <th style="padding:9px 10px;text-align:center;width:5%;">#</th>
-                        <th style="padding:9px 10px;text-align:left;width:18%;">Requisition No.</th>
-                        <th style="padding:9px 10px;text-align:left;width:11%;">Created Date</th>
-                        <th style="padding:9px 10px;text-align:left;width:12%;">Department</th>
-                        <th style="padding:9px 10px;text-align:left;width:28%;">Description / Equipment</th>
-                        <th style="padding:9px 10px;text-align:center;width:9%;">Priority</th>
-                        <th style="padding:9px 10px;text-align:center;width:9%;">Status</th>
-                        <th style="padding:9px 10px;text-align:center;width:8%;">Ageing</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(rows_html)}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Technical Action Protocol Card (Hold / Cancel / Proceed) -->
-        <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-left:4px solid #1E3A8A;border-radius:6px;padding:16px 20px;margin-bottom:20px;">
-            <div style="font-size:13px;font-weight:800;color:#0F172A;margin-bottom:8px;">
-                ACTION REQUIRED: TECHNICAL DISPOSITION GUIDELINES
-            </div>
-            <div style="font-size:12px;line-height:1.6;color:#334155;">
-                Please reply to this communication advising one of the following technical courses of action for each item:
-                <ul style="margin:8px 0 0 0;padding-left:18px;">
-                    <li style="margin-bottom:6px;">
-                        <strong>1. PROCEED / APPROVE:</strong> If these spares, consumables, or services are still operationally critical for vessel class/safety or upcoming port calls, please complete approval and confirm target supply port/ETA.
-                    </li>
-                    <li style="margin-bottom:6px;">
-                        <strong>2. HOLD:</strong> If the requisition must be held temporarily (e.g. awaiting dry-docking confirmation, further onboard inspection, or quote clarifications), please provide the specific <em>HOLD Reason</em> and tentative review date.
-                    </li>
-                    <li>
-                        <strong>3. CANCEL:</strong> If the requirement is no longer valid, has been fulfilled through existing shipboard inventory, or was transferred from sister vessels, please cancel the requisition in SmartPAL to relieve active procurement backlog.
-                    </li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- Attachment Box -->
-        <div style="padding:12px 16px;background:#F1F5F9;border:1px dashed #CBD5E1;border-radius:6px;margin-bottom:20px;">
-            <strong style="color:#0F172A;font-size:12px;">Attached Itemized Report: {filename}</strong>
-            <div style="font-size:11px;color:#64748B;margin-top:2px;">
-                Spreadsheet containing full requisition details, part numbers, and status for convenient offline review.
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="border-top:1px solid #E2E8F0;padding-top:14px;font-size:11px;color:#64748B;line-height:1.5;">
-            This technical inquiry was dispatched automatically by Ozellar Marine Management PI Monitoring Engine.<br>
-            For live updates or immediate action, access the <strong>PI Tracker System</strong>.
-        </div>
-    </div>
-</div>
+    <p style="margin:16px 0 0 0;font-size:13px;color:#334155;">
+        Best regards,<br>
+        <strong>Technical &amp; Purchase Department</strong><br>
+        Ozellar Marine
+    </p>
 </body>
 </html>"""
     return body_html
@@ -2062,21 +2062,19 @@ def preview_vessel_pr_review_email(
     filtered_items.sort(key=lambda x: (-(x.ageing_days or 0), x.reference_no or ""))
 
     tsi_name, ta_name = _VESSEL_OWNERS.get(target_vessel, (None, None))
-    tsi_user = db.query(User).filter(User.full_name.ilike(f"%{tsi_name}%")).first() if tsi_name else None
-    ta_user = db.query(User).filter(User.full_name.ilike(f"%{ta_name}%")).first() if ta_name else None
+    tsi_email = _resolve_incharge_email(tsi_name, "TSI", db)
+    ta_email = _resolve_incharge_email(ta_name, "TA", db)
+    master_email = _get_vessel_master_email(target_vessel)
 
     to_emails = []
-    if tsi_user and tsi_user.email:
-        to_emails.append(tsi_user.email.strip())
-    if ta_user and ta_user.email:
-        to_emails.append(ta_user.email.strip())
-    if not to_emails:
-        if tsi_name:
-            t = db.query(User).filter(User.rank == "TSI", User.is_active.is_(True)).first()
-            if t and t.email:
-                to_emails.append(t.email.strip())
+    if tsi_email:
+        to_emails.append(tsi_email)
+    if ta_email and ta_email not in to_emails:
+        to_emails.append(ta_email)
+    if master_email and master_email not in to_emails:
+        to_emails.append(master_email)
 
-    default_cc = ["kunalchandra@ozellar.com", "Karunya.pius@ozellar.com", "data@ozellar.com"]
+    default_cc = ["purchase@ozellar.com"]
 
     clean_v_name = target_vessel.replace(" ", "_")
     if pr_type == "ageing_90":
@@ -2158,15 +2156,18 @@ def send_vessel_pr_review_email(
         cc_source = payload.cc_emails if payload.cc_emails is not None else []
         cc_recipients = sorted({e.strip() for e in cc_source if e and e.strip()})
     else:
-        tsi_user = db.query(User).filter(User.full_name.ilike(f"%{tsi_name}%")).first() if tsi_name else None
-        ta_user = db.query(User).filter(User.full_name.ilike(f"%{ta_name}%")).first() if ta_name else None
+        tsi_email = _resolve_incharge_email(tsi_name, "TSI", db)
+        ta_email = _resolve_incharge_email(ta_name, "TA", db)
+        master_email = _get_vessel_master_email(target_vessel)
         to_set = set()
-        if tsi_user and tsi_user.email:
-            to_set.add(tsi_user.email.strip())
-        if ta_user and ta_user.email:
-            to_set.add(ta_user.email.strip())
+        if tsi_email:
+            to_set.add(tsi_email)
+        if ta_email:
+            to_set.add(ta_email)
+        if master_email:
+            to_set.add(master_email)
         recipients = sorted(to_set)
-        cc_recipients = ["kunalchandra@ozellar.com", "Karunya.pius@ozellar.com", "data@ozellar.com"]
+        cc_recipients = ["purchase@ozellar.com"]
 
     if not recipients:
         raise HTTPException(
