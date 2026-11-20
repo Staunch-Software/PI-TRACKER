@@ -9,29 +9,24 @@ const PAGE_SIZE = 50;
 type StatusFilter = 'all' | 'active' | 'inactive';
 type SortBy = 'total_pos' | 'vendor_name' | 'latest_po_date';
 
-function ChevronIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }}
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-
 function formatDate(value: string | null): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Stable color per vessel name (same vessel always gets the same color, across every vendor's
+// row) — a simple string hash into a fixed palette, rather than assignment-order-based coloring
+// which would shift every chip's color as rows load/re-sort.
+const VESSEL_COLOR_COUNT = 10;
+
+function vesselColorIndex(vesselName: string): number {
+  let hash = 0;
+  for (let i = 0; i < vesselName.length; i++) {
+    hash = (hash * 31 + vesselName.charCodeAt(i)) >>> 0;
+  }
+  return hash % VESSEL_COLOR_COUNT;
 }
 
 /* "Active / Inactive Vendors" tab — a vendor is Active iff po_entries has at least one PO whose
@@ -141,7 +136,7 @@ export function VendorActivityTable() {
                   <th className="sortable" onClick={() => toggleSort('latest_po_date')} title="Sort by Latest PO date">
                     Latest PO {sortBy === 'latest_po_date' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th title="Click a row to expand its per-vessel PO count breakdown.">Vessel-wise Breakup</th>
+                  <th className="col-vessel-breakup" title="Each vessel this vendor has placed a PO with, and the count — colored distinctly per vessel.">Vessel-wise Breakup</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,8 +148,10 @@ export function VendorActivityTable() {
                 {items.map((entry, idx) => {
                   const rowNumber = (page - 1) * PAGE_SIZE + idx + 1;
                   const isExpanded = !!expanded[entry.vendorCode];
-                  const topVessels = entry.vesselBreakdown.slice(0, 2);
-                  const remaining = entry.vesselBreakdown.length - topVessels.length;
+                  const DEFAULT_LIMIT = 4;
+                  const hasMore = entry.vesselBreakdown.length > DEFAULT_LIMIT;
+                  const visibleVessels = isExpanded || !hasMore ? entry.vesselBreakdown : entry.vesselBreakdown.slice(0, DEFAULT_LIMIT);
+                  const remainingCount = entry.vesselBreakdown.length - DEFAULT_LIMIT;
 
                   return (
                     <Fragment key={entry.vendorCode}>
@@ -193,41 +190,44 @@ export function VendorActivityTable() {
                             '—'
                           )}
                         </td>
-                        <td>
+                        <td className="col-vessel-breakup">
                           {entry.vesselBreakdown.length === 0 ? (
                             '—'
                           ) : (
-                            <button type="button" className="vendor-activity-expand-btn" onClick={() => toggleExpanded(entry.vendorCode)}>
-                              <ChevronIcon expanded={isExpanded} />
-                              {topVessels.map((v) => v.vesselName).join(', ')}
-                              {remaining > 0 ? ` +${remaining} more` : ''}
-                            </button>
+                            <div className="vendor-vessel-breakup-cell">
+                              <div className={`vendor-vessel-chip-list ${isExpanded ? 'is-expanded' : ''}`}>
+                                {visibleVessels.map((v) => (
+                                  <span key={v.vesselName} className={`vendor-vessel-chip vessel-color-${vesselColorIndex(v.vesselName)}`}>
+                                    <span className="vendor-vessel-chip-name">{v.vesselName}</span>
+                                    <span className="vendor-vessel-chip-count">{v.poCount}</span>
+                                  </span>
+                                ))}
+                              </div>
+                              {hasMore && (
+                                <button
+                                  type="button"
+                                  className={`vendor-docs-toggle-expand-btn ${isExpanded ? 'is-expanded' : ''}`}
+                                  onClick={() => toggleExpanded(entry.vendorCode)}
+                                  title={isExpanded ? 'Collapse vessel list' : `Show all ${entry.vesselBreakdown.length} vessels`}
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <span>Show less</span>
+                                      <span className="expand-arrow">▲</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="vendor-docs-toggle-count-pill">+{remainingCount}</span>
+                                      <span>more vessels</span>
+                                      <span className="expand-arrow">▼</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
-                      {isExpanded && entry.vesselBreakdown.length > 0 && (
-                        <tr className="vendor-activity-expanded-row">
-                          <td />
-                          <td colSpan={6}>
-                            <table className="vendor-activity-vessel-table">
-                              <thead>
-                                <tr>
-                                  <th>Vessel</th>
-                                  <th>POs Placed</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {entry.vesselBreakdown.map((v) => (
-                                  <tr key={v.vesselName}>
-                                    <td>{v.vesselName}</td>
-                                    <td>{v.poCount}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   );
                 })}

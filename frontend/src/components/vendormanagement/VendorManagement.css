@@ -3593,52 +3593,75 @@ table.data-table.vendor-activity-table th.sortable:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.vendor-activity-expand-btn {
-  display: inline-flex;
+table.data-table.vendor-activity-table th.col-vessel-breakup,
+table.data-table.vendor-activity-table td.col-vessel-breakup {
+  width: 280px;
+  min-width: 240px;
+  vertical-align: top;
+}
+
+.vendor-vessel-breakup-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vendor-vessel-chip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.vendor-vessel-chip-list.is-expanded {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.vendor-vessel-chip-list::-webkit-scrollbar {
+  width: 4px;
+}
+.vendor-vessel-chip-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* Each vessel gets a stable, distinct color (hashed by name in VendorActivityTable.tsx) so the
+   same vessel reads the same color in every vendor's row. */
+.vendor-vessel-chip {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #0f4c81;
-  font-size: 12.5px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 600;
-  cursor: pointer;
-  text-align: left;
+  border: 1px solid transparent;
+  line-height: 1.4;
 }
 
-.vendor-activity-expand-btn:hover {
-  text-decoration: underline;
+.vendor-vessel-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-tr.vendor-activity-expanded-row td {
-  background: #f8fafc;
-  padding: 10px 14px !important;
+.vendor-vessel-chip-count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
-.vendor-activity-vessel-table {
-  width: 100%;
-  max-width: 420px;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.vendor-activity-vessel-table th,
-.vendor-activity-vessel-table td {
-  padding: 5px 10px;
-  text-align: left;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.vendor-activity-vessel-table th {
-  color: #64748b;
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.vendor-activity-vessel-table td:last-child,
-.vendor-activity-vessel-table th:last-child {
-  text-align: right;
-}\n
+.vendor-vessel-chip.vessel-color-0 { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.vendor-vessel-chip.vessel-color-1 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.vendor-vessel-chip.vessel-color-2 { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+.vendor-vessel-chip.vessel-color-3 { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+.vendor-vessel-chip.vessel-color-4 { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.vendor-vessel-chip.vessel-color-5 { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.vendor-vessel-chip.vessel-color-6 { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+.vendor-vessel-chip.vessel-color-7 { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.vendor-vessel-chip.vessel-color-8 { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.vendor-vessel-chip.vessel-color-9 { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }\n
