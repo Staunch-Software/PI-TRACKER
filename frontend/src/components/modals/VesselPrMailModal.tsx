@@ -606,7 +606,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                           <th style={{ width: 100 }}>Dept</th>
                           <th>Description / Equipment</th>
                           <th style={{ width: 90, textAlign: 'center' }}>Priority</th>
-                          <th style={{ width: 110 }}>In-Charge</th>
+                          <th style={{ width: 95, textAlign: 'center' }}>Status</th>
                           <th style={{ width: 90, textAlign: 'center' }}>Ageing</th>
                         </tr>
                       </thead>
@@ -634,11 +634,8 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                                   <span className="vessel-prio-badge badge-normal">{prio}</span>
                                 )}
                               </td>
-                              <td style={{ fontSize: '11.5px' }}>
-                                <span className={`vessel-role-badge ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>
-                                  {item.ownerRole}
-                                </span>{' '}
-                                {item.ownerName || '—'}
+                              <td style={{ textAlign: 'center', fontSize: '11.5px', fontWeight: 600, color: '#0F172A' }}>
+                                {item.status || 'Pending'}
                               </td>
                               <td style={{ textAlign: 'center' }}>
                                 <span className={`vessel-age-badge ${age > 90 ? 'age-severe' : age > 30 ? 'age-moderate' : 'age-normal'}`}>

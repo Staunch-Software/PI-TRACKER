@@ -1879,7 +1879,6 @@ def _build_vessel_pr_review_html(
         dept = item.department or item.req_category or "Technical"
         title = item.title or "Requisition Items"
         st = item.status or "Pending"
-        role_color = "#1E40AF" if item.owner_role == "TSI" else "#047857"
 
         rows_html.append(f"""
         <tr style="background:{'#FFFFFF' if idx % 2 != 0 else '#F8FAFC'};">
@@ -1889,7 +1888,7 @@ def _build_vessel_pr_review_html(
             <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11px;color:#475569;font-weight:600;">{dept}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11.5px;color:#1E293B;">{title}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;">{prio_badge}</td>
-            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;font-size:11px;font-weight:700;color:{role_color};">{st} ({item.owner_role})</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;font-size:11px;font-weight:700;color:#0F172A;">{st}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;">{age_badge}</td>
         </tr>
         """)
@@ -1929,7 +1928,7 @@ def _build_vessel_pr_review_html(
                 <th style="padding:8px 10px;text-align:left;width:85px;">Dept</th>
                 <th style="padding:8px 10px;text-align:left;">Description / Equipment</th>
                 <th style="padding:8px 10px;text-align:center;width:80px;">Priority</th>
-                <th style="padding:8px 10px;text-align:center;width:115px;">In-Charge</th>
+                <th style="padding:8px 10px;text-align:center;width:95px;">Status</th>
                 <th style="padding:8px 10px;text-align:center;width:75px;">Ageing</th>
             </tr>
         </thead>
@@ -1990,7 +1989,7 @@ def _build_vessel_pr_workbook(
         ("Department", 16, Alignment(horizontal="left", vertical="center")),
         ("Description / Equipment", 42, Alignment(horizontal="left", vertical="center", wrap_text=True)),
         ("Priority", 14, Alignment(horizontal="center", vertical="center")),
-        ("Status & In-Charge", 18, Alignment(horizontal="center", vertical="center")),
+        ("Status", 14, Alignment(horizontal="center", vertical="center")),
         ("Ageing (Days)", 14, Alignment(horizontal="center", vertical="center")),
     ]
 
@@ -2022,7 +2021,7 @@ def _build_vessel_pr_workbook(
             item.department or item.req_category or "Technical",
             item.title or "Requisition Items",
             ("CRITICAL" if item.critical else (item.priority or "NORMAL")).upper(),
-            f"{item.status or 'Pending'} ({item.owner_role})",
+            item.status or "Pending",
             item.ageing_days or 0,
         ]
 
