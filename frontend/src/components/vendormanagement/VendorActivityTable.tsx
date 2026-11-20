@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import type { PaginatedResult, VendorActivityEntry } from '../../shared';
 import { SearchIcon } from '../common/SearchIcon';
 
@@ -42,6 +42,8 @@ export function VendorActivityTable() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ['vendor-activity', search, status, sortBy, sortDir, page],
@@ -76,6 +78,31 @@ export function VendorActivityTable() {
     setPage(1);
   }
 
+  // Exports exactly the rows the current search/status filter/sort would return — same query
+  // params as the list fetch, minus pagination, same "export = what's on screen" convention as
+  // DD/PD Tracker's own exports.
+  async function handleExport() {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({ search, sort_by: sortBy, sort_dir: sortDir });
+      if (status !== 'all') params.set('status', status);
+      const { blob, filename } = await api.getBlob(`/vendor-management/activity/export?${params.toString()}`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename ?? 'Active_Inactive_Vendors.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : 'Failed to export.');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <>
       <div className="tracker-toolbar">
@@ -107,7 +134,11 @@ export function VendorActivityTable() {
           ))}
         </div>
         <div className="tracker-toolbar-spacer" />
+        <button className="btn-tracker-action btn-tracker-secondary" onClick={handleExport} disabled={isExporting}>
+          {isExporting ? 'Exporting…' : 'Export to Excel'}
+        </button>
       </div>
+      {exportError && <p className="form-error" style={{ margin: '0 0 10px' }}>{exportError}</p>}
 
       {query.isLoading ? (
         <div className="tracker-table-card">

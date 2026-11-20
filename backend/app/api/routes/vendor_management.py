@@ -1,7 +1,11 @@
 import uuid
 from datetime import date, datetime
+from io import BytesIO
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_module_access, require_roles
@@ -398,23 +402,21 @@ def _vendor_contact_number(master: VendorMasterEntry) -> str | None:
     return None
 
 
-@router.get("/activity", response_model=PaginatedResult[VendorActivityOut])
-def get_vendor_activity(
-    db: Session = Depends(get_db),
-    search: str | None = Query(default=None),
-    status_filter: str | None = Query(default=None, alias="status", pattern="^(active|inactive)$"),
-    sort_by: str = Query(default="total_pos", pattern="^(vendor_name|total_pos|latest_po_date)$"),
-    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=1000),
-) -> PaginatedResult[VendorActivityOut]:
-    """"Active / Inactive Vendors" tab — every vendor in the SmartPAL master, with PO-placement
-    activity computed live from po_entries (see VendorActivityOut's own docstring on the
-    name-matching caveat: po_entries has no reliable vendor_code to join against).
+def _compute_vendor_activity(
+    db: Session,
+    search: str | None,
+    status_filter: str | None,
+    sort_by: str,
+    sort_dir: str,
+) -> list[VendorActivityOut]:
+    """Shared by the paginated list endpoint and the unpaginated Excel export — every vendor in
+    the SmartPAL master, with PO-placement activity computed live from po_entries (see
+    VendorActivityOut's own docstring on the name-matching caveat: po_entries has no reliable
+    vendor_code to join against), filtered and sorted but NOT yet paginated.
 
-    Computed in Python rather than SQL-side pagination/filtering — at this scale (~1,100 vendors,
-    a few thousand PO rows) a single pass over both tables is simpler and plenty fast, and keeps
-    the is_active/total_pos/latest_po/vessel_breakdown fields (none of which are real columns)
+    Computed in Python rather than SQL-side filtering/sorting — at this scale (~1,100 vendors, a
+    few thousand PO rows) a single pass over both tables is simpler and plenty fast, and keeps the
+    is_active/total_pos/latest_po/vessel_breakdown fields (none of which are real columns)
     available to filter and sort on uniformly."""
     po_rows = (
         db.query(PoEntry.vendor, PoEntry.po_no, PoEntry.created_date, PoEntry.vessel_name)
@@ -491,10 +493,76 @@ def get_vendor_activity(
     else:
         items.sort(key=lambda i: i.total_pos, reverse=reverse)
 
+    return items
+
+
+@router.get("/activity", response_model=PaginatedResult[VendorActivityOut])
+def get_vendor_activity(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status", pattern="^(active|inactive)$"),
+    sort_by: str = Query(default="total_pos", pattern="^(vendor_name|total_pos|latest_po_date)$"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=1000),
+) -> PaginatedResult[VendorActivityOut]:
+    items = _compute_vendor_activity(db, search, status_filter, sort_by, sort_dir)
     total = len(items)
     start = (page - 1) * page_size
     page_items = items[start : start + page_size]
     return PaginatedResult[VendorActivityOut](items=page_items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/activity/export")
+def export_vendor_activity(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status", pattern="^(active|inactive)$"),
+    sort_by: str = Query(default="total_pos", pattern="^(vendor_name|total_pos|latest_po_date)$"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+) -> StreamingResponse:
+    """Exports every vendor matching the current Active/Inactive Vendors filters/sort (no
+    pagination) as an .xlsx workbook — same filter params the list endpoint takes, so "export"
+    always means "export exactly what's on screen right now", same convention as DD/PD Tracker's
+    own exports. Vessel-wise breakdown is flattened to one "Vessel (count), Vessel (count), …"
+    column since a spreadsheet cell can't hold the nested per-vendor table the UI shows."""
+    items = _compute_vendor_activity(db, search, status_filter, sort_by, sort_dir)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Active-Inactive Vendors"
+
+    header_fill = PatternFill("solid", fgColor="0F4C81")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+    headers = [
+        "Vendor Code", "Vendor Name", "Vendor Type", "Email", "Contact", "City", "Country", "Currency",
+        "Status", "Total POs", "Latest PO No", "Latest PO Date", "Vessel-wise Breakup",
+    ]
+    sheet.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for item in items:
+        vessel_breakup = ", ".join(f"{vb.vessel_name} ({vb.po_count})" for vb in item.vessel_breakdown)
+        latest_po_date = item.latest_po_date.replace(tzinfo=None) if isinstance(item.latest_po_date, datetime) else item.latest_po_date
+        sheet.append([
+            item.vendor_code, item.vendor_name, item.vendor_type, item.email, item.contact_number,
+            item.city, item.country, item.currency,
+            "Active" if item.is_active else "Inactive", item.total_pos, item.latest_po_no, latest_po_date,
+            vessel_breakup,
+        ])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Active_Inactive_Vendors.xlsx"},
+    )
 
 
 @router.post("/by-vendor-code/{vendor_code}/ensure-tracking", response_model=VendorTrackerEntryOut)
