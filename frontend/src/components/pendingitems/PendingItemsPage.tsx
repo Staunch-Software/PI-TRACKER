@@ -18,6 +18,15 @@ import '../../pages/Tracker.css';
 import './PendingItems.css';
 
 /* ── Vector SVG Icons (Zero Emojis) ── */
+function MailIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  );
+}
+
 function ShipIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -374,6 +383,25 @@ export function PendingItemsPage() {
       if (maxB !== maxA) return maxB - maxA;
       return b[1].length - a[1].length;
     });
+  }, [filteredReviewPrs]);
+
+  const allOverdueFleetPrs = reqAgeing90Items;
+
+  const fleetVesselStats = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of allOverdueFleetPrs) {
+      const v = (item.vesselName || 'UNKNOWN').trim().toUpperCase();
+      counts[v] = (counts[v] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [allOverdueFleetPrs]);
+
+  const maxFleetAgeing = useMemo(() => {
+    return Math.max(...filteredReviewPrs.map((x) => x.ageingDays ?? 0), 0);
+  }, [filteredReviewPrs]);
+
+  const criticalOverdueCount = useMemo(() => {
+    return filteredReviewPrs.filter((x) => x.critical).length;
   }, [filteredReviewPrs]);
 
   function handleDrillDown(
@@ -785,22 +813,102 @@ export function PendingItemsPage() {
 
       {stage === 'Requisition' && prTab === 'ageing_90' ? (
         <>
-          {/* Review Banner for 90+ Days PRs */}
-          <div className="pending-pr-review-banner banner-ageing">
-            <div className="pending-pr-banner-content">
-              <div className="pending-pr-banner-icon">
+          {/* Executive Summary & KPI Header for 90+ Days PRs */}
+          <div className="overdue-fleet-summary-card">
+            <div className="overdue-fleet-summary-header">
+              <div className="overdue-fleet-header-icon">
                 <ClockIcon />
               </div>
-              <div>
-                <div className="pending-pr-banner-title">
-                  90+ Days Overdue Requisitions Review
+              <div className="overdue-fleet-header-text">
+                <h3 className="overdue-fleet-header-title">90+ Days Overdue Requisitions Review</h3>
+                <p className="overdue-fleet-header-desc">
+                  Fleet-wide review for purchase requisitions pending over 90 days. Dispatch technical review emails to superintendents and Masters to advise cancellation of requisitions no longer required on board.
+                </p>
+              </div>
+            </div>
+
+            <div className="overdue-fleet-kpis-grid">
+              <div className="overdue-kpi-card kpi-total">
+                <div className="overdue-kpi-icon-wrap icon-amber">
+                  <ClockIcon />
                 </div>
-                <div className="pending-pr-banner-desc">
-                  Requisitions pending over 90 days across the fleet. Dispatch review emails to confirm if any pending requisitions can be cancelled.
+                <div className="overdue-kpi-info">
+                  <span className="overdue-kpi-value">{filteredReviewPrs.length}</span>
+                  <span className="overdue-kpi-title">Overdue PRs</span>
                 </div>
+                <span className="overdue-kpi-badge badge-amber">Scope</span>
+              </div>
+
+              <div className="overdue-kpi-card kpi-vessels">
+                <div className="overdue-kpi-icon-wrap icon-blue">
+                  <ShipIcon />
+                </div>
+                <div className="overdue-kpi-info">
+                  <span className="overdue-kpi-value">{vesselGroups.length}</span>
+                  <span className="overdue-kpi-title">Vessels Affected</span>
+                </div>
+                <span className="overdue-kpi-badge badge-blue">Fleet</span>
+              </div>
+
+              <div className="overdue-kpi-card kpi-critical">
+                <div className="overdue-kpi-icon-wrap icon-red">
+                  <FlameIcon />
+                </div>
+                <div className="overdue-kpi-info">
+                  <span className="overdue-kpi-value">{criticalOverdueCount}</span>
+                  <span className="overdue-kpi-title">Critical Priority</span>
+                </div>
+                <span className={`overdue-kpi-badge ${criticalOverdueCount > 0 ? 'badge-red' : 'badge-slate'}`}>
+                  {criticalOverdueCount > 0 ? 'Urgent' : 'Normal'}
+                </span>
+              </div>
+
+              <div className="overdue-kpi-card kpi-max-age">
+                <div className="overdue-kpi-icon-wrap icon-indigo">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 14 14" />
+                    <path d="M12 2v2" />
+                  </svg>
+                </div>
+                <div className="overdue-kpi-info">
+                  <span className="overdue-kpi-value">{maxFleetAgeing}d</span>
+                  <span className="overdue-kpi-title">Max Ageing</span>
+                </div>
+                <span className="overdue-kpi-badge badge-indigo">Peak</span>
               </div>
             </div>
           </div>
+
+          {/* Quick Vessel Filter Navigation */}
+          {fleetVesselStats.length > 1 && (
+            <div className="overdue-vessel-quick-bar">
+              <span className="overdue-vessel-quick-label">Fleet Vessels:</span>
+              <button
+                type="button"
+                className={`overdue-vessel-pill ${filters.vesselName.length === 0 ? 'active' : ''}`}
+                onClick={() => updateFilters({ vesselName: [] })}
+              >
+                <span>All Vessels</span>
+                <span className="overdue-vessel-pill-badge">{allOverdueFleetPrs.length}</span>
+              </button>
+              {fleetVesselStats.map(([vName, count]) => {
+                const isActive = filters.vesselName.includes(vName);
+                return (
+                  <button
+                    key={vName}
+                    type="button"
+                    className={`overdue-vessel-pill ${isActive ? 'active' : ''}`}
+                    onClick={() => updateFilters({ vesselName: isActive ? [] : [vName] })}
+                  >
+                    <ShipIcon />
+                    <span>{vName}</span>
+                    <span className="overdue-vessel-pill-badge">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Toolbar for 90+ Days Review */}
           <div className="tracker-toolbar">
@@ -907,14 +1015,14 @@ export function PendingItemsPage() {
               <div className="pending-items-scroll">
                 <table className="data-table pending-items-table pending-spanned-vessel-table">
                   <colgroup>
-                    <col style={{ width: 270 }} />
+                    <col style={{ width: 230 }} />
                     <col style={{ width: 170 }} />
-                    <col style={{ width: 100 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 260 }} />
-                    <col style={{ width: 100 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 90 }} />
+                    <col style={{ width: 105 }} />
+                    <col style={{ width: 85 }} />
+                    <col style={{ minWidth: 240 }} />
+                    <col style={{ width: 95 }} />
+                    <col style={{ width: 110 }} />
+                    <col style={{ width: 80 }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -924,7 +1032,7 @@ export function PendingItemsPage() {
                       <th>Department</th>
                       <th>Description / Equipment</th>
                       <th style={{ textAlign: 'center' }}>Priority</th>
-                      <th>Status &amp; In-Charge</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
                       <th style={{ textAlign: 'center' }}>Ageing</th>
                     </tr>
                   </thead>
@@ -938,43 +1046,49 @@ export function PendingItemsPage() {
                           {idx === 0 && (
                             <td rowSpan={items.length} className="vessel-spanned-cell">
                               <div className="vessel-spanned-content">
-                                <div className="vessel-spanned-header">
-                                  <div className="pending-vessel-ship-badge">
-                                    <ShipIcon />
+                                <div className="vessel-spanned-card">
+                                  <div className="vessel-spanned-header">
+                                    <div className="vessel-ship-badge-icon">
+                                      <ShipIcon />
+                                    </div>
+                                    <div className="vessel-spanned-title-wrap">
+                                      <span className="vessel-spanned-name">{vName}</span>
+                                      <span className="vessel-spanned-fleet-tag">Active Fleet</span>
+                                    </div>
                                   </div>
-                                  <span className="vessel-spanned-name">{vName}</span>
-                                </div>
 
-                                <div className="vessel-spanned-owners">
-                                  <span className="pending-vessel-owner-chip chip-tsi">
-                                    TSI: {owners.tsi}
-                                  </span>
-                                  <span className="pending-vessel-owner-chip chip-ta">
-                                    TA: {owners.ta}
-                                  </span>
-                                </div>
+                                  <div className="vessel-spanned-owners">
+                                    <span className="pending-vessel-owner-chip chip-tsi" title={`TSI: ${owners.tsi}`}>
+                                      <span className="chip-prefix">TSI</span>
+                                      <span className="chip-name">{owners.tsi}</span>
+                                    </span>
+                                    <span className="pending-vessel-owner-chip chip-ta" title={`TA: ${owners.ta}`}>
+                                      <span className="chip-prefix">TA</span>
+                                      <span className="chip-name">{owners.ta}</span>
+                                    </span>
+                                  </div>
 
-                                <div className="vessel-spanned-stats">
-                                  <span className="vessel-spanned-stat-badge stat-overdue">
-                                    {items.length} {items.length === 1 ? 'Overdue PR' : 'Overdue PRs'}
-                                  </span>
-                                  <span className="vessel-spanned-stat-badge stat-max-age">
-                                    Max: {maxAgeing}d
-                                  </span>
-                                </div>
+                                  <div className="vessel-spanned-metrics">
+                                    <div className="vessel-metric-pill metric-count">
+                                      <span className="metric-num">{items.length}</span>
+                                      <span className="metric-text">{items.length === 1 ? 'Overdue PR' : 'Overdue PRs'}</span>
+                                    </div>
+                                    <div className={`vessel-metric-pill ${maxAgeing >= 120 ? 'metric-max-urgent' : 'metric-max-warn'}`}>
+                                      <span className="metric-num">{maxAgeing}d</span>
+                                      <span className="metric-text">Max Age</span>
+                                    </div>
+                                  </div>
 
-                                <button
-                                  type="button"
-                                  className="btn-vessel-review-mail-compact"
-                                  onClick={() => setSelectedVesselMail({ vesselName: vName, prType: 'ageing_90' })}
-                                  title={`Send technical review inquiry email for ${vName}`}
-                                >
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="2" y="4" width="20" height="16" rx="2" />
-                                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                                  </svg>
-                                  <span>Send Technical Review Email</span>
-                                </button>
+                                  <button
+                                    type="button"
+                                    className="btn-vessel-review-mail"
+                                    onClick={() => setSelectedVesselMail({ vesselName: vName, prType: 'ageing_90' })}
+                                    title={`Send technical review inquiry email for ${vName}`}
+                                  >
+                                    <MailIcon />
+                                    <span>Review Email</span>
+                                  </button>
+                                </div>
                               </div>
                             </td>
                           )}
@@ -989,7 +1103,12 @@ export function PendingItemsPage() {
                               <span className="vessel-prio-badge badge-normal">{(item.priority || 'NORMAL').toUpperCase()}</span>
                             )}
                           </td>
-                          <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="pending-status-pill status-approved">
+                              <span className="status-dot" />
+                              {item.status || 'Approved'}
+                            </span>
+                          </td>
                           <td style={{ textAlign: 'center' }}>
                             <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
                               {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
