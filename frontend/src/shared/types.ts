@@ -161,6 +161,10 @@ export interface PendingItem {
   ownerName: string | null;
   ageingDays: number | null;
   referenceDate: string | null;
+  priority?: string | null;
+  critical?: boolean | null;
+  department?: string | null;
+  reqCategory?: string | null;
 }
 
 export interface PendingItemsFilterOptions {
@@ -275,6 +279,41 @@ export interface PreviewPendingSummaryEmailResponse {
   attachmentFilenames?: string[];
   itemsCount: number;
   htmlBody: string;
+}
+
+export interface VesselPrReviewEmailRequest {
+  vesselName: string;
+  prType?: 'all' | 'critical' | 'ageing_90';
+  role?: 'ALL' | 'TSI' | 'TA';
+  subject?: string | null;
+  toEmails?: string[] | null;
+  ccEmails?: string[] | null;
+  testEmail?: string | null;
+}
+
+export interface PreviewVesselPrReviewEmailResponse {
+  vesselName: string;
+  prType: string;
+  subject: string;
+  fromMailbox: string;
+  defaultToEmails: string[];
+  defaultCcEmails: string[];
+  itemsCount: number;
+  items: PendingItem[];
+  htmlBody: string;
+  attachmentFilename: string;
+}
+
+export interface SendVesselPrReviewEmailResponse {
+  sent: boolean;
+  vesselName: string;
+  prType: string;
+  recipients: string[];
+  ccRecipients: string[];
+  subject: string;
+  fromMailbox: string;
+  attachmentFilename: string;
+  itemsCount: number;
 }
 
 // Import wizard: mirrors ImportRowData in backend/app/schemas/import_wizard.py.

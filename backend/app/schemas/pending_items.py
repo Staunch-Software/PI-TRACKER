@@ -14,6 +14,10 @@ class PendingItemOut(CamelModel):
     owner_name: str | None
     ageing_days: int | None
     reference_date: date | None
+    priority: str | None = None
+    critical: bool | None = None
+    department: str | None = None
+    req_category: str | None = None
 
 
 class PendingItemsFilterOptions(CamelModel):
@@ -131,6 +135,41 @@ class PreviewPendingSummaryEmailResponse(CamelModel):
     attachment_filenames: list[str] = []
     items_count: int
     html_body: str
+
+
+class VesselPrReviewEmailRequest(CamelModel):
+    vessel_name: str
+    pr_type: str = "ageing_90"  # "all" | "critical" | "ageing_90"
+    role: str = "ALL"  # "ALL" | "TSI" | "TA"
+    subject: str | None = None
+    to_emails: list[str] | None = None
+    cc_emails: list[str] | None = None
+    test_email: str | None = None
+
+
+class PreviewVesselPrReviewEmailResponse(CamelModel):
+    vessel_name: str
+    pr_type: str
+    subject: str
+    from_mailbox: str
+    default_to_emails: list[str]
+    default_cc_emails: list[str] = []
+    items_count: int
+    items: list[PendingItemOut]
+    html_body: str
+    attachment_filename: str
+
+
+class SendVesselPrReviewEmailResponse(CamelModel):
+    sent: bool
+    vessel_name: str
+    pr_type: str
+    recipients: list[str]
+    cc_recipients: list[str] = []
+    subject: str
+    from_mailbox: str
+    attachment_filename: str
+    items_count: int
 
 
 

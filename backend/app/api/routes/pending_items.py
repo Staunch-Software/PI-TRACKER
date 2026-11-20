@@ -37,6 +37,9 @@ from app.schemas.pending_items import (
     PreviewPendingSummaryEmailResponse,
     SendPendingSummaryEmailRequest,
     SendPendingSummaryEmailResponse,
+    VesselPrReviewEmailRequest,
+    PreviewVesselPrReviewEmailResponse,
+    SendVesselPrReviewEmailResponse,
 )
 
 _STAGES = ("Requisition", "Purchase Order", "Invoice")
@@ -121,6 +124,10 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
                 owner_name=owner_name,
                 ageing_days=pr.pending_since if is_pending and pr.pending_since is not None else _ageing(reference_date),
                 reference_date=reference_date,
+                priority=pr.priority,
+                critical=pr.critical,
+                department=pr.department,
+                req_category=pr.req_category,
             )
         )
 
@@ -148,6 +155,10 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
                 owner_name=owner_name,
                 ageing_days=po.pending_days if is_pending and po.pending_days is not None else _ageing(reference_date),
                 reference_date=reference_date,
+                priority=po.priority,
+                critical=po.critical,
+                department=None,
+                req_category=po.req_category,
             )
         )
 
@@ -1757,6 +1768,459 @@ def record_dashboard_weekly_snapshot(
             )
     db.commit()
     return {"status": "success", "recorded_week": next_week, "date": str(today)}
+
+
+def _build_vessel_pr_review_html(
+    vessel_name: str,
+    pr_type: str,
+    items: list[PendingItemOut],
+    tsi_name: str | None,
+    ta_name: str | None,
+    filename: str,
+) -> str:
+    date_str = datetime.now().strftime("%d %b %Y")
+    max_days = max([i.ageing_days or 0 for i in items], default=0)
+
+    if pr_type == "ageing_90":
+        type_title = "OVERDUE REQUISITIONS (90+ DAYS PENDING)"
+    elif pr_type == "critical":
+        type_title = "CRITICAL & HIGH PRIORITY REQUISITIONS"
+    else:
+        type_title = "OUTSTANDING REQUISITIONS REVIEW"
+
+    rows_html = []
+    for idx, item in enumerate(items, start=1):
+        age = item.ageing_days or 0
+        if age > 90:
+            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#FCE7F3;color:#831843;font-weight:700;font-size:11px;">{age} Days</span>'
+        elif age > 30:
+            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:11px;">{age} Days</span>'
+        else:
+            age_badge = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:11px;">{age} Days</span>'
+
+        prio_str = (item.priority or "NORMAL").upper()
+        if item.critical:
+            prio_badge = '<span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#DC2626;color:#FFFFFF;font-weight:800;font-size:10px;">CRITICAL</span>'
+        elif prio_str in ("URGENT/IMMEDIATE", "HIGH"):
+            prio_badge = f'<span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#F97316;color:#FFFFFF;font-weight:700;font-size:10px;">{prio_str}</span>'
+        else:
+            prio_badge = f'<span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#E2E8F0;color:#475569;font-weight:600;font-size:10px;">{prio_str}</span>'
+
+        date_formatted = item.reference_date.strftime("%d-%b-%Y") if item.reference_date else "—"
+        dept = item.department or item.req_category or "Technical"
+        title = item.title or "Requisition Items"
+        st = item.status or "Pending"
+        role_cls = "#1E40AF" if item.owner_role == "TSI" else "#047857"
+
+        rows_html.append(f"""
+        <tr style="background:{'#FFFFFF' if idx % 2 != 0 else '#F8FAFC'};">
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;font-size:11px;color:#64748B;">{idx}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:11.5px;white-space:nowrap;">{item.reference_no}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11px;color:#334155;white-space:nowrap;">{date_formatted}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11px;color:#475569;font-weight:600;">{dept}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;font-size:11.5px;color:#1E293B;">{title}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;">{prio_badge}</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;font-size:11px;font-weight:700;color:{role_cls};">{st} ({item.owner_role})</td>
+            <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;">{age_badge}</td>
+        </tr>
+        """)
+
+    body_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Technical Requisition Review - M/V {vessel_name}</title>
+</head>
+<body style="margin:0;padding:24px 12px;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;">
+<div style="max-width:960px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,0.06);">
+
+    <!-- Header Banner -->
+    <div style="background:linear-gradient(135deg, #0F2942 0%, #1E3A8A 100%);padding:24px 28px;color:#FFFFFF;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.85;margin-bottom:4px;font-weight:700;">
+            OZELLAR MARINE MANAGEMENT &bull; TECHNICAL FLEET PROCUREMENT
+        </div>
+        <h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-0.2px;">
+            TECHNICAL REVIEW: {type_title} &bull; M/V {vessel_name}
+        </h1>
+        <div style="margin-top:6px;font-size:12px;opacity:0.9;">
+            Generated on {date_str} &bull; Official Superintendent Operational Disposition Notice
+        </div>
+    </div>
+
+    <div style="padding:24px 28px;">
+        <!-- Vessel & In-Charge Quick Glance -->
+        <table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:16px;" cellpadding="0" cellspacing="0">
+            <tr>
+                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
+                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Target Vessel</div>
+                    <div style="font-size:15px;font-weight:800;color:#0F172A;margin-top:2px;">M/V {vessel_name}</div>
+                </td>
+                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
+                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Assigned TSI</div>
+                    <div style="font-size:14px;font-weight:700;color:#1E3A8A;margin-top:2px;">{tsi_name or 'Unassigned'}</div>
+                </td>
+                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
+                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Assigned TA</div>
+                    <div style="font-size:14px;font-weight:700;color:#581C87;margin-top:2px;">{ta_name or 'Unassigned'}</div>
+                </td>
+                <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 14px;width:25%;">
+                    <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;">Pending Scope</div>
+                    <div style="font-size:15px;font-weight:800;color:#DC2626;margin-top:2px;">{len(items)} Requisition(s) (Max {max_days}d)</div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Formal Salutation & Operational Context -->
+        <div style="font-size:13px;line-height:1.6;color:#334155;margin-bottom:18px;">
+            <p style="margin:0 0 10px 0;"><strong>Dear Technical Superintendent &amp; Technical Assistant,</strong></p>
+            <p style="margin:0 0 10px 0;">
+                During our regular fleet technical procurement audit, the following purchase requisition(s) for <strong>M/V {vessel_name}</strong> have remained pending for an extended duration (up to <strong>{max_days} days</strong>).
+            </p>
+            <p style="margin:0;">
+                Prolonged pending requisitions impact procurement forecasting, lead-time planning, and inventory tracking. Please technically assess the items listed below and communicate your operational requirement.
+            </p>
+        </div>
+
+        <!-- PR Data Table -->
+        <div style="margin-bottom:20px;overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;" cellpadding="0" cellspacing="0">
+                <thead>
+                    <tr style="background:#1E293B;color:#FFFFFF;">
+                        <th style="padding:9px 10px;text-align:center;width:5%;">#</th>
+                        <th style="padding:9px 10px;text-align:left;width:18%;">Requisition No.</th>
+                        <th style="padding:9px 10px;text-align:left;width:11%;">Created Date</th>
+                        <th style="padding:9px 10px;text-align:left;width:12%;">Department</th>
+                        <th style="padding:9px 10px;text-align:left;width:28%;">Description / Equipment</th>
+                        <th style="padding:9px 10px;text-align:center;width:9%;">Priority</th>
+                        <th style="padding:9px 10px;text-align:center;width:9%;">Status</th>
+                        <th style="padding:9px 10px;text-align:center;width:8%;">Ageing</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows_html)}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Technical Action Protocol Card (Hold / Cancel / Proceed) -->
+        <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-left:4px solid #1E3A8A;border-radius:6px;padding:16px 20px;margin-bottom:20px;">
+            <div style="font-size:13px;font-weight:800;color:#0F172A;margin-bottom:8px;">
+                ACTION REQUIRED: TECHNICAL DISPOSITION GUIDELINES
+            </div>
+            <div style="font-size:12px;line-height:1.6;color:#334155;">
+                Please reply to this communication advising one of the following technical courses of action for each item:
+                <ul style="margin:8px 0 0 0;padding-left:18px;">
+                    <li style="margin-bottom:6px;">
+                        <strong>1. PROCEED / APPROVE:</strong> If these spares, consumables, or services are still operationally critical for vessel class/safety or upcoming port calls, please complete approval and confirm target supply port/ETA.
+                    </li>
+                    <li style="margin-bottom:6px;">
+                        <strong>2. HOLD:</strong> If the requisition must be held temporarily (e.g. awaiting dry-docking confirmation, further onboard inspection, or quote clarifications), please provide the specific <em>HOLD Reason</em> and tentative review date.
+                    </li>
+                    <li>
+                        <strong>3. CANCEL:</strong> If the requirement is no longer valid, has been fulfilled through existing shipboard inventory, or was transferred from sister vessels, please cancel the requisition in SmartPAL to relieve active procurement backlog.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Attachment Box -->
+        <div style="padding:12px 16px;background:#F1F5F9;border:1px dashed #CBD5E1;border-radius:6px;margin-bottom:20px;">
+            <strong style="color:#0F172A;font-size:12px;">Attached Itemized Report: {filename}</strong>
+            <div style="font-size:11px;color:#64748B;margin-top:2px;">
+                Spreadsheet containing full requisition details, part numbers, and status for convenient offline review.
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="border-top:1px solid #E2E8F0;padding-top:14px;font-size:11px;color:#64748B;line-height:1.5;">
+            This technical inquiry was dispatched automatically by Ozellar Marine Management PI Monitoring Engine.<br>
+            For live updates or immediate action, access the <strong>PI Tracker System</strong>.
+        </div>
+    </div>
+</div>
+</body>
+</html>"""
+    return body_html
+
+
+def _build_vessel_pr_workbook(
+    vessel_name: str,
+    pr_type: str,
+    items: list[PendingItemOut],
+) -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Requisition Review"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Title Banner
+    ws.merge_cells("A1:H1")
+    ws.row_dimensions[1].height = 32
+    c1 = ws["A1"]
+    c1.value = f"OZELLAR MARINE MANAGEMENT • M/V {vessel_name.upper()} REQUISITIONS TECHNICAL REVIEW"
+    c1.fill = PatternFill("solid", fgColor="0F2942")
+    c1.font = Font(name="Calibri", size=11, bold=True, color="FFFFFFFF")
+    c1.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Subtitle
+    ws.merge_cells("A2:H2")
+    ws.row_dimensions[2].height = 20
+    c2 = ws["A2"]
+    c2.value = f"Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')} | Total Scope: {len(items)} Requisitions | Max Ageing: {max([i.ageing_days or 0 for i in items], default=0)} Days"
+    c2.fill = PatternFill("solid", fgColor="F1F5F9")
+    c2.font = Font(name="Calibri", size=9.5, italic=True, color="FF475569")
+    c2.alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.row_dimensions[3].height = 8
+
+    # Headers
+    headers = [
+        ("Sl No.", 8, Alignment(horizontal="center", vertical="center")),
+        ("Requisition No.", 22, Alignment(horizontal="center", vertical="center")),
+        ("Created Date", 15, Alignment(horizontal="center", vertical="center")),
+        ("Department", 16, Alignment(horizontal="left", vertical="center")),
+        ("Description / Equipment", 42, Alignment(horizontal="left", vertical="center", wrap_text=True)),
+        ("Priority", 14, Alignment(horizontal="center", vertical="center")),
+        ("Status & In-Charge", 18, Alignment(horizontal="center", vertical="center")),
+        ("Ageing (Days)", 14, Alignment(horizontal="center", vertical="center")),
+    ]
+
+    ws.row_dimensions[4].height = 24
+    for col_idx, (h_title, width, align) in enumerate(headers, start=1):
+        cell = ws.cell(row=4, column=col_idx, value=h_title)
+        cell.fill = PatternFill("solid", fgColor="1E293B")
+        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFFFF")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = width
+
+    border_thin = Border(
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0"),
+    )
+
+    for row_idx, item in enumerate(items, start=5):
+        ws.row_dimensions[row_idx].height = 24
+        is_even = (row_idx % 2 == 0)
+        row_fill = PatternFill("solid", fgColor="F8FAFC" if is_even else "FFFFFF")
+
+        vals = [
+            row_idx - 4,
+            item.reference_no,
+            item.reference_date.strftime("%d-%b-%Y") if item.reference_date else "—",
+            item.department or item.req_category or "Technical",
+            item.title or "Requisition Items",
+            ("CRITICAL" if item.critical else (item.priority or "NORMAL")).upper(),
+            f"{item.status or 'Pending'} ({item.owner_role})",
+            item.ageing_days or 0,
+        ]
+
+        for col_idx, val in enumerate(vals, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill = row_fill
+            cell.border = border_thin
+            cell.alignment = headers[col_idx - 1][2]
+            cell.font = Font(name="Calibri", size=9.5, color="FF0F172A")
+            if col_idx == 8 and isinstance(val, int) and val > 90:
+                cell.font = Font(name="Calibri", size=9.5, bold=True, color="FF991B1B")
+
+    return wb
+
+
+@router.post("/vessel-pr-review/preview-email", response_model=PreviewVesselPrReviewEmailResponse)
+def preview_vessel_pr_review_email(
+    payload: VesselPrReviewEmailRequest,
+    db: Session = Depends(get_db),
+) -> PreviewVesselPrReviewEmailResponse:
+    target_vessel = payload.vessel_name.strip().upper()
+    pr_type = (payload.pr_type or "ageing_90").strip().lower()
+    role_filter = payload.role.strip().upper() if payload.role and payload.role.strip().upper() in ("TSI", "TA") else None
+
+    all_items = [i for i in _compute_pending_items(db) if i.stage == "Requisition"]
+    vessel_items = [i for i in all_items if (i.vessel_name or "").strip().upper() == target_vessel]
+    if role_filter:
+        vessel_items = [i for i in vessel_items if i.owner_role == role_filter]
+
+    if pr_type == "ageing_90":
+        filtered_items = [i for i in vessel_items if (i.ageing_days or 0) > 90]
+    elif pr_type == "critical":
+        filtered_items = [
+            i for i in vessel_items
+            if i.critical is True or (i.priority or "").upper() in ("URGENT/IMMEDIATE", "HIGH", "DEFECT CORRECTION")
+        ]
+    else:
+        filtered_items = vessel_items
+
+    filtered_items.sort(key=lambda x: (-(x.ageing_days or 0), x.reference_no or ""))
+
+    tsi_name, ta_name = _VESSEL_OWNERS.get(target_vessel, (None, None))
+    tsi_user = db.query(User).filter(User.full_name.ilike(f"%{tsi_name}%")).first() if tsi_name else None
+    ta_user = db.query(User).filter(User.full_name.ilike(f"%{ta_name}%")).first() if ta_name else None
+
+    to_emails = []
+    if tsi_user and tsi_user.email:
+        to_emails.append(tsi_user.email.strip())
+    if ta_user and ta_user.email:
+        to_emails.append(ta_user.email.strip())
+    if not to_emails:
+        if tsi_name:
+            t = db.query(User).filter(User.rank == "TSI", User.is_active.is_(True)).first()
+            if t and t.email:
+                to_emails.append(t.email.strip())
+
+    default_cc = ["kunalchandra@ozellar.com", "Karunya.pius@ozellar.com", "data@ozellar.com"]
+
+    clean_v_name = target_vessel.replace(" ", "_")
+    if pr_type == "ageing_90":
+        default_subject = f"Technical Review: Overdue Requisitions (90+ Days) – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
+    elif pr_type == "critical":
+        default_subject = f"Technical Review: Critical Requisitions Pending Action – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
+    else:
+        default_subject = f"Technical Review: Pending Requisitions – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
+
+    html_body = _build_vessel_pr_review_html(
+        vessel_name=target_vessel,
+        pr_type=pr_type,
+        items=filtered_items,
+        tsi_name=tsi_name,
+        ta_name=ta_name,
+        filename=att_filename,
+    )
+
+    return PreviewVesselPrReviewEmailResponse(
+        vessel_name=target_vessel,
+        pr_type=pr_type,
+        subject=default_subject,
+        from_mailbox="data@ozellar.com",
+        default_to_emails=sorted(set(to_emails)),
+        default_cc_emails=default_cc,
+        items_count=len(filtered_items),
+        items=filtered_items,
+        html_body=html_body,
+        attachment_filename=att_filename,
+    )
+
+
+@router.post("/vessel-pr-review/send-email", response_model=SendVesselPrReviewEmailResponse)
+def send_vessel_pr_review_email(
+    payload: VesselPrReviewEmailRequest,
+    db: Session = Depends(get_db),
+) -> SendVesselPrReviewEmailResponse:
+    target_vessel = payload.vessel_name.strip().upper()
+    pr_type = (payload.pr_type or "ageing_90").strip().lower()
+    role_filter = payload.role.strip().upper() if payload.role and payload.role.strip().upper() in ("TSI", "TA") else None
+
+    all_items = [i for i in _compute_pending_items(db) if i.stage == "Requisition"]
+    vessel_items = [i for i in all_items if (i.vessel_name or "").strip().upper() == target_vessel]
+    if role_filter:
+        vessel_items = [i for i in vessel_items if i.owner_role == role_filter]
+
+    if pr_type == "ageing_90":
+        filtered_items = [i for i in vessel_items if (i.ageing_days or 0) > 90]
+    elif pr_type == "critical":
+        filtered_items = [
+            i for i in vessel_items
+            if i.critical is True or (i.priority or "").upper() in ("URGENT/IMMEDIATE", "HIGH", "DEFECT CORRECTION")
+        ]
+    else:
+        filtered_items = vessel_items
+
+    filtered_items.sort(key=lambda x: (-(x.ageing_days or 0), x.reference_no or ""))
+
+    tsi_name, ta_name = _VESSEL_OWNERS.get(target_vessel, (None, None))
+    clean_v_name = target_vessel.replace(" ", "_")
+    if pr_type == "ageing_90":
+        default_subject = f"Technical Review: Overdue Requisitions (90+ Days) – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
+    elif pr_type == "critical":
+        default_subject = f"Technical Review: Critical Requisitions Pending Action – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
+    else:
+        default_subject = f"Technical Review: Pending Requisitions – M/V {target_vessel}"
+        att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
+
+    subject = payload.subject.strip() if payload.subject and payload.subject.strip() else default_subject
+
+    # Recipients
+    if payload.test_email and payload.test_email.strip():
+        recipients = [payload.test_email.strip()]
+        cc_recipients = []
+    elif payload.to_emails and len(payload.to_emails) > 0:
+        recipients = sorted({e.strip() for e in payload.to_emails if e and e.strip()})
+        cc_source = payload.cc_emails if payload.cc_emails is not None else []
+        cc_recipients = sorted({e.strip() for e in cc_source if e and e.strip()})
+    else:
+        tsi_user = db.query(User).filter(User.full_name.ilike(f"%{tsi_name}%")).first() if tsi_name else None
+        ta_user = db.query(User).filter(User.full_name.ilike(f"%{ta_name}%")).first() if ta_name else None
+        to_set = set()
+        if tsi_user and tsi_user.email:
+            to_set.add(tsi_user.email.strip())
+        if ta_user and ta_user.email:
+            to_set.add(ta_user.email.strip())
+        recipients = sorted(to_set)
+        cc_recipients = ["kunalchandra@ozellar.com", "Karunya.pius@ozellar.com", "data@ozellar.com"]
+
+    if not recipients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No recipient email addresses available for vessel '{target_vessel}'.",
+        )
+
+    # Build workbook
+    wb = _build_vessel_pr_workbook(target_vessel, pr_type, filtered_items)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    att_bytes = buf.getvalue()
+
+    # Build HTML
+    html_body = _build_vessel_pr_review_html(
+        vessel_name=target_vessel,
+        pr_type=pr_type,
+        items=filtered_items,
+        tsi_name=tsi_name,
+        ta_name=ta_name,
+        filename=att_filename,
+    )
+
+    try:
+        send_mail(
+            to_emails=recipients,
+            subject=subject,
+            html_body=html_body,
+            from_mailbox="data@ozellar.com",
+            cc_emails=cc_recipients,
+            attachments=[
+                {
+                    "name": att_filename,
+                    "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "contentBytes": att_bytes,
+                }
+            ],
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to send vessel PR review email: {e}",
+        ) from e
+
+    return SendVesselPrReviewEmailResponse(
+        sent=True,
+        vessel_name=target_vessel,
+        pr_type=pr_type,
+        recipients=recipients,
+        cc_recipients=cc_recipients,
+        subject=subject,
+        from_mailbox="data@ozellar.com",
+        attachment_filename=att_filename,
+        items_count=len(filtered_items),
+    )
 
 
 @router.get("/filter-options", response_model=PendingItemsFilterOptions)

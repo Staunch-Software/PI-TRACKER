@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
@@ -12,9 +12,87 @@ import type {
 import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardPage } from './PendingDashboardPage';
 import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
+import { VesselPrMailModal } from '../modals/VesselPrMailModal';
 
 import '../../pages/Tracker.css';
 import './PendingItems.css';
+
+/* ── Vector SVG Icons (Zero Emojis) ── */
+function ShipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76" />
+      <path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6" />
+      <path d="M12 2v3" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+const VESSEL_OWNER_MAP: Record<string, { tsi: string; ta: string }> = {
+  'AMNSI MAXIMUS': { tsi: 'Murtuza', ta: 'Sunil' },
+  'AMNSI STALLION': { tsi: 'Murtuza', ta: 'Sunil' },
+  'GCL GANGA': { tsi: 'Gaurav', ta: 'Jayasri' },
+  'GCL TAPI': { tsi: 'Murtuza', ta: 'Bharath' },
+  'AM UMANG': { tsi: 'Abhisek', ta: 'Gayathri' },
+  'AMNS TUFMAX': { tsi: 'Abhinav', ta: 'Viswa' },
+  'AMNS POLAR': { tsi: 'Abhinav', ta: 'Viswa' },
+  'GCL SARASWATI': { tsi: 'Abhinav', ta: 'Bharath' },
+  'GCL FOS': { tsi: 'Gaurav', ta: 'Bharath' },
+  'GCL SABARMATI': { tsi: 'Pavan', ta: 'Bharath' },
+  'GCL YAMUNA': { tsi: 'Gaurav', ta: 'Jayasri' },
+  'GCL NARMADA': { tsi: 'Pavan', ta: 'Viswa' },
+  'AM KIRTI': { tsi: 'Pavan', ta: 'Gayathri' },
+  'AM TARANG': { tsi: 'Pavan', ta: 'Sunil' },
+};
+
+function isCriticalPr(item: PendingItem): boolean {
+  if (item.critical) return true;
+  const p = (item.priority || '').trim().toUpperCase();
+  return p === 'URGENT/IMMEDIATE' || p === 'HIGH' || p === 'DEFECT CORRECTION';
+}
+
+function isAgeing90Pr(item: PendingItem): boolean {
+  return (item.ageingDays ?? 0) > 90;
+}
 
 type SortColumn = 'referenceNo' | 'title' | 'vesselName' | 'vendor' | 'status' | 'ownerName' | 'ageingDays' | 'referenceDate';
 
@@ -233,6 +311,84 @@ export function PendingItemsPage() {
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
   const [mailSuccessMessage, setMailSuccessMessage] = useState<string | null>(null);
 
+  const [prTab, setPrTab] = useState<'all' | 'critical' | 'ageing_90'>('all');
+  const [selectedVesselMail, setSelectedVesselMail] = useState<{
+    vesselName: string;
+    prType: 'critical' | 'ageing_90';
+  } | null>(null);
+  const [collapsedVessels, setCollapsedVessels] = useState<Record<string, boolean>>({});
+
+  const allRequisitionsQuery = useQuery({
+    queryKey: ['all-requisitions-dataset'],
+    queryFn: () =>
+      api.get<PaginatedResult<PendingItem>>('/pending-items?stage=Requisition&page=1&page_size=1000'),
+    enabled: stage === 'Requisition',
+    staleTime: 60_000,
+  });
+
+  const reqAllItems = allRequisitionsQuery.data?.items ?? [];
+  const reqCriticalItems = useMemo(() => reqAllItems.filter(isCriticalPr), [reqAllItems]);
+  const reqAgeing90Items = useMemo(() => reqAllItems.filter(isAgeing90Pr), [reqAllItems]);
+
+  const activePrList = prTab === 'critical' ? reqCriticalItems : reqAgeing90Items;
+
+  const filteredReviewPrs = useMemo(() => {
+    return activePrList.filter((item) => {
+      if (ownerRoleFilter !== 'ALL' && item.ownerRole !== ownerRoleFilter) {
+        return false;
+      }
+      if (filters.vesselName.length > 0 && item.vesselName && !filters.vesselName.includes(item.vesselName)) {
+        return false;
+      }
+      if (filters.ownerName.length > 0 && item.ownerName && !filters.ownerName.includes(item.ownerName)) {
+        return false;
+      }
+      if (filters.search) {
+        const q = filters.search.trim().toLowerCase();
+        const matchRef = (item.referenceNo || '').toLowerCase().includes(q);
+        const matchTitle = (item.title || '').toLowerCase().includes(q);
+        const matchVessel = (item.vesselName || '').toLowerCase().includes(q);
+        const matchOwner = (item.ownerName || '').toLowerCase().includes(q);
+        const matchDept = (item.department || item.reqCategory || '').toLowerCase().includes(q);
+        if (!matchRef && !matchTitle && !matchVessel && !matchOwner && !matchDept) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [activePrList, ownerRoleFilter, filters]);
+
+  const vesselGroups = useMemo(() => {
+    const map: Record<string, PendingItem[]> = {};
+    for (const item of filteredReviewPrs) {
+      const vName = (item.vesselName || 'UNKNOWN VESSEL').trim().toUpperCase();
+      if (!map[vName]) map[vName] = [];
+      map[vName].push(item);
+    }
+    return Object.entries(map).sort((a, b) => {
+      const maxA = Math.max(...a[1].map((x) => x.ageingDays ?? 0), 0);
+      const maxB = Math.max(...b[1].map((x) => x.ageingDays ?? 0), 0);
+      if (maxB !== maxA) return maxB - maxA;
+      return b[1].length - a[1].length;
+    });
+  }, [filteredReviewPrs]);
+
+  function toggleVesselCollapse(vName: string) {
+    setCollapsedVessels((prev) => ({ ...prev, [vName]: !prev[vName] }));
+  }
+
+  function handleCollapseAll() {
+    const allCollapsed: Record<string, boolean> = {};
+    for (const [vName] of vesselGroups) {
+      allCollapsed[vName] = true;
+    }
+    setCollapsedVessels(allCollapsed);
+  }
+
+  function handleExpandAll() {
+    setCollapsedVessels({});
+  }
+
   function handleDrillDown(
     targetStage: Stage | null,
     targetRole: 'TSI' | 'TA',
@@ -256,6 +412,9 @@ export function PendingItemsPage() {
   function selectStage(next: Stage) {
     setStage(next);
     setPage(1);
+    if (next !== 'Requisition') {
+      setPrTab('all');
+    }
   }
 
   function selectRoleFilter(next: OwnerRoleFilter) {
@@ -413,8 +572,18 @@ export function PendingItemsPage() {
 
         {activeView === 'items' && (
           <div className="tracker-page-count">
-            <span className="count-number">{itemsQuery.data?.total ?? 0}</span>
-            <span className="count-label">{stage} · {activeRoleLabel}</span>
+            <span className="count-number">
+              {stage === 'Requisition' && prTab !== 'all'
+                ? filteredReviewPrs.length
+                : itemsQuery.data?.total ?? 0}
+            </span>
+            <span className="count-label">
+              {stage === 'Requisition' && prTab === 'critical'
+                ? `Critical PRs · ${activeRoleLabel}`
+                : stage === 'Requisition' && prTab === 'ageing_90'
+                  ? `90+ Days PRs · ${activeRoleLabel}`
+                  : `${stage} · ${activeRoleLabel}`}
+            </span>
           </div>
         )}
       </div>
@@ -437,6 +606,39 @@ export function PendingItemsPage() {
           </button>
         ))}
       </div>
+
+      {/* Requisition Specific 3-Tabs */}
+      {stage === 'Requisition' && (
+        <div className="pending-pr-tabs-bar">
+          <button
+            type="button"
+            className={`pending-pr-tab-btn ${prTab === 'all' ? 'active' : ''}`}
+            onClick={() => setPrTab('all')}
+          >
+            <ListIcon />
+            <span>All Pending PRs</span>
+            <span className="pending-pr-tab-count">{reqAllItems.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`pending-pr-tab-btn ${prTab === 'critical' ? 'active' : ''}`}
+            onClick={() => setPrTab('critical')}
+          >
+            <FlameIcon />
+            <span>Critical PRs</span>
+            <span className="pending-pr-tab-count badge-critical">{reqCriticalItems.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`pending-pr-tab-btn ${prTab === 'ageing_90' ? 'active' : ''}`}
+            onClick={() => setPrTab('ageing_90')}
+          >
+            <ClockIcon />
+            <span>90+ Days Ageing PRs</span>
+            <span className="pending-pr-tab-count badge-ageing">{reqAgeing90Items.length}</span>
+          </button>
+        </div>
+      )}
 
       {/* Success Notification Banner */}
       {mailSuccessMessage && (
@@ -468,7 +670,11 @@ export function PendingItemsPage() {
             onClick={() => selectRoleFilter('ALL')}
           >
             All Pending
-            <span className="pending-role-pill-count">{totalForCurrentStage}</span>
+            <span className="pending-role-pill-count">
+              {stage === 'Requisition' && prTab !== 'all'
+                ? activePrList.length
+                : totalForCurrentStage}
+            </span>
           </button>
           <button
             type="button"
@@ -476,7 +682,11 @@ export function PendingItemsPage() {
             onClick={() => selectRoleFilter('TSI')}
           >
             TSI Pending
-            <span className="pending-role-pill-count">{tsiForCurrentStage}</span>
+            <span className="pending-role-pill-count">
+              {stage === 'Requisition' && prTab !== 'all'
+                ? activePrList.filter((x) => x.ownerRole === 'TSI').length
+                : tsiForCurrentStage}
+            </span>
           </button>
           <button
             type="button"
@@ -484,27 +694,33 @@ export function PendingItemsPage() {
             onClick={() => selectRoleFilter('TA')}
           >
             TA Pending
-            <span className="pending-role-pill-count">{taForCurrentStage}</span>
+            <span className="pending-role-pill-count">
+              {stage === 'Requisition' && prTab !== 'all'
+                ? activePrList.filter((x) => x.ownerRole === 'TA').length
+                : taForCurrentStage}
+            </span>
           </button>
         </div>
 
-        <div className="pending-breakdown-meta">
-          <span className="pending-breakdown-hint">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Click any owner or vessel to filter
-          </span>
-          <button
-            type="button"
-            className="pending-breakdown-toggle-btn"
-            onClick={() => setShowBreakdown((prev) => !prev)}
-          >
-            <span>{showBreakdown ? '▲ Hide Breakdown' : '▼ Show Breakdown'}</span>
-          </button>
-        </div>
+        {(stage !== 'Requisition' || prTab === 'all') && (
+          <div className="pending-breakdown-meta">
+            <span className="pending-breakdown-hint">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Click any owner or vessel to filter
+            </span>
+            <button
+              type="button"
+              className="pending-breakdown-toggle-btn"
+              onClick={() => setShowBreakdown((prev) => !prev)}
+            >
+              <span>{showBreakdown ? '▲ Hide Breakdown' : '▼ Show Breakdown'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Dashboard style breakdown cards */}
-      {showBreakdown && (
+      {showBreakdown && (stage !== 'Requisition' || prTab === 'all') && (
         <div className="pending-breakdown-wrapper">
           <div className="pending-cards-grid">
             {filteredOwners.map((owner) => {
@@ -575,368 +791,612 @@ export function PendingItemsPage() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="tracker-toolbar">
-        <div className="tracker-search-wrap">
-          <SearchIcon />
-          <input
-            type="search"
-            placeholder={
-              stage === 'Requisition'
-                ? 'Search PR no., vessel, title, owner…'
-                : stage === 'Purchase Order'
-                  ? 'Search PO no., vessel, vendor, title, owner…'
-                  : 'Search invoice no., vessel, vendor, owner…'
-            }
-            value={filters.search}
-            onChange={(e) => updateFilters({ search: e.target.value })}
-          />
-        </div>
-
-        <Dropdown
-          label="All vessels"
-          value={filters.vesselName[0] || ''}
-          options={vesselOptions}
-          onChange={(val) => updateFilters({ vesselName: val ? [val] : [] })}
-        />
-
-        <Dropdown
-          label="All owners"
-          value={filters.ownerName[0] || ''}
-          options={ownerNameOptions}
-          onChange={(val) => updateFilters({ ownerName: val ? [val] : [] })}
-        />
-
-        <Dropdown
-          label="All Ageing"
-          value={filters.ageingBracket}
-          options={AGEING_OPTIONS}
-          onChange={(val) => updateFilters({ ageingBracket: val })}
-        />
-
-        <div className="tracker-toolbar-spacer" />
-
-        <button
-          type="button"
-          className="btn-tracker-action btn-pending-mail-trigger"
-          onClick={() => setIsMailModalOpen(true)}
-          title={`Preview and send summary email to ${activeRoleLabel}`}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="4" width="20" height="16" rx="2" />
-            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-          </svg>
-          <span>
-            {ownerRoleFilter === 'ALL'
-              ? 'Email All (TSI & TA)'
-              : ownerRoleFilter === 'TSI'
-                ? 'Email TSI Summary'
-                : 'Email TA Summary'}
-          </span>
-        </button>
-
-        <button
-          className="btn-tracker-action btn-tracker-secondary"
-          onClick={handleExport}
-          disabled={isExporting}
-          title={`Export ${stage} (${activeRoleLabel}) ageing matrix with clickable drill-down detail sheets to Excel`}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          {isExporting ? 'Exporting…' : 'Export to Excel'}
-        </button>
-      </div>
-
-      {/* Active filters bar */}
-      {hasAnyActiveFilter && (
-        <div className="pending-active-filters-bar">
-          <span className="pending-active-filters-label">Active Filters:</span>
-
-          {filters.search && (
-            <span className="pending-filter-chip">
-              Search: &quot;{filters.search}&quot;
-              <button
-                type="button"
-                className="pending-filter-chip-remove"
-                onClick={() => updateFilters({ search: '' })}
-                aria-label="Remove search filter"
-              >
-                ×
+      {stage === 'Requisition' && prTab !== 'all' ? (
+        <>
+          {/* Review Banner for Critical or 90+ Days PRs */}
+          <div className={`pending-pr-review-banner ${prTab === 'critical' ? 'banner-critical' : 'banner-ageing'}`}>
+            <div className="pending-pr-banner-content">
+              <div className="pending-pr-banner-icon">
+                {prTab === 'critical' ? <FlameIcon /> : <ClockIcon />}
+              </div>
+              <div>
+                <div className="pending-pr-banner-title">
+                  {prTab === 'critical'
+                    ? 'Critical & High Priority Requisitions Review'
+                    : '90+ Days Overdue Requisitions Review'}
+                </div>
+                <div className="pending-pr-banner-desc">
+                  {prTab === 'critical'
+                    ? 'Grouped vessel-wise. Send formal technical inquiries to superintendents to confirm operational necessity, expedite approval, or cancel redundant requisitions.'
+                    : 'Requisitions pending over 90 days across the fleet. Dispatch technical review emails requiring superintendents to declare whether to PROCEED, HOLD, or CANCEL.'}
+                </div>
+              </div>
+            </div>
+            <div className="pending-pr-banner-actions">
+              <button type="button" className="pending-pr-toggle-all-btn" onClick={handleExpandAll}>
+                Expand All
               </button>
-            </span>
-          )}
-
-          {filters.vesselName.map((v) => (
-            <span key={v} className="pending-filter-chip">
-              Vessel: {v}
-              <button
-                type="button"
-                className="pending-filter-chip-remove"
-                onClick={() => updateFilters({ vesselName: filters.vesselName.filter((x) => x !== v) })}
-                aria-label={`Remove ${v} filter`}
-              >
-                ×
+              <button type="button" className="pending-pr-toggle-all-btn" onClick={handleCollapseAll}>
+                Collapse All
               </button>
-            </span>
-          ))}
-
-          {filters.ownerName.map((o) => (
-            <span key={o} className="pending-filter-chip">
-              Owner: {o}
-              <button
-                type="button"
-                className="pending-filter-chip-remove"
-                onClick={() => updateFilters({ ownerName: filters.ownerName.filter((x) => x !== o) })}
-                aria-label={`Remove ${o} filter`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-
-          {filters.ageingBracket && (
-            <span className="pending-filter-chip">
-              Ageing: {filters.ageingBracket}
-              <button
-                type="button"
-                className="pending-filter-chip-remove"
-                onClick={() => updateFilters({ ageingBracket: '' })}
-                aria-label="Remove ageing filter"
-              >
-                ×
-              </button>
-            </span>
-          )}
-
-          <button type="button" className="pending-reset-all-btn" onClick={clearAllFilters}>
-            Reset all
-          </button>
-        </div>
-      )}
-
-      {exportError && (
-        <div className="tracker-export-error">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          {exportError}
-        </div>
-      )}
-
-      {itemsQuery.isLoading ? (
-        <div className="tracker-table-card">
-          <div className="tracker-loading">
-            <div className="tracker-loading-spinner" />
-            <div>Loading pending items…</div>
+            </div>
           </div>
-        </div>
-      ) : itemsQuery.isError ? (
-        <div className="tracker-table-card">
-          <div className="tracker-error">Failed to load pending items.</div>
-        </div>
+
+          {/* Toolbar for Review views */}
+          <div className="tracker-toolbar">
+            <div className="tracker-search-wrap">
+              <SearchIcon />
+              <input
+                type="search"
+                placeholder="Search PR no., vessel, equipment, owner…"
+                value={filters.search}
+                onChange={(e) => updateFilters({ search: e.target.value })}
+              />
+            </div>
+
+            <Dropdown
+              label="All vessels"
+              value={filters.vesselName[0] || ''}
+              options={vesselOptions}
+              onChange={(val) => updateFilters({ vesselName: val ? [val] : [] })}
+            />
+
+            <Dropdown
+              label="All owners"
+              value={filters.ownerName[0] || ''}
+              options={ownerNameOptions}
+              onChange={(val) => updateFilters({ ownerName: val ? [val] : [] })}
+            />
+
+            <div className="tracker-toolbar-spacer" />
+          </div>
+
+          {/* Active filters bar */}
+          {hasAnyActiveFilter && (
+            <div className="pending-active-filters-bar">
+              <span className="pending-active-filters-label">Active Filters:</span>
+
+              {filters.search && (
+                <span className="pending-filter-chip">
+                  Search: &quot;{filters.search}&quot;
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ search: '' })}
+                    aria-label="Remove search filter"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+
+              {filters.vesselName.map((v) => (
+                <span key={v} className="pending-filter-chip">
+                  Vessel: {v}
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ vesselName: filters.vesselName.filter((x) => x !== v) })}
+                    aria-label={`Remove ${v} filter`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              {filters.ownerName.map((o) => (
+                <span key={o} className="pending-filter-chip">
+                  Owner: {o}
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ ownerName: filters.ownerName.filter((x) => x !== o) })}
+                    aria-label={`Remove ${o} filter`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              <button type="button" className="pending-reset-all-btn" onClick={clearAllFilters}>
+                Reset all
+              </button>
+            </div>
+          )}
+
+          {/* Vessel Cards Grid or Empty State */}
+          {allRequisitionsQuery.isLoading ? (
+            <div className="tracker-table-card">
+              <div className="tracker-loading">
+                <div className="tracker-loading-spinner" />
+                <div>Loading requisition review items…</div>
+              </div>
+            </div>
+          ) : vesselGroups.length === 0 ? (
+            <div className="pending-vessel-empty-state">
+              <div className="pending-vessel-empty-icon">
+                <ShipIcon />
+              </div>
+              <div className="pending-vessel-empty-title">No Requisitions Found</div>
+              <div className="pending-vessel-empty-desc">
+                {prTab === 'critical'
+                  ? 'No critical or urgent requisitions match the current filters.'
+                  : 'No requisitions exceeding 90 days ageing match the current filters.'}
+              </div>
+            </div>
+          ) : (
+            <div className="pending-vessel-cards-list">
+              {vesselGroups.map(([vName, items]) => {
+                const owners = VESSEL_OWNER_MAP[vName] || { tsi: 'TSI In-Charge', ta: 'TA In-Charge' };
+                const maxAgeing = Math.max(...items.map((x) => x.ageingDays ?? 0), 0);
+                const isCollapsed = collapsedVessels[vName] ?? false;
+
+                return (
+                  <div key={vName} className={`pending-vessel-card ${isCollapsed ? 'collapsed' : ''}`}>
+                    <div className="pending-vessel-card-header" onClick={() => toggleVesselCollapse(vName)}>
+                      <div className="pending-vessel-header-left">
+                        <div className="pending-vessel-ship-badge">
+                          <ShipIcon />
+                        </div>
+                        <span className="pending-vessel-name">M/V {vName}</span>
+                        <div className="pending-vessel-owners">
+                          <span className="pending-vessel-owner-chip chip-tsi">
+                            TSI: {owners.tsi}
+                          </span>
+                          <span className="pending-vessel-owner-chip chip-ta">
+                            TA: {owners.ta}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pending-vessel-header-right">
+                        <span className={`pending-vessel-stat-pill ${prTab === 'critical' ? 'pill-critical' : 'pill-ageing'}`}>
+                          {items.length} {prTab === 'critical' ? 'Critical PRs' : 'Overdue PRs'}
+                        </span>
+                        <span className="pending-vessel-stat-pill pill-max-age">
+                          Max Ageing: {maxAgeing}d
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-vessel-review-mail"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVesselMail({ vesselName: vName, prType: prTab });
+                          }}
+                          title={`Send technical review inquiry email for M/V ${vName}`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                          </svg>
+                          <span>Send Technical Review Email</span>
+                        </button>
+                        <span className="pending-vessel-collapse-icon">
+                          <ChevronDownIcon />
+                        </span>
+                      </div>
+                    </div>
+
+                    {!isCollapsed && (
+                      <div className="pending-vessel-card-body">
+                        <table className="pending-vessel-items-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: 40, textAlign: 'center' }}>#</th>
+                              <th style={{ width: 150 }}>PR Reference No.</th>
+                              <th style={{ width: 110 }}>Created</th>
+                              <th style={{ width: 120 }}>Department</th>
+                              <th>Description / Equipment</th>
+                              <th style={{ width: 100, textAlign: 'center' }}>Priority</th>
+                              <th style={{ width: 140 }}>Status &amp; In-Charge</th>
+                              <th style={{ width: 90, textAlign: 'center' }}>Ageing</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item, idx) => {
+                              const prio = (item.priority || 'NORMAL').toUpperCase();
+                              const age = item.ageingDays ?? 0;
+                              return (
+                                <tr key={`${item.referenceNo}-${idx}`}>
+                                  <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
+                                  <td className="vessel-table-pr-no">{item.referenceNo ?? '—'}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(item.referenceDate)}</td>
+                                  <td className="vessel-table-dept">{item.department || item.reqCategory || 'Technical'}</td>
+                                  <td className="vessel-table-title" title={item.title ?? ''}>{item.title ?? '—'}</td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    {item.critical ? (
+                                      <span className="vessel-prio-badge badge-critical">CRITICAL</span>
+                                    ) : prio === 'URGENT/IMMEDIATE' || prio === 'HIGH' ? (
+                                      <span className="vessel-prio-badge badge-high">{prio}</span>
+                                    ) : (
+                                      <span className="vessel-prio-badge badge-normal">{prio}</span>
+                                    )}
+                                  </td>
+                                  <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <span className={`ageing-chip ${getAgeingClass(age)}`}>
+                                      {age}d
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       ) : (
         <>
-          <div className="tracker-table-shell">
-            <div className="pending-items-scroll">
-              <table className="data-table pending-items-table">
-                {stage === 'Requisition' ? (
-                  <>
-                    <colgroup>
-                      <col style={{ width: 180 }} />
-                      <col style={{ width: 250 }} />
-                      <col style={{ width: 160 }} />
-                      <col style={{ width: 140 }} />
-                      <col style={{ width: 130 }} />
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 120 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th onClick={() => handleSort('referenceNo')}>PR Reference No. {sortIndicator('referenceNo')}</th>
-                        <th onClick={() => handleSort('title')}>Title / Description {sortIndicator('title')}</th>
-                        <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
-                        <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
-                        <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
-                        <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
-                        <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(itemsQuery.data?.items ?? []).map((item, idx) => (
-                        <tr key={`${item.referenceNo}-${idx}`}>
-                          <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
-                          <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
-                          <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
-                          <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
-                          <td className="owner-cell">
-                            <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
-                            {item.ownerName ?? '—'}
-                          </td>
-                          <td>
-                            <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
-                              {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
-                            </span>
-                          </td>
-                          <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
-                        </tr>
-                      ))}
-                      {itemsQuery.data && itemsQuery.data.items.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="pending-items-empty">
-                            No requisition items match the current filters.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </>
-                ) : stage === 'Purchase Order' ? (
-                  <>
-                    <colgroup>
-                      <col style={{ width: 170 }} />
-                      <col style={{ width: 220 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 190 }} />
-                      <col style={{ width: 130 }} />
-                      <col style={{ width: 130 }} />
-                      <col style={{ width: 100 }} />
-                      <col style={{ width: 110 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th onClick={() => handleSort('referenceNo')}>PO Number {sortIndicator('referenceNo')}</th>
-                        <th onClick={() => handleSort('title')}>Title / Description {sortIndicator('title')}</th>
-                        <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
-                        <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
-                        <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
-                        <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
-                        <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
-                        <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(itemsQuery.data?.items ?? []).map((item, idx) => (
-                        <tr key={`${item.referenceNo}-${idx}`}>
-                          <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
-                          <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
-                          <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
-                          <td>{item.vendor ?? '—'}</td>
-                          <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
-                          <td className="owner-cell">
-                            <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
-                            {item.ownerName ?? '—'}
-                          </td>
-                          <td>
-                            <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
-                              {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
-                            </span>
-                          </td>
-                          <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
-                        </tr>
-                      ))}
-                      {itemsQuery.data && itemsQuery.data.items.length === 0 && (
-                        <tr>
-                          <td colSpan={8} className="pending-items-empty">
-                            No purchase orders match the current filters.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </>
-                ) : (
-                  <>
-                    <colgroup>
-                      <col style={{ width: 180 }} />
-                      <col style={{ width: 160 }} />
-                      <col style={{ width: 220 }} />
-                      <col style={{ width: 140 }} />
-                      <col style={{ width: 130 }} />
-                      <col style={{ width: 100 }} />
-                      <col style={{ width: 110 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th onClick={() => handleSort('referenceNo')}>Invoice No. {sortIndicator('referenceNo')}</th>
-                        <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
-                        <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
-                        <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
-                        <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
-                        <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
-                        <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(itemsQuery.data?.items ?? []).map((item, idx) => (
-                        <tr key={`${item.referenceNo}-${idx}`}>
-                          <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
-                          <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
-                          <td>{item.vendor ?? '—'}</td>
-                          <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
-                          <td className="owner-cell">
-                            <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
-                            {item.ownerName ?? '—'}
-                          </td>
-                          <td>
-                            <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
-                              {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
-                            </span>
-                          </td>
-                          <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
-                        </tr>
-                      ))}
-                      {itemsQuery.data && itemsQuery.data.items.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="pending-items-empty">
-                            No invoices match the current filters.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </>
-                )}
-              </table>
-            </div>
-          </div>
-
-          <div className="tracker-pagination">
-            <div className="pagination-left">
-              <span className="pagination-label">Rows per page:</span>
-              <div className="pagination-size-pill">
-                <select
-                  className="pagination-select"
-                  value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setPageSize(Number(e.target.value));
-                      setPage(1);
-                    }
-                  }}
-                >
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
+          {/* Toolbar */}
+          <div className="tracker-toolbar">
+            <div className="tracker-search-wrap">
+              <SearchIcon />
+              <input
+                type="search"
+                placeholder={
+                  stage === 'Requisition'
+                    ? 'Search PR no., vessel, title, owner…'
+                    : stage === 'Purchase Order'
+                      ? 'Search PO no., vessel, vendor, title, owner…'
+                      : 'Search invoice no., vessel, vendor, owner…'
+                }
+                value={filters.search}
+                onChange={(e) => updateFilters({ search: e.target.value })}
+              />
             </div>
 
-            <div className="pagination-center">
-              <button className="pagination-nav-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} title="Previous Page">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <div className="pagination-current">
-                Page <strong>{page}</strong> of {totalPages}
-              </div>
-              <button className="pagination-nav-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} title="Next Page">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
+            <Dropdown
+              label="All vessels"
+              value={filters.vesselName[0] || ''}
+              options={vesselOptions}
+              onChange={(val) => updateFilters({ vesselName: val ? [val] : [] })}
+            />
 
-            <div className="pagination-right">
-              <span className="pagination-total">
-                {itemsQuery.data ? (
-                  <><strong>{itemsQuery.data.total.toLocaleString()}</strong> items found</>
-                ) : (
-                  '...'
-                )}
+            <Dropdown
+              label="All owners"
+              value={filters.ownerName[0] || ''}
+              options={ownerNameOptions}
+              onChange={(val) => updateFilters({ ownerName: val ? [val] : [] })}
+            />
+
+            <Dropdown
+              label="All Ageing"
+              value={filters.ageingBracket}
+              options={AGEING_OPTIONS}
+              onChange={(val) => updateFilters({ ageingBracket: val })}
+            />
+
+            <div className="tracker-toolbar-spacer" />
+
+            <button
+              type="button"
+              className="btn-tracker-action btn-pending-mail-trigger"
+              onClick={() => setIsMailModalOpen(true)}
+              title={`Preview and send summary email to ${activeRoleLabel}`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <span>
+                {ownerRoleFilter === 'ALL'
+                  ? 'Email All (TSI & TA)'
+                  : ownerRoleFilter === 'TSI'
+                    ? 'Email TSI Summary'
+                    : 'Email TA Summary'}
               </span>
-            </div>
+            </button>
+
+            <button
+              className="btn-tracker-action btn-tracker-secondary"
+              onClick={handleExport}
+              disabled={isExporting}
+              title={`Export ${stage} (${activeRoleLabel}) ageing matrix with clickable drill-down detail sheets to Excel`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              {isExporting ? 'Exporting…' : 'Export to Excel'}
+            </button>
           </div>
+
+          {/* Active filters bar */}
+          {hasAnyActiveFilter && (
+            <div className="pending-active-filters-bar">
+              <span className="pending-active-filters-label">Active Filters:</span>
+
+              {filters.search && (
+                <span className="pending-filter-chip">
+                  Search: &quot;{filters.search}&quot;
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ search: '' })}
+                    aria-label="Remove search filter"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+
+              {filters.vesselName.map((v) => (
+                <span key={v} className="pending-filter-chip">
+                  Vessel: {v}
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ vesselName: filters.vesselName.filter((x) => x !== v) })}
+                    aria-label={`Remove ${v} filter`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              {filters.ownerName.map((o) => (
+                <span key={o} className="pending-filter-chip">
+                  Owner: {o}
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ ownerName: filters.ownerName.filter((x) => x !== o) })}
+                    aria-label={`Remove ${o} filter`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              {filters.ageingBracket && (
+                <span className="pending-filter-chip">
+                  Ageing: {filters.ageingBracket}
+                  <button
+                    type="button"
+                    className="pending-filter-chip-remove"
+                    onClick={() => updateFilters({ ageingBracket: '' })}
+                    aria-label="Remove ageing filter"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+
+              <button type="button" className="pending-reset-all-btn" onClick={clearAllFilters}>
+                Reset all
+              </button>
+            </div>
+          )}
+
+          {exportError && (
+            <div className="tracker-export-error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {exportError}
+            </div>
+          )}
+
+          {itemsQuery.isLoading ? (
+            <div className="tracker-table-card">
+              <div className="tracker-loading">
+                <div className="tracker-loading-spinner" />
+                <div>Loading pending items…</div>
+              </div>
+            </div>
+          ) : itemsQuery.isError ? (
+            <div className="tracker-table-card">
+              <div className="tracker-error">Failed to load pending items.</div>
+            </div>
+          ) : (
+            <>
+              <div className="tracker-table-shell">
+                <div className="pending-items-scroll">
+                  <table className="data-table pending-items-table">
+                    {stage === 'Requisition' ? (
+                      <>
+                        <colgroup>
+                          <col style={{ width: 180 }} />
+                          <col style={{ width: 250 }} />
+                          <col style={{ width: 160 }} />
+                          <col style={{ width: 140 }} />
+                          <col style={{ width: 130 }} />
+                          <col style={{ width: 110 }} />
+                          <col style={{ width: 120 }} />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th onClick={() => handleSort('referenceNo')}>PR Reference No. {sortIndicator('referenceNo')}</th>
+                            <th onClick={() => handleSort('title')}>Title / Description {sortIndicator('title')}</th>
+                            <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
+                            <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
+                            <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
+                            <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
+                            <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(itemsQuery.data?.items ?? []).map((item, idx) => (
+                            <tr key={`${item.referenceNo}-${idx}`}>
+                              <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
+                              <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
+                              <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td className="owner-cell">
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                {item.ownerName ?? '—'}
+                              </td>
+                              <td>
+                                <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
+                                  {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
+                                </span>
+                              </td>
+                              <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
+                            </tr>
+                          ))}
+                          {itemsQuery.data && itemsQuery.data.items.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="pending-items-empty">
+                                No requisition items match the current filters.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </>
+                    ) : stage === 'Purchase Order' ? (
+                      <>
+                        <colgroup>
+                          <col style={{ width: 170 }} />
+                          <col style={{ width: 220 }} />
+                          <col style={{ width: 150 }} />
+                          <col style={{ width: 190 }} />
+                          <col style={{ width: 130 }} />
+                          <col style={{ width: 130 }} />
+                          <col style={{ width: 100 }} />
+                          <col style={{ width: 110 }} />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th onClick={() => handleSort('referenceNo')}>PO Number {sortIndicator('referenceNo')}</th>
+                            <th onClick={() => handleSort('title')}>Title / Description {sortIndicator('title')}</th>
+                            <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
+                            <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
+                            <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
+                            <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
+                            <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
+                            <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(itemsQuery.data?.items ?? []).map((item, idx) => (
+                            <tr key={`${item.referenceNo}-${idx}`}>
+                              <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
+                              <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
+                              <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
+                              <td>{item.vendor ?? '—'}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td className="owner-cell">
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                {item.ownerName ?? '—'}
+                              </td>
+                              <td>
+                                <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
+                                  {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
+                                </span>
+                              </td>
+                              <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
+                            </tr>
+                          ))}
+                          {itemsQuery.data && itemsQuery.data.items.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="pending-items-empty">
+                                No purchase orders match the current filters.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </>
+                    ) : (
+                      <>
+                        <colgroup>
+                          <col style={{ width: 180 }} />
+                          <col style={{ width: 160 }} />
+                          <col style={{ width: 220 }} />
+                          <col style={{ width: 140 }} />
+                          <col style={{ width: 130 }} />
+                          <col style={{ width: 100 }} />
+                          <col style={{ width: 110 }} />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th onClick={() => handleSort('referenceNo')}>Invoice No. {sortIndicator('referenceNo')}</th>
+                            <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
+                            <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
+                            <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
+                            <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
+                            <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
+                            <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(itemsQuery.data?.items ?? []).map((item, idx) => (
+                            <tr key={`${item.referenceNo}-${idx}`}>
+                              <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
+                              <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
+                              <td>{item.vendor ?? '—'}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td className="owner-cell">
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                {item.ownerName ?? '—'}
+                              </td>
+                              <td>
+                                <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
+                                  {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
+                                </span>
+                              </td>
+                              <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
+                            </tr>
+                          ))}
+                          {itemsQuery.data && itemsQuery.data.items.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="pending-items-empty">
+                                No invoices match the current filters.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </>
+                    )}
+                  </table>
+                </div>
+              </div>
+
+              <div className="tracker-pagination">
+                <div className="pagination-left">
+                  <span className="pagination-label">Rows per page:</span>
+                  <div className="pagination-size-pill">
+                    <select
+                      className="pagination-select"
+                      value={PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setPageSize(Number(e.target.value));
+                          setPage(1);
+                        }
+                      }}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pagination-center">
+                  <button className="pagination-nav-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} title="Previous Page">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <div className="pagination-current">
+                    Page <strong>{page}</strong> of {totalPages}
+                  </div>
+                  <button className="pagination-nav-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} title="Next Page">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+
+                <div className="pagination-right">
+                  <span className="pagination-total">
+                    {itemsQuery.data ? (
+                      <><strong>{itemsQuery.data.total.toLocaleString()}</strong> items found</>
+                    ) : (
+                      '...'
+                    )}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
         </>
@@ -949,6 +1409,20 @@ export function PendingItemsPage() {
           onClose={() => setIsMailModalOpen(false)}
           onSuccess={(msg) => {
             setMailSuccessMessage(msg);
+            setTimeout(() => setMailSuccessMessage(null), 8000);
+          }}
+        />
+      )}
+
+      {selectedVesselMail && (
+        <VesselPrMailModal
+          vesselName={selectedVesselMail.vesselName}
+          prType={selectedVesselMail.prType}
+          role={ownerRoleFilter}
+          onClose={() => setSelectedVesselMail(null)}
+          onSuccess={(msg) => {
+            setMailSuccessMessage(msg);
+            setSelectedVesselMail(null);
             setTimeout(() => setMailSuccessMessage(null), 8000);
           }}
         />
