@@ -170,10 +170,14 @@ def _capture_grid_request(page, url: str) -> tuple[dict, dict] | None:
     return captured["headers"], _json.loads(captured["body"])
 
 
-def _fetch_all_rows(page, url: str, to_date: date) -> list[dict]:
+def _fetch_all_rows(page, url: str, to_date: date, from_date: date = FROM_DATE) -> list[dict]:
     """Captures a real request/response for the grid's "All" tab, then pages through the rest
     (if any) by replaying the exact same headers with only gridServerOperations.page/fromDate/
-    toDate changed — see module docstring."""
+    toDate changed — see module docstring.
+
+    from_date defaults to the module's own FROM_DATE (the twice-daily scraper's permanent scope
+    start) — overridable for a one-time historical backfill (see backfill_2025.py) without
+    widening FROM_DATE itself, which would re-request the full range on every future run."""
     import json as _json
 
     captured = _capture_grid_request(page, url)
@@ -182,7 +186,7 @@ def _fetch_all_rows(page, url: str, to_date: date) -> list[dict]:
     headers, body = captured
     hdrs = {k: v for k, v in headers.items() if k in _GRID_HEADER_KEYS}
 
-    body["fromDate"] = _to_smartpal_date(FROM_DATE)
+    body["fromDate"] = _to_smartpal_date(from_date)
     body["toDate"] = _to_smartpal_date(to_date)
 
     rows: list[dict] = []
@@ -204,8 +208,8 @@ def _fetch_all_rows(page, url: str, to_date: date) -> list[dict]:
     return rows
 
 
-def _run_pr(page, db) -> dict:
-    rows = _fetch_all_rows(page, settings.requisition_approval_url, date.today())
+def _run_pr(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
+    rows = _fetch_all_rows(page, settings.requisition_approval_url, to_date or date.today(), from_date=from_date)
     log.info(f"[PR]       {len(rows)} requisition row(s) returned.")
 
     inserted = updated = skipped = errors = 0
@@ -258,8 +262,8 @@ def _run_pr(page, db) -> dict:
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "errors": errors}
 
 
-def _run_po(page, db) -> dict:
-    rows = _fetch_all_rows(page, settings.po_overview_url, date.today())
+def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
+    rows = _fetch_all_rows(page, settings.po_overview_url, to_date or date.today(), from_date=from_date)
     log.info(f"[PO]       {len(rows)} PO row(s) returned.")
 
     inserted = updated = skipped = errors = 0
