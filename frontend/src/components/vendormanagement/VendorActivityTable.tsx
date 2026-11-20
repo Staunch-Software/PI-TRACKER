@@ -128,7 +128,9 @@ export function VendorActivityTable() {
                 <tr>
                   <th className="col-sno">S.No</th>
                   <th className="col-vendor">Vendor</th>
-                  <th title="Vendor Type, Country, Currency, Email — from SmartPAL's vendor master.">Details</th>
+                  <th title="From SmartPAL's vendor master.">Email</th>
+                  <th title="Phone 1, falling back to Phone 2, then the Vendor Contacts sub-grid's mobile/tel — often blank until this vendor has been detail-scraped at least once (add it as a DD Vendor, or use Scrape All Vendor Details on the All Vendors tab).">Contact</th>
+                  <th title="Vendor Type, Country, Currency — from SmartPAL's vendor master.">Details</th>
                   <th className="col-center">Status</th>
                   <th className="col-center sortable" onClick={() => toggleSort('total_pos')} title="Sort by Total POs">
                     Total POs {sortBy === 'total_pos' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
@@ -142,7 +144,7 @@ export function VendorActivityTable() {
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="empty-state">No vendors match the current search/filter.</td>
+                    <td colSpan={9} className="empty-state">No vendors match the current search/filter.</td>
                   </tr>
                 )}
                 {items.map((entry, idx) => {
@@ -163,12 +165,13 @@ export function VendorActivityTable() {
                           <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
                           <div className="vendor-code-badge">{entry.vendorCode}</div>
                         </td>
+                        <td className="vendor-activity-email-cell">{entry.email ?? '—'}</td>
+                        <td className="vendor-activity-contact-cell">{entry.contactNumber ?? '—'}</td>
                         <td>
                           <div className="vendor-activity-details">
                             <div>{entry.vendorType ?? '—'}</div>
                             <div>{[entry.city, entry.country].filter(Boolean).join(', ') || '—'}</div>
                             <div>{entry.currency ?? '—'}</div>
-                            <div className="vendor-activity-details-email">{entry.email ?? '—'}</div>
                           </div>
                         </td>
                         <td className="col-center">

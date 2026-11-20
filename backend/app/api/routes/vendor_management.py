@@ -380,6 +380,24 @@ def _normalize_vendor_name(name: str | None) -> str:
     return (name or "").strip().casefold()
 
 
+def _vendor_contact_number(master: VendorMasterEntry) -> str | None:
+    """Best available contact number for the Active/Inactive Vendors tab's Contact column —
+    phone_1, falling back to phone_2, then to the first Vendor Contacts sub-grid entry with a
+    mobile or tel on file (see detail_scraper.py's _scrape_contacts for those exact keys). All of
+    phone_1/phone_2/contacts are detail-scrape-only columns (null/empty until a vendor is actually
+    added to the tracker and its on-demand detail scrape runs), so this is often None for a vendor
+    that's only ever appeared in the nightly list scrape."""
+    if master.phone_1:
+        return master.phone_1
+    if master.phone_2:
+        return master.phone_2
+    for contact in master.contacts or []:
+        number = contact.get("mobile") or contact.get("tel")
+        if number:
+            return number
+    return None
+
+
 @router.get("/activity", response_model=PaginatedResult[VendorActivityOut])
 def get_vendor_activity(
     db: Session = Depends(get_db),
@@ -448,6 +466,7 @@ def get_vendor_activity(
                 vendor_name=m.vendor_name,
                 vendor_type=m.vendor_type,
                 email=m.email,
+                contact_number=_vendor_contact_number(m),
                 city=m.city,
                 country=m.country,
                 currency=m.currency,

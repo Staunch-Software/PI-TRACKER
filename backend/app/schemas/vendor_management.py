@@ -167,6 +167,12 @@ class VendorActivityOut(CamelModel):
     vendor_name: str | None
     vendor_type: str | None
     email: str | None
+    # Best available contact number — vendor_master_entries.phone_1, falling back to phone_2, then
+    # to the first Vendor Contacts sub-grid entry with a mobile/tel on file (see
+    # api/routes/vendor_management.py's _vendor_contact_number). Both phone_1/phone_2 and the
+    # contacts sub-grid are detail-scrape-only columns, so this is None for any vendor that's
+    # never been added to the tracker (no on-demand detail scrape has run for it yet).
+    contact_number: str | None = None
     city: str | None
     country: str | None
     currency: str | None

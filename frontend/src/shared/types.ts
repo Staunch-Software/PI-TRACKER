@@ -839,6 +839,9 @@ export interface VendorActivityEntry {
   vendorName: string | null;
   vendorType: string | null;
   email: string | null;
+  // Best available phone number — phone_1, falling back to phone_2, then the first Vendor
+  // Contacts sub-grid entry with a mobile/tel on file. Often null — see backend schema docstring.
+  contactNumber: string | null;
   city: string | null;
   country: string | null;
   currency: string | null;
