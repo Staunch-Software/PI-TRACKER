@@ -1905,7 +1905,7 @@ def _build_vessel_pr_review_html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Technical Requisition Review - M/V {vessel_name}</title>
+<title>M/V {vessel_name} - Review of Pending Requisitions</title>
 </head>
 <body style="margin:0;padding:20px;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;font-size:13.5px;line-height:1.6;">
 
@@ -1916,7 +1916,7 @@ def _build_vessel_pr_review_html(
     </p>
 
     <p style="margin:0 0 16px 0;">
-        Kindly review the list below and advise to cancel any unwanted requisitions that are no longer required:
+        Kindly review the list below and advise if any of these requisitions are no longer required and can be cancelled:
     </p>
 
     <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;margin-bottom:16px;" cellpadding="0" cellspacing="0">
@@ -2077,13 +2077,13 @@ def preview_vessel_pr_review_email(
 
     clean_v_name = target_vessel.replace(" ", "_")
     if pr_type == "ageing_90":
-        default_subject = f"Technical Review: Overdue Requisitions (90+ Days) – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Requisitions Pending Over 90 Days"
         att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
     elif pr_type == "critical":
-        default_subject = f"Technical Review: Critical Requisitions Pending Action – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Critical Requisitions"
         att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
     else:
-        default_subject = f"Technical Review: Pending Requisitions – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Pending Requisitions"
         att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
 
     html_body = _build_vessel_pr_review_html(
@@ -2135,13 +2135,13 @@ def send_vessel_pr_review_email(
     tsi_name, ta_name = _VESSEL_OWNERS.get(target_vessel, (None, None))
     clean_v_name = target_vessel.replace(" ", "_")
     if pr_type == "ageing_90":
-        default_subject = f"Technical Review: Overdue Requisitions (90+ Days) – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Requisitions Pending Over 90 Days"
         att_filename = f"M_V_{clean_v_name}_Overdue_PR_Review.xlsx"
     elif pr_type == "critical":
-        default_subject = f"Technical Review: Critical Requisitions Pending Action – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Critical Requisitions"
         att_filename = f"M_V_{clean_v_name}_Critical_PR_Review.xlsx"
     else:
-        default_subject = f"Technical Review: Pending Requisitions – M/V {target_vessel}"
+        default_subject = f"M/V {target_vessel} – Review of Pending Requisitions"
         att_filename = f"M_V_{clean_v_name}_Requisitions_Review.xlsx"
 
     subject = payload.subject.strip() if payload.subject and payload.subject.strip() else default_subject

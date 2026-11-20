@@ -796,7 +796,7 @@ export function PendingItemsPage() {
                   90+ Days Overdue Requisitions Review
                 </div>
                 <div className="pending-pr-banner-desc">
-                  Requisitions pending over 90 days across the fleet. Dispatch technical review emails to review and cancel unwanted requisitions.
+                  Requisitions pending over 90 days across the fleet. Dispatch review emails to confirm if any pending requisitions can be cancelled.
                 </div>
               </div>
             </div>
