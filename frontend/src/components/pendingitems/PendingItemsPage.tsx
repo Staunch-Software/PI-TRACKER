@@ -85,9 +85,7 @@ const VESSEL_OWNER_MAP: Record<string, { tsi: string; ta: string }> = {
 };
 
 function isCriticalPr(item: PendingItem): boolean {
-  if (item.critical) return true;
-  const p = (item.priority || '').trim().toUpperCase();
-  return p === 'URGENT/IMMEDIATE' || p === 'HIGH' || p === 'DEFECT CORRECTION';
+  return item.critical === true;
 }
 
 function isAgeing90Pr(item: PendingItem): boolean {
@@ -130,7 +128,8 @@ function buildQueryParams(
   sortBy: SortColumn | null,
   sortDir: 'asc' | 'desc',
   page: number,
-  pageSize: number
+  pageSize: number,
+  critical?: boolean | null
 ): URLSearchParams {
   const params = new URLSearchParams();
   params.append('stage', stage);
@@ -139,9 +138,12 @@ function buildQueryParams(
   }
   if (filters.search) params.set('search', filters.search);
   filters.vesselName.forEach((v) => params.append('vessel_name', v));
-  filters.ownerName.forEach((v) => params.append('owner_name', v));
+  filters.ownerName.forEach((o) => params.append('owner_name', o));
   if (filters.ageingBracket) {
     params.set('ageing_bracket', filters.ageingBracket);
+  }
+  if (critical !== undefined && critical !== null) {
+    params.set('critical', String(critical));
   }
   if (sortBy) {
     params.set('sort_by', sortBy);
@@ -330,7 +332,8 @@ export function PendingItemsPage() {
   const reqCriticalItems = useMemo(() => reqAllItems.filter(isCriticalPr), [reqAllItems]);
   const reqAgeing90Items = useMemo(() => reqAllItems.filter(isAgeing90Pr), [reqAllItems]);
 
-  const activePrList = prTab === 'critical' ? reqCriticalItems : reqAgeing90Items;
+  const isCriticalTab = stage === 'Requisition' && prTab === 'critical';
+  const activePrList = reqAgeing90Items;
 
   const filteredReviewPrs = useMemo(() => {
     return activePrList.filter((item) => {
@@ -372,22 +375,6 @@ export function PendingItemsPage() {
       return b[1].length - a[1].length;
     });
   }, [filteredReviewPrs]);
-
-  function toggleVesselCollapse(vName: string) {
-    setCollapsedVessels((prev) => ({ ...prev, [vName]: !prev[vName] }));
-  }
-
-  function handleCollapseAll() {
-    const allCollapsed: Record<string, boolean> = {};
-    for (const [vName] of vesselGroups) {
-      allCollapsed[vName] = true;
-    }
-    setCollapsedVessels(allCollapsed);
-  }
-
-  function handleExpandAll() {
-    setCollapsedVessels({});
-  }
 
   function handleDrillDown(
     targetStage: Stage | null,
@@ -453,19 +440,23 @@ export function PendingItemsPage() {
   });
 
   const breakdownQuery = useQuery({
-    queryKey: ['pending-items-breakdown', stage],
-    queryFn: () => api.get<PendingStageBreakdown>(`/pending-items/breakdown?stage=${stage}`),
+    queryKey: ['pending-items-breakdown', stage, isCriticalTab],
+    queryFn: () =>
+      api.get<PendingStageBreakdown>(
+        `/pending-items/breakdown?stage=${stage}${isCriticalTab ? '&critical=true' : ''}`
+      ),
     placeholderData: keepPreviousData,
   });
 
   const countsQuery = useQuery({
-    queryKey: ['pending-items-counts', filters],
+    queryKey: ['pending-items-counts', filters, isCriticalTab],
     queryFn: () => {
       const params = new URLSearchParams();
       if (filters.search) params.set('search', filters.search);
       filters.vesselName.forEach((v) => params.append('vessel_name', v));
       filters.ownerName.forEach((v) => params.append('owner_name', v));
       if (filters.ageingBracket) params.set('ageing_bracket', filters.ageingBracket);
+      if (isCriticalTab) params.set('critical', 'true');
       return api.get<PendingItemsCountEntry[]>(`/pending-items/counts?${params.toString()}`);
     },
     placeholderData: keepPreviousData,
@@ -480,10 +471,10 @@ export function PendingItemsPage() {
   }
 
   const itemsQuery = useQuery({
-    queryKey: ['pending-items', stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize],
+    queryKey: ['pending-items', stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize, isCriticalTab],
     queryFn: () =>
       api.get<PaginatedResult<PendingItem>>(
-        `/pending-items?${buildQueryParams(stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize).toString()}`
+        `/pending-items?${buildQueryParams(stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize, isCriticalTab ? true : null).toString()}`
       ),
     placeholderData: keepPreviousData,
   });
@@ -494,7 +485,7 @@ export function PendingItemsPage() {
     setExportError(null);
     setIsExporting(true);
     try {
-      const params = buildQueryParams(stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize);
+      const params = buildQueryParams(stage, ownerRoleFilter, filters, sortBy, sortDir, page, pageSize, isCriticalTab ? true : null);
       params.delete('page');
       params.delete('page_size');
       const { blob, filename } = await api.getBlob(`/pending-items/export?${params.toString()}`);
@@ -502,7 +493,8 @@ export function PendingItemsPage() {
       const link = document.createElement('a');
       link.href = url;
       const rolePrefix = ownerRoleFilter !== 'ALL' ? `${ownerRoleFilter}_` : 'All_';
-      link.download = filename ?? `${stage.replace(/\s+/g, '_')}_${rolePrefix}Pending_Ageing.xlsx`;
+      const critPrefix = isCriticalTab ? 'Critical_' : '';
+      link.download = filename ?? `${critPrefix}${stage.replace(/\s+/g, '_')}_${rolePrefix}Pending_Ageing.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -671,7 +663,7 @@ export function PendingItemsPage() {
           >
             All Pending
             <span className="pending-role-pill-count">
-              {stage === 'Requisition' && prTab !== 'all'
+              {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.length
                 : totalForCurrentStage}
             </span>
@@ -683,7 +675,7 @@ export function PendingItemsPage() {
           >
             TSI Pending
             <span className="pending-role-pill-count">
-              {stage === 'Requisition' && prTab !== 'all'
+              {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'TSI').length
                 : tsiForCurrentStage}
             </span>
@@ -695,14 +687,14 @@ export function PendingItemsPage() {
           >
             TA Pending
             <span className="pending-role-pill-count">
-              {stage === 'Requisition' && prTab !== 'all'
+              {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'TA').length
                 : taForCurrentStage}
             </span>
           </button>
         </div>
 
-        {(stage !== 'Requisition' || prTab === 'all') && (
+        {(stage !== 'Requisition' || prTab !== 'ageing_90') && (
           <div className="pending-breakdown-meta">
             <span className="pending-breakdown-hint">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -720,7 +712,7 @@ export function PendingItemsPage() {
       </div>
 
       {/* Dashboard style breakdown cards */}
-      {showBreakdown && (stage !== 'Requisition' || prTab === 'all') && (
+      {showBreakdown && (stage !== 'Requisition' || prTab !== 'ageing_90') && (
         <div className="pending-breakdown-wrapper">
           <div className="pending-cards-grid">
             {filteredOwners.map((owner) => {
@@ -791,38 +783,26 @@ export function PendingItemsPage() {
         </div>
       )}
 
-      {stage === 'Requisition' && prTab !== 'all' ? (
+      {stage === 'Requisition' && prTab === 'ageing_90' ? (
         <>
-          {/* Review Banner for Critical or 90+ Days PRs */}
-          <div className={`pending-pr-review-banner ${prTab === 'critical' ? 'banner-critical' : 'banner-ageing'}`}>
+          {/* Review Banner for 90+ Days PRs */}
+          <div className="pending-pr-review-banner banner-ageing">
             <div className="pending-pr-banner-content">
               <div className="pending-pr-banner-icon">
-                {prTab === 'critical' ? <FlameIcon /> : <ClockIcon />}
+                <ClockIcon />
               </div>
               <div>
                 <div className="pending-pr-banner-title">
-                  {prTab === 'critical'
-                    ? 'Critical & High Priority Requisitions Review'
-                    : '90+ Days Overdue Requisitions Review'}
+                  90+ Days Overdue Requisitions Review
                 </div>
                 <div className="pending-pr-banner-desc">
-                  {prTab === 'critical'
-                    ? 'Grouped vessel-wise. Send formal technical inquiries to superintendents to confirm operational necessity, expedite approval, or cancel redundant requisitions.'
-                    : 'Requisitions pending over 90 days across the fleet. Dispatch technical review emails requiring superintendents to declare whether to PROCEED, HOLD, or CANCEL.'}
+                  Requisitions pending over 90 days across the fleet. Dispatch technical review emails requiring superintendents to declare whether to PROCEED, HOLD, or CANCEL.
                 </div>
               </div>
             </div>
-            <div className="pending-pr-banner-actions">
-              <button type="button" className="pending-pr-toggle-all-btn" onClick={handleExpandAll}>
-                Expand All
-              </button>
-              <button type="button" className="pending-pr-toggle-all-btn" onClick={handleCollapseAll}>
-                Collapse All
-              </button>
-            </div>
           </div>
 
-          {/* Toolbar for Review views */}
+          {/* Toolbar for 90+ Days Review */}
           <div className="tracker-toolbar">
             <div className="tracker-search-wrap">
               <SearchIcon />
@@ -904,12 +884,12 @@ export function PendingItemsPage() {
             </div>
           )}
 
-          {/* Vessel Cards Grid or Empty State */}
+          {/* Unified Spanned Vessel Table */}
           {allRequisitionsQuery.isLoading ? (
             <div className="tracker-table-card">
               <div className="tracker-loading">
                 <div className="tracker-loading-spinner" />
-                <div>Loading requisition review items…</div>
+                <div>Loading 90+ days overdue requisitions…</div>
               </div>
             </div>
           ) : vesselGroups.length === 0 ? (
@@ -917,117 +897,110 @@ export function PendingItemsPage() {
               <div className="pending-vessel-empty-icon">
                 <ShipIcon />
               </div>
-              <div className="pending-vessel-empty-title">No Requisitions Found</div>
+              <div className="pending-vessel-empty-title">No Overdue Requisitions Found</div>
               <div className="pending-vessel-empty-desc">
-                {prTab === 'critical'
-                  ? 'No critical or urgent requisitions match the current filters.'
-                  : 'No requisitions exceeding 90 days ageing match the current filters.'}
+                No requisitions exceeding 90 days ageing match the current filters.
               </div>
             </div>
           ) : (
-            <div className="pending-vessel-cards-list">
-              {vesselGroups.map(([vName, items]) => {
-                const owners = VESSEL_OWNER_MAP[vName] || { tsi: 'TSI In-Charge', ta: 'TA In-Charge' };
-                const maxAgeing = Math.max(...items.map((x) => x.ageingDays ?? 0), 0);
-                const isCollapsed = collapsedVessels[vName] ?? false;
+            <div className="tracker-table-shell" style={{ margin: '0 28px 24px' }}>
+              <div className="pending-items-scroll">
+                <table className="data-table pending-items-table pending-spanned-vessel-table">
+                  <colgroup>
+                    <col style={{ width: 270 }} />
+                    <col style={{ width: 170 }} />
+                    <col style={{ width: 100 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 260 }} />
+                    <col style={{ width: 100 }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 90 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Vessel &amp; Technical Action</th>
+                      <th>PR Reference No.</th>
+                      <th>Created</th>
+                      <th>Department</th>
+                      <th>Description / Equipment</th>
+                      <th style={{ textAlign: 'center' }}>Priority</th>
+                      <th>Status &amp; In-Charge</th>
+                      <th style={{ textAlign: 'center' }}>Ageing</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vesselGroups.map(([vName, items]) => {
+                      const owners = VESSEL_OWNER_MAP[vName] || { tsi: 'TSI In-Charge', ta: 'TA In-Charge' };
+                      const maxAgeing = Math.max(...items.map((x) => x.ageingDays ?? 0), 0);
 
-                return (
-                  <div key={vName} className={`pending-vessel-card ${isCollapsed ? 'collapsed' : ''}`}>
-                    <div className="pending-vessel-card-header" onClick={() => toggleVesselCollapse(vName)}>
-                      <div className="pending-vessel-header-left">
-                        <div className="pending-vessel-ship-badge">
-                          <ShipIcon />
-                        </div>
-                        <span className="pending-vessel-name">M/V {vName}</span>
-                        <div className="pending-vessel-owners">
-                          <span className="pending-vessel-owner-chip chip-tsi">
-                            TSI: {owners.tsi}
-                          </span>
-                          <span className="pending-vessel-owner-chip chip-ta">
-                            TA: {owners.ta}
-                          </span>
-                        </div>
-                      </div>
+                      return items.map((item, idx) => (
+                        <tr key={`${vName}-${item.referenceNo}-${idx}`} className={idx === 0 ? 'vessel-group-first-row' : ''}>
+                          {idx === 0 && (
+                            <td rowSpan={items.length} className="vessel-spanned-cell">
+                              <div className="vessel-spanned-content">
+                                <div className="vessel-spanned-header">
+                                  <div className="pending-vessel-ship-badge">
+                                    <ShipIcon />
+                                  </div>
+                                  <span className="vessel-spanned-name">M/V {vName}</span>
+                                </div>
 
-                      <div className="pending-vessel-header-right">
-                        <span className={`pending-vessel-stat-pill ${prTab === 'critical' ? 'pill-critical' : 'pill-ageing'}`}>
-                          {items.length} {prTab === 'critical' ? 'Critical PRs' : 'Overdue PRs'}
-                        </span>
-                        <span className="pending-vessel-stat-pill pill-max-age">
-                          Max Ageing: {maxAgeing}d
-                        </span>
-                        <button
-                          type="button"
-                          className="btn-vessel-review-mail"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedVesselMail({ vesselName: vName, prType: prTab });
-                          }}
-                          title={`Send technical review inquiry email for M/V ${vName}`}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="4" width="20" height="16" rx="2" />
-                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                          </svg>
-                          <span>Send Technical Review Email</span>
-                        </button>
-                        <span className="pending-vessel-collapse-icon">
-                          <ChevronDownIcon />
-                        </span>
-                      </div>
-                    </div>
+                                <div className="vessel-spanned-owners">
+                                  <span className="pending-vessel-owner-chip chip-tsi">
+                                    TSI: {owners.tsi}
+                                  </span>
+                                  <span className="pending-vessel-owner-chip chip-ta">
+                                    TA: {owners.ta}
+                                  </span>
+                                </div>
 
-                    {!isCollapsed && (
-                      <div className="pending-vessel-card-body">
-                        <table className="pending-vessel-items-table">
-                          <thead>
-                            <tr>
-                              <th style={{ width: 40, textAlign: 'center' }}>#</th>
-                              <th style={{ width: 150 }}>PR Reference No.</th>
-                              <th style={{ width: 110 }}>Created</th>
-                              <th style={{ width: 120 }}>Department</th>
-                              <th>Description / Equipment</th>
-                              <th style={{ width: 100, textAlign: 'center' }}>Priority</th>
-                              <th style={{ width: 140 }}>Status &amp; In-Charge</th>
-                              <th style={{ width: 90, textAlign: 'center' }}>Ageing</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {items.map((item, idx) => {
-                              const prio = (item.priority || 'NORMAL').toUpperCase();
-                              const age = item.ageingDays ?? 0;
-                              return (
-                                <tr key={`${item.referenceNo}-${idx}`}>
-                                  <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
-                                  <td className="vessel-table-pr-no">{item.referenceNo ?? '—'}</td>
-                                  <td style={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(item.referenceDate)}</td>
-                                  <td className="vessel-table-dept">{item.department || item.reqCategory || 'Technical'}</td>
-                                  <td className="vessel-table-title" title={item.title ?? ''}>{item.title ?? '—'}</td>
-                                  <td style={{ textAlign: 'center' }}>
-                                    {item.critical ? (
-                                      <span className="vessel-prio-badge badge-critical">CRITICAL</span>
-                                    ) : prio === 'URGENT/IMMEDIATE' || prio === 'HIGH' ? (
-                                      <span className="vessel-prio-badge badge-high">{prio}</span>
-                                    ) : (
-                                      <span className="vessel-prio-badge badge-normal">{prio}</span>
-                                    )}
-                                  </td>
-                                  <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
-                                  <td style={{ textAlign: 'center' }}>
-                                    <span className={`ageing-chip ${getAgeingClass(age)}`}>
-                                      {age}d
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                                <div className="vessel-spanned-stats">
+                                  <span className="vessel-spanned-stat-badge stat-overdue">
+                                    {items.length} {items.length === 1 ? 'Overdue PR' : 'Overdue PRs'}
+                                  </span>
+                                  <span className="vessel-spanned-stat-badge stat-max-age">
+                                    Max: {maxAgeing}d
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="btn-vessel-review-mail-compact"
+                                  onClick={() => setSelectedVesselMail({ vesselName: vName, prType: 'ageing_90' })}
+                                  title={`Send technical review inquiry email for M/V ${vName}`}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                  </svg>
+                                  <span>Send Technical Review Email</span>
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                          <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(item.referenceDate)}</td>
+                          <td className="vessel-table-dept">{item.department || item.reqCategory || 'Technical'}</td>
+                          <td className="vessel-table-title" title={item.title ?? ''}>{item.title ?? '—'}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.critical ? (
+                              <span className="vessel-prio-badge badge-critical">CRITICAL</span>
+                            ) : (
+                              <span className="vessel-prio-badge badge-normal">{(item.priority || 'NORMAL').toUpperCase()}</span>
+                            )}
+                          </td>
+                          <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`ageing-chip ${getAgeingClass(item.ageingDays)}`}>
+                              {item.ageingDays !== null ? `${item.ageingDays}d` : '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      ));
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>

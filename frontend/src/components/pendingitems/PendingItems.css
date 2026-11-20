@@ -2902,6 +2902,120 @@ body:has(.pending-items-page) .page-content {
   max-width: 420px;
 }
 
+/* ==========================================================================
+   Spanned Vessel Table for 90+ Days Ageing PR Review
+   Single unified table with Vessel column spanning rows
+   ========================================================================== */
+
+.pending-spanned-vessel-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.pending-spanned-vessel-table th {
+  position: sticky;
+  top: 0;
+  background: #F1F5F9;
+  z-index: 2;
+  border-bottom: 2px solid #CBD5E1;
+}
+
+.vessel-group-first-row td {
+  border-top: 2px solid #CBD5E1;
+}
+
+.vessel-spanned-cell {
+  background: #F8FAFC !important;
+  vertical-align: top !important;
+  border-right: 2px solid #E2E8F0 !important;
+  border-bottom: 2px solid #CBD5E1 !important;
+  padding: 16px !important;
+  min-width: 250px;
+}
+
+.vessel-spanned-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 48px;
+}
+
+.vessel-spanned-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vessel-spanned-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.01em;
+}
+
+.vessel-spanned-owners {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vessel-spanned-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vessel-spanned-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vessel-spanned-stat-badge.stat-overdue {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.vessel-spanned-stat-badge.stat-max-age {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+}
+
+.btn-vessel-review-mail-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #0284C7;
+  color: #FFFFFF;
+  border: 1px solid #0284C7;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.btn-vessel-review-mail-compact:hover {
+  background: #0369A1;
+  border-color: #0369A1;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+
 
 
 

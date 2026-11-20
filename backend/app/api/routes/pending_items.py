@@ -203,6 +203,7 @@ def _filtered(
     owner_role: list[str] | None,
     owner_name: list[str] | None,
     ageing_bracket: str | None = None,
+    critical: bool | None = None,
 ) -> list[PendingItemOut]:
     s_clean = search.strip().lower() if isinstance(search, str) and search.strip() else None
     v_clean = [v.strip().upper() for v in vessel_name if v and v.strip()] if isinstance(vessel_name, list) and vessel_name else None
@@ -217,6 +218,8 @@ def _filtered(
             or_filter = valid_roles
 
     def matches(item: PendingItemOut) -> bool:
+        if critical is not None and item.critical != critical:
+            return False
         if v_clean and (item.vessel_name or "").strip().upper() not in v_clean:
             return False
         if st_clean and (item.stage or "").strip().lower() not in st_clean:
@@ -289,13 +292,14 @@ def list_pending_items(
     owner_role: list[str] | None = Query(default=None),
     owner_name: list[str] | None = Query(default=None),
     ageing_bracket: str | None = Query(default=None),
+    critical: bool | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=1000),
 ) -> PaginatedResult[PendingItemOut]:
     items = _sorted(
-        _filtered(_compute_pending_items(db), search, vessel_name, stage, owner_role, owner_name, ageing_bracket),
+        _filtered(_compute_pending_items(db), search, vessel_name, stage, owner_role, owner_name, ageing_bracket, critical),
         sort_by,
         sort_dir,
     )
@@ -311,12 +315,13 @@ def get_pending_items_counts(
     vessel_name: list[str] | None = Query(default=None),
     owner_name: list[str] | None = Query(default=None),
     ageing_bracket: str | None = Query(default=None),
+    critical: bool | None = Query(default=None),
 ) -> list[PendingItemsCountEntry]:
     """Row count per (stage, owner_role) combination, under the current search/vessel/owner-name
     filters but WITHOUT stage/owner_role themselves (those are what the frontend's tabs and
     sub-tabs pick) — drives the count badge on each tab/sub-tab regardless of which one is
     currently selected."""
-    items = _filtered(_compute_pending_items(db), search, vessel_name, None, None, owner_name, ageing_bracket)
+    items = _filtered(_compute_pending_items(db), search, vessel_name, None, None, owner_name, ageing_bracket, critical)
     counts: dict[tuple[str, str], int] = {}
     for item in items:
         key = (item.stage, item.owner_role)
@@ -332,10 +337,13 @@ def get_pending_items_counts(
 def get_pending_items_breakdown(
     db: Session = Depends(get_db),
     stage: str = Query(default="Requisition"),
+    critical: bool | None = Query(default=None),
 ) -> PendingStageBreakdown:
     """Provides dashboard-style breakdown of pending items for an entire stage:
     total counts for TSI vs TA, and each individual TSI/TA owner with their vessel-wise count."""
     items = [i for i in _compute_pending_items(db) if i.stage == stage]
+    if critical is not None:
+        items = [i for i in items if i.critical == critical]
     tsi_total = sum(1 for i in items if i.owner_role == "TSI")
     ta_total = sum(1 for i in items if i.owner_role == "TA")
 
@@ -2047,10 +2055,7 @@ def preview_vessel_pr_review_email(
     if pr_type == "ageing_90":
         filtered_items = [i for i in vessel_items if (i.ageing_days or 0) > 90]
     elif pr_type == "critical":
-        filtered_items = [
-            i for i in vessel_items
-            if i.critical is True or (i.priority or "").upper() in ("URGENT/IMMEDIATE", "HIGH", "DEFECT CORRECTION")
-        ]
+        filtered_items = [i for i in vessel_items if i.critical is True]
     else:
         filtered_items = vessel_items
 
@@ -2124,10 +2129,7 @@ def send_vessel_pr_review_email(
     if pr_type == "ageing_90":
         filtered_items = [i for i in vessel_items if (i.ageing_days or 0) > 90]
     elif pr_type == "critical":
-        filtered_items = [
-            i for i in vessel_items
-            if i.critical is True or (i.priority or "").upper() in ("URGENT/IMMEDIATE", "HIGH", "DEFECT CORRECTION")
-        ]
+        filtered_items = [i for i in vessel_items if i.critical is True]
     else:
         filtered_items = vessel_items
 
@@ -3069,11 +3071,12 @@ def export_pending_items(
     owner_role: list[str] | None = Query(default=None),
     owner_name: list[str] | None = Query(default=None),
     ageing_bracket: str | None = Query(default=None),
+    critical: bool | None = Query(default=None),
     sort_by: str | None = Query(default=None),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
     items = _sorted(
-        _filtered(_compute_pending_items(db), search, vessel_name, stage, owner_role, owner_name, ageing_bracket),
+        _filtered(_compute_pending_items(db), search, vessel_name, stage, owner_role, owner_name, ageing_bracket, critical),
         sort_by,
         sort_dir,
     )
