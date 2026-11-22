@@ -208,8 +208,31 @@ def _fetch_all_rows(page, url: str, to_date: date, from_date: date = FROM_DATE) 
     return rows
 
 
+def _fetch_all_rows_or_abort(page, url: str, to_date: date, from_date: date, entity_label: str) -> list[dict] | None:
+    """Wraps _fetch_all_rows with a 0-row safety net — a genuine 0-row result across the whole
+    fleet is practically impossible (thousands of PRs/POs exist), so treat it as a scrape failure
+    rather than a real empty result, same race-condition class as the SmartPAL invoice scraper's
+    own silent 0-row bug (confirmed live 2026-11-22 — the "All" tab click apparently raced the
+    page still loading). _capture_grid_request already does a fresh page.goto + click + capture
+    on every call, so simply calling _fetch_all_rows again is itself the retry, no manual reload
+    needed. Returns None (not an empty list) if still 0 after the retry, so callers can tell
+    "genuinely nothing to do" apart from "scrape failed" and skip processing instead of silently
+    reporting a clean empty run."""
+    rows = _fetch_all_rows(page, url, to_date, from_date=from_date)
+    if rows:
+        return rows
+    log.warning(f"[{entity_label}]  0 rows returned — almost certainly a page-load race, not reality. Retrying once.")
+    rows = _fetch_all_rows(page, url, to_date, from_date=from_date)
+    if rows:
+        return rows
+    log.error(f"[{entity_label}]  Still 0 rows after retry — aborting this entity's scrape without touching existing data.")
+    return None
+
+
 def _run_pr(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
-    rows = _fetch_all_rows(page, settings.requisition_approval_url, to_date or date.today(), from_date=from_date)
+    rows = _fetch_all_rows_or_abort(page, settings.requisition_approval_url, to_date or date.today(), from_date, "PR")
+    if rows is None:
+        return {"inserted": 0, "updated": 0, "skipped": 0, "errors": 0}
     log.info(f"[PR]       {len(rows)} requisition row(s) returned.")
 
     inserted = updated = skipped = errors = 0
@@ -263,7 +286,9 @@ def _run_pr(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict
 
 
 def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
-    rows = _fetch_all_rows(page, settings.po_overview_url, to_date or date.today(), from_date=from_date)
+    rows = _fetch_all_rows_or_abort(page, settings.po_overview_url, to_date or date.today(), from_date, "PO")
+    if rows is None:
+        return {"inserted": 0, "updated": 0, "skipped": 0, "errors": 0}
     log.info(f"[PO]       {len(rows)} PO row(s) returned.")
 
     inserted = updated = skipped = errors = 0
