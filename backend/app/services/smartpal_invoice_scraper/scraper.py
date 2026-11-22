@@ -124,7 +124,32 @@ def run() -> None:
 
             page.wait_for_timeout(2000)
             rows = _extract_rows(page)
+
+            # A genuine 0-row result across every vessel/status is practically impossible for
+            # this fleet (thousands of invoices exist) — confirmed live 2026-11-22: a run can
+            # silently report "0 total invoice(s)" with no error at all (the "All" tab click
+            # apparently raced the page still loading, same class of timing issue as the vendor
+            # attachments popup elsewhere in this codebase), which previously left every
+            # existing row's status stale with zero visibility that anything went wrong. Reload
+            # and retry the whole capture once before giving up, rather than trusting a bare 0.
+            if not rows:
+                log.warning(
+                    "[GRID]     0 invoice rows returned — almost certainly a page-load race, not "
+                    "reality. Reloading and retrying the capture once."
+                )
+                page.reload(wait_until="load", timeout=60000)
+                page.wait_for_timeout(3000)
+                rows = _extract_rows(page)
+
             browser.close()
+
+        if not rows:
+            log.error(
+                "[GRID]     Still 0 invoice rows after retry — aborting without touching existing "
+                "data. This is a scrape failure, not reality; investigate rather than re-running "
+                "blindly (existing smartpal_invoice_entries rows are untouched and may now be stale)."
+            )
+            return
 
         log.info(f"[GRID]     {len(rows)} total invoice row(s) fetched (all vessels, all statuses).")
 
