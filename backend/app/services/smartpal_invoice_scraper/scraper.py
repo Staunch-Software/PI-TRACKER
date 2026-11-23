@@ -19,6 +19,7 @@
 # (_capture_next_grid_response/_advance_and_capture are pure functions with no AMNS-specific
 # behavior) rather than duplicating ~40 lines of pagination logic that would otherwise drift.
 # ===========================================================================
+import json
 import logging
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -74,7 +75,29 @@ def _select_all_tab(page) -> None:
 def _extract_rows(page) -> list[dict]:
     all_rows: list[dict] = []
 
+    # Diagnostic added 2026-11-23: the live SmartPAL UI's Invoice List page shows its own
+    # From/To Date and Category filter widgets, separate from the status tabs — this scraper has
+    # never touched either, just clicking "All" and trusting whatever filter state the page
+    # happens to have (fresh login's own default, not necessarily "every invoice ever"). Confirmed
+    # with the user 2026-11-23: a fresh scrape's own captured total_count (2371) came in far below
+    # SmartPAL's own live "All" tab count (3966) — logging the exact request body used here will
+    # show whether a narrower date range or category filter is silently in effect.
+    captured_body: dict = {}
+
+    def _on_request(req):
+        if req.method == "POST" and "ServiceRouter" in req.url and req.post_data and "gridServerOperations" in req.post_data:
+            try:
+                captured_body["body"] = json.loads(req.post_data)
+            except json.JSONDecodeError:
+                pass
+
+    page.on("request", _on_request)
     first_page_rows = _capture_next_grid_response(page, lambda: _select_all_tab(page))
+    page.remove_listener("request", _on_request)
+    if captured_body.get("body"):
+        filter_keys = {k: v for k, v in captured_body["body"].items() if k != "gridServerOperations"}
+        log.info(f"[GRID]     Captured request filter fields: {filter_keys}")
+
     all_rows.extend(first_page_rows)
     total_count = first_page_rows[0]["totalCount"] if first_page_rows else 0
     log.info(f"[GRID]     All: {total_count} total invoice(s) across every vessel/status, page 1 → {len(first_page_rows)} row(s).")
