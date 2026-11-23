@@ -22,6 +22,7 @@ from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.pending_weekly_snapshot import PendingWeeklySnapshot
 from app.models.user import User
 from app.services.pi_reminder_mailer import send_mail
+from app.services.po_scraper.scraper import _EXCLUDED_CATEGORIES, _normalize_category
 from app.schemas.common import PaginatedResult
 from app.schemas.pending_items import (
     PendingDashboardOwnerGroup,
@@ -178,6 +179,14 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         .all()
     )
     for pr in prs:
+        # Defense-in-depth against the same crew categories po_scraper.py already excludes at
+        # scrape time (CREWING / CREW WAGES / CREW EXPENSES and their NB/PD/DD/OPEX variants) —
+        # confirmed with the user 2026-11-23 these were still showing up in the TSI/TA Pending
+        # dashboard, almost certainly historical rows scraped before that exclusion rule existed
+        # and never cleaned up. Re-checking here means this dashboard is correct regardless of
+        # whether pr_entries/po_entries still carries any such stale rows.
+        if _normalize_category(pr.req_category) in _EXCLUDED_CATEGORIES:
+            continue
         is_pending = pr.approval_flag in _PENDING_STATUSES
         owner_role, owner_name = _owner(pr.vessel_name, "TSI" if is_pending else "TA")
         if owner_name is None:
@@ -209,6 +218,8 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         .all()
     )
     for po in pos:
+        if _normalize_category(po.req_category) in _EXCLUDED_CATEGORIES:
+            continue
         is_pending = po.approved_status in _PENDING_STATUSES
         owner_role, owner_name = _owner(po.vessel_name, "TA" if is_pending else "TSI")
         if owner_name is None:
