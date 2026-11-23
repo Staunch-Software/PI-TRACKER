@@ -11,6 +11,7 @@ from app.models import (  # noqa: E402,F401
     approved_invoice_entry,
     audit_log,
     dd_tracker_entry,
+    excluded_category_po,
     invoice_attachment,
     invoice_mail_entry,
     landing_report,

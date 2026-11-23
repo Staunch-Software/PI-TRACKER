@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_module_access
 from app.db.session import get_db
+from app.models.excluded_category_po import ExcludedCategoryPo
 from app.models.po_entry import PoEntry
 from app.models.pr_entry import PrEntry
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
@@ -246,6 +247,15 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
 
     # Invoice: Pending (Approval) -> TA's job; Approved -> TSI's job. Finally Approved excluded.
     # No "approved date" column exists on this table, so both sides age from invoice_date.
+    #
+    # Invoices have no req_category of their own (confirmed with the user 2026-11-23 — crew-
+    # category POs are never stored in po_entries at all, so there was no way to tell an invoice
+    # linked to one apart from any other invoice). excluded_category_pos is a lightweight lookup
+    # po_scraper.py populates whenever it skips a crew-category PO at scrape time (see
+    # _record_excluded_category_po) — any invoice whose po_nos references one of those is dropped
+    # here the same way crew-category PRs/POs already are above.
+    excluded_po_nos = {r[0] for r in db.query(ExcludedCategoryPo.po_no).all()}
+
     invoices = (
         db.query(SmartpalInvoiceEntry)
         .filter(
@@ -255,6 +265,8 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         .all()
     )
     for inv in invoices:
+        if inv.po_nos and any(p.strip() in excluded_po_nos for p in inv.po_nos.split(",")):
+            continue
         is_pending = bool(inv.status) and inv.status.lower().startswith("pending")
         owner_role, owner_name = _owner(inv.vessel_name, "TA" if is_pending else "TSI")
         if owner_name is None:

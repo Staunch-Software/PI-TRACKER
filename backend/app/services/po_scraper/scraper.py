@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 from app.core.config import MARIAPPS_AUTH_JSON, settings
 from app.db.session import SessionLocal
 from app.models.dd_tracker_entry import DdTrackerEntry
+from app.models.excluded_category_po import ExcludedCategoryPo
 from app.models.po_entry import PoEntry
 from app.models.po_item_entry import PoItemEntry
 from app.models.pr_entry import PrEntry
@@ -229,6 +230,27 @@ def _fetch_all_rows_or_abort(page, url: str, to_date: date, from_date: date, ent
     return None
 
 
+def _record_excluded_category_po(db: Session, po_no: str, raw_category: str | None) -> None:
+    """Upserts a lightweight po_no -> req_category record for a PO whose crew category means it's
+    never stored in po_entries (see this module's own _EXCLUDED_CATEGORIES) — exists purely so
+    pending_items.py can still tell "this invoice is linked to a crew-category PO" apart from any
+    other invoice, confirmed with the user 2026-11-23 these were showing up in the TSI/TA Pending
+    dashboard with no way to filter them out otherwise. Deliberately a separate small table rather
+    than storing the PO normally in po_entries, which would re-expose it to DD/PD Tracker's
+    auto-sync, Vendor Management filters, etc."""
+    try:
+        existing = db.query(ExcludedCategoryPo).filter(ExcludedCategoryPo.po_no == po_no).first()
+        if existing:
+            existing.req_category = raw_category
+            existing.last_seen_at = datetime.now(timezone.utc)
+        else:
+            db.add(ExcludedCategoryPo(po_no=po_no, req_category=raw_category, last_seen_at=datetime.now(timezone.utc)))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        log.error(f"[EXCLUDED CATEGORY] Failed to record {po_no!r}: {e}")
+
+
 def _run_pr(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
     rows = _fetch_all_rows_or_abort(page, settings.requisition_approval_url, to_date or date.today(), from_date, "PR")
     if rows is None:
@@ -299,6 +321,7 @@ def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict
         category_norm = _normalize_category(r.get("reqCategory"))
         if category_norm in _EXCLUDED_CATEGORIES:
             skipped += 1
+            _record_excluded_category_po(db, po_no, r.get("reqCategory"))
             continue
 
         requisition_no = (r.get("reqNo") or "").strip() or None
