@@ -1909,14 +1909,14 @@ def _build_vessel_pr_review_html(
 </head>
 <body style="margin:0;padding:20px;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;font-size:13.5px;line-height:1.6;">
 
-    <p style="margin:0 0 14px 0;font-size:14px;"><strong>Dear Capt,</strong></p>
+    <p style="margin:0 0 14px 0;font-size:14px;"><strong>Dear Captain,</strong></p>
 
     <p style="margin:0 0 12px 0;">
-        Please note that the following purchase requisition(s) for <strong>{vessel_name}</strong> {scope_text}.
+        Please be informed that the following purchase requisitions raised for <strong>{vessel_name}</strong> {scope_text}.
     </p>
 
     <p style="margin:0 0 16px 0;">
-        Kindly review the list below and advise if any of these requisitions are no longer required and can be cancelled:
+        We kindly request you to review the listed requisitions and confirm whether any of them are no longer required and can be cancelled:
     </p>
 
     <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;font-size:11.5px;margin-bottom:16px;" cellpadding="0" cellspacing="0">

@@ -592,7 +592,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                       Itemized Requisitions for {vesselName} ({previewData?.itemsCount || 0})
                     </span>
                     <span className="vessel-mail-action-legend">
-                      Please review the list and advise if any requisitions are no longer required and can be cancelled
+                      Please review the listed requisitions and confirm whether any are no longer required and can be cancelled
                     </span>
                   </div>
 
