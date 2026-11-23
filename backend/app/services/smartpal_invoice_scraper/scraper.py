@@ -21,6 +21,7 @@
 # ===========================================================================
 import json
 import logging
+import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -70,6 +71,40 @@ def _select_all_tab(page) -> None:
     except PlaywrightTimeoutError:
         page.locator(f"text={_ALL_TAB_LABEL}").first.click(timeout=10000, force=True)
     page.wait_for_timeout(1000)
+
+
+# SmartPAL date format (DD-Mon-YYYY), confirmed live 2026-11-23 from the captured request body's
+# own 'fromDate'/'toDate' fields. Matches po_scraper.py's 2025 backfill start — same "every PR/PO/
+# invoice from here onward" scope, not a narrower rolling window.
+_WIDE_FROM_DATE = "01-Jul-2025"
+
+
+def _widen_invoice_date_range(route) -> None:
+    """Confirmed live 2026-11-23: a fresh automated login lands on this page with its OWN default
+    date filter already applied — a rolling 3-month window ('fromDate': '23-Aug-2026', 'toDate':
+    '23-Nov-2026', captured the same day) — NOT "every invoice ever" as this scraper's own
+    docstring assumed. Since every run does a brand-new login (see run()), every single scheduled
+    run has been silently scoped to only the last ~3 months: any invoice older than that sitting
+    in Pending/Approved status was invisible and never had its status refreshed, which is the
+    real root cause behind the TSI/TA Pending dashboard's count mismatches against SmartPAL's own
+    UI. Intercepts every gridServerOperations POST (the initial "All" tab click AND every
+    subsequent pager "next page" click both go through here) and rewrites fromDate before it
+    reaches the server — this is cheaper and more robust than trying to drive the page's own date
+    picker widget, and applies uniformly across pagination without re-deriving it per page."""
+    request = route.request
+    if request.method != "POST" or not request.post_data or "gridServerOperations" not in request.post_data:
+        route.continue_()
+        return
+    try:
+        body = json.loads(request.post_data)
+    except json.JSONDecodeError:
+        route.continue_()
+        return
+    if "fromDate" in body and body["fromDate"] != _WIDE_FROM_DATE:
+        body["fromDate"] = _WIDE_FROM_DATE
+        route.continue_(post_data=json.dumps(body))
+    else:
+        route.continue_()
 
 
 def _extract_rows(page) -> list[dict]:
@@ -135,6 +170,7 @@ def run() -> None:
             browser = p.chromium.launch(headless=settings.mariapps_headless)
             context = browser.new_context(storage_state=str(APPROVED_INVOICE_AUTH_JSON))
             page = context.new_page()
+            page.route(re.compile("ServiceRouter"), _widen_invoice_date_range)
 
             log.info(f"[NAV]      Navigating to: {settings.approved_invoice_list_url}")
             page.goto(settings.approved_invoice_list_url, wait_until="load", timeout=60000)
