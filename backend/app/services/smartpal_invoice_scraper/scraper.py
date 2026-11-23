@@ -180,6 +180,7 @@ def run() -> None:
                     "status": row.get("status"),
                     "paid_status": row.get("paidStatus"),
                     "po_nos": row.get("poNos"),
+                    "category_name": row.get("categoryName"),
                     "raw_json": row,
                 }
 

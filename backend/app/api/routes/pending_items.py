@@ -265,6 +265,12 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         .all()
     )
     for inv in invoices:
+        # Primary signal: the invoice's OWN category (SmartPAL's "categoryName", confirmed live
+        # 2026-11-23 to be present on every invoice regardless of whether it has a po_nos link at
+        # all). The po_nos/excluded_category_pos lookup below is a secondary backup for any
+        # invoice scraped before category_name existed as a column (null until its next scrape).
+        if _normalize_category(inv.category_name) in _EXCLUDED_CATEGORIES:
+            continue
         if inv.po_nos and any(p.strip() in excluded_po_nos for p in inv.po_nos.split(",")):
             continue
         is_pending = bool(inv.status) and inv.status.lower().startswith("pending")

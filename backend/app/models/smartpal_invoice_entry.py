@@ -55,6 +55,15 @@ class SmartpalInvoiceEntry(Base):
     # invoices back to po_entries.po_no by it.
     po_nos: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
 
+    # SmartPAL's own "categoryName" field (e.g. "OPEX - CREW EXPENSES") — confirmed live
+    # 2026-11-23, was already present in raw_json but never surfaced as its own column. This is
+    # the invoice's OWN category, independent of whatever PO it's linked to via po_nos — needed
+    # since an invoice can reference a PO that's never scraped at all (crew-category POs are
+    # skipped entirely, see po_scraper.py's _EXCLUDED_CATEGORIES) or have no po_nos at all, so
+    # po_nos alone isn't a reliable way to tell a crew-category invoice apart from any other. See
+    # api/routes/pending_items.py's _compute_pending_items.
+    category_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # SmartPAL's own status text (e.g. "Pending Approval", "Finally Approved", "Rejected") —
     # surfaced as-is in match_status_label, see SoaLineItem docstring.
     status: Mapped[str | None] = mapped_column(Text, nullable=True)
