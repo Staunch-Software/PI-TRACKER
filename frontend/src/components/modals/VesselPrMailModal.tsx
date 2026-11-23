@@ -403,7 +403,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
             onClick={() => setActiveTab('details')}
           >
             <EditIcon />
-            <span>Email Details &amp; PR Table</span>
+            <span>Email Details</span>
           </button>
           <button
             type="button"
@@ -411,7 +411,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
             onClick={() => setActiveTab('preview')}
           >
             <EyeIcon />
-            <span>Formal Letter Preview</span>
+            <span>Preview</span>
           </button>
         </div>
 
@@ -576,7 +576,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                   </div>
                   <div className="vessel-mail-attachment-info">
                     <div className="vessel-mail-attachment-name">
-                      {previewData?.attachmentFilename || `M_V_${vesselName}_PR_Review.xlsx`}
+                      {previewData?.attachmentFilename || `${vesselName.replace(/\s+/g, '_')}_PR_Review.xlsx`}
                     </div>
                     <div className="vessel-mail-attachment-desc">
                       Generated Excel review workbook itemizing {previewData?.itemsCount || 0} requisitions with full technical details and action columns.

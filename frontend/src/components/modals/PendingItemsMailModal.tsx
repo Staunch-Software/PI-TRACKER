@@ -502,7 +502,7 @@ export function PendingItemsMailModal({ role, stage, mode = 'detailed', onClose,
                       </>
                     ) : (
                       <>
-                        <EyeIcon /> {isDashboard ? 'HTML Dashboard & Weekly Trend Preview' : 'HTML Ageing Matrix Table Preview'}
+                        <EyeIcon /> Preview
                       </>
                     )}
                   </span>
@@ -519,7 +519,7 @@ export function PendingItemsMailModal({ role, stage, mode = 'detailed', onClose,
                       className={`pending-mail-tab-btn ${activeTab === 'preview' ? 'active' : ''}`}
                       onClick={() => setActiveTab('preview')}
                     >
-                      Live Table Preview
+                      Preview
                     </button>
                   </div>
                 </div>
