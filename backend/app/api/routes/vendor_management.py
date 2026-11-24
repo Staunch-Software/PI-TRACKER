@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date, datetime
 from io import BytesIO
@@ -9,6 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_module_access, require_roles
+from app.core.config import settings
 from app.core.enums import AuditAction, AuditEntityType, BankDetailsStatus, UserRole
 from app.db.session import get_db
 from app.models.user import User
@@ -759,6 +761,43 @@ def get_bank_request_preview(entry_id: uuid.UUID, db: Session = Depends(get_db))
     return VendorBankRequestPreview(to_email=master.email, cc_emails=[*ALWAYS_CC, VENDOR_MANAGEMENT_DEFAULT_CC], subject=subject, body=body)
 
 
+PUBLIC_EMAIL_DOMAINS = {
+    "gmail.com",
+    "yahoo.com",
+    "yahoo.co.in",
+    "yahoo.co.uk",
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "icloud.com",
+    "rediffmail.com",
+}
+
+
+def _get_allowed_vendor_emails_and_domains(master: VendorMasterEntry) -> tuple[set[str], set[str]]:
+    allowed_emails: set[str] = set()
+    allowed_domains: set[str] = set()
+
+    def _extract_from_text(raw_text: str | None) -> None:
+        if not raw_text:
+            return
+        for part in re.split(r"[,;\s]+", raw_text):
+            clean = part.strip().strip(";,'\"<>").lower()
+            if "@" in clean and "." in clean.split("@")[-1]:
+                allowed_emails.add(clean)
+                domain = clean.split("@")[-1]
+                if domain not in PUBLIC_EMAIL_DOMAINS:
+                    allowed_domains.add(domain)
+
+    _extract_from_text(master.email)
+    if master.contacts and isinstance(master.contacts, list):
+        for contact in master.contacts:
+            if isinstance(contact, dict) and contact.get("email"):
+                _extract_from_text(str(contact["email"]))
+
+    return allowed_emails, allowed_domains
+
+
 @router.post("/{entry_id}/send-bank-request", response_model=VendorTrackerEntryOut)
 def send_bank_request(
     entry_id: uuid.UUID,
@@ -773,6 +812,18 @@ def send_bank_request(
     master = db.query(VendorMasterEntry).filter(VendorMasterEntry.vendor_code == entry.vendor_code).first()
     if not master:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This vendor was not found in SmartPAL.")
+
+    allowed_emails, allowed_domains = _get_allowed_vendor_emails_and_domains(master)
+    for recipient in payload.to + payload.cc:
+        r_clean = recipient.strip().lower()
+        domain = r_clean.split("@")[-1] if "@" in r_clean else ""
+        is_internal = any(r_clean.endswith(f"@{d.lower()}") for d in settings.internal_email_domains)
+        is_vendor = (r_clean in allowed_emails) or (domain in allowed_domains)
+        if not (is_internal or is_vendor):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Recipient '{recipient}' is not authorized. Bank details requests can only be sent to the vendor's verified email address or an internal company domain (@ozellar.com).",
+            )
 
     from_mailbox = payload.from_mailbox.strip().lower()
     sender_name = BANK_REQUEST_SENDERS.get(from_mailbox)
@@ -854,6 +905,14 @@ def send_verification_reminder(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"All mandatory bank fields must be present in SmartPAL first (missing: {', '.join(pal_missing)}).",
         )
+
+    for recipient in payload.to + payload.cc:
+        r_clean = recipient.strip().lower()
+        if not any(r_clean.endswith(f"@{d.lower()}") for d in settings.internal_email_domains):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Recipient '{recipient}' is not authorized. Verification reminders can only be sent to internal company email addresses (@ozellar.com).",
+            )
 
     try:
         # Sends "as" the logged-in user, not a fixed shared mailbox — confirmed 2026-11-05: unlike

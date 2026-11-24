@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import { api, ApiError } from '../../lib/api';
 import type { TrackedVendorEntry, VendorVerificationReminderPreview } from '../../shared';
 import { Toast } from '../common/Toast';
@@ -8,6 +9,15 @@ interface Props {
   entry: TrackedVendorEntry;
   onSent: () => void;
   onClose: () => void;
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Same HTML<->plain-text conversion and email-list parsing as VendorBankRequestModal — kept local
@@ -51,7 +61,7 @@ function plainTextToHtml(text: string): string {
       flushPara();
       continue;
     }
-    currentPara.push(line);
+    currentPara.push(escapeHtml(line));
   }
   flushPara();
 
@@ -277,7 +287,7 @@ export function VendorVerificationReminderModal({ entry, onSent, onClose }: Prop
                 <div className="vendor-bank-email-preview-wrapper">
                   <div
                     className="vendor-bank-email-preview-content"
-                    dangerouslySetInnerHTML={{ __html: plainTextToHtml(plainBody) }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plainTextToHtml(plainBody)) }}
                   />
                 </div>
               ) : (

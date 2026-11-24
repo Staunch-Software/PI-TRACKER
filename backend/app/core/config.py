@@ -52,12 +52,8 @@ class Settings(BaseSettings):
     ]
     invoice_mailbox: str = "invoice@ozellar.com"
 
-    # Our own company's domain(s) — when a polled SOA mailbox's immediate sender is one of these,
-    # they're an internal Accounts/Purchase staff member forwarding/replying on an existing
-    # vendor thread, NOT the vendor themselves (confirmed live: hemavathy.v@ozellar.com replying
-    # on a Navarino thread got mis-attributed as its own bogus vendor before this existed). See
-    # soa_scraper/document_text.py extract_original_external_sender.
-    internal_email_domains: set[str] = {"ozellar.com"}
+    # Our own company's domain(s) and fleet partner domains (AMNS fleet).
+    internal_email_domains: set[str] = {"ozellar.com", "amns.in"}
 
     # ── Ollama (local LLM extraction — see soa_extraction/) ─────────────────────
     # Self-hosted, not the Anthropic API — SOA/invoice content never leaves the network. Model

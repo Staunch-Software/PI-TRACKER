@@ -14,7 +14,9 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 from PIL import Image as PILImage, ImageDraw, ImageFont
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_module_access
+from app.api.deps import require_module_access, require_roles
+from app.core.config import settings
+from app.core.enums import UserRole
 from app.db.session import get_db
 from app.models.excluded_category_po import ExcludedCategoryPo
 from app.models.po_entry import PoEntry
@@ -52,6 +54,27 @@ router = APIRouter(
     tags=["pending-items"],
     dependencies=[Depends(require_module_access("pending_items"))],
 )
+
+_writers = require_roles(UserRole.ADMIN, UserRole.EDITOR)
+
+
+def _validate_internal_recipients(recipients: list[str], cc_recipients: list[str], db: Session | None = None) -> None:
+    active_user_emails: set[str] = set()
+    if db is not None:
+        active_user_emails = {
+            str(u[0]).strip().lower()
+            for u in db.query(User.email).filter(User.is_active.is_(True), User.email.isnot(None)).all()
+            if u[0]
+        }
+    for email in recipients + cc_recipients:
+        clean = email.strip().lower()
+        is_internal_domain = any(clean.endswith(f"@{domain.lower()}") for domain in settings.internal_email_domains)
+        is_active_user = clean in active_user_emails
+        if not (is_internal_domain or is_active_user):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Recipient '{email}' is not permitted. All pending items reports are internal and must be addressed to an authorized company domain.",
+            )
 
 # Vessel -> (TSI, TA) assignment, provided by the user 2026-11-15. No DB table for this yet — it's
 # a short, infrequently-changed list, so it lives here as code rather than behind an admin screen.
@@ -1673,6 +1696,7 @@ def preview_pending_items_dashboard_summary_email(
 def send_pending_items_dashboard_summary_email(
     payload: SendPendingSummaryEmailRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
 ) -> SendPendingSummaryEmailResponse:
     target_role = (payload.role or "ALL").strip().upper()
     if target_role not in ("ALL", "TSI", "TA"):
@@ -1782,6 +1806,8 @@ def send_pending_items_dashboard_summary_email(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No active recipient emails provided or found for '{target_role}'.",
         )
+
+    _validate_internal_recipients(recipients, cc_recipients, db)
 
     date_str = datetime.now().strftime("%d %b %Y")
     if payload.subject and payload.subject.strip():
@@ -2142,6 +2168,7 @@ def preview_vessel_pr_review_email(
 def send_vessel_pr_review_email(
     payload: VesselPrReviewEmailRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
 ) -> SendVesselPrReviewEmailResponse:
     target_vessel = payload.vessel_name.strip().upper()
     pr_type = (payload.pr_type or "ageing_90").strip().lower()
@@ -2202,6 +2229,8 @@ def send_vessel_pr_review_email(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No recipient email addresses available for vessel '{target_vessel}'.",
         )
+
+    _validate_internal_recipients(recipients, cc_recipients, db)
 
     # Build workbook
     wb = _build_vessel_pr_workbook(target_vessel, pr_type, filtered_items)
@@ -2286,16 +2315,20 @@ def _build_pending_items_ageing_workbook(
     owner_filter: list[str] | None = None,
     ageing_bracket_filter: str | None = None,
 ) -> Workbook:
-    """Build an interactive, modern standard Excel report (.xlsx) with 5 clean sheets:
-    - Sheet 1 ('Ageing Summary'): A comprehensive matrix showing all vessels in rows,
-      columns grouped by Ageing (0-30 Days, 30-90 Days, Above 90 Days) with TSI/TA
-      separation. All non-zero counts are clickable hyperlinks without ugly underlines.
-    - Sheet 2 ('0 - 30 Days'): Items <= 30 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
-    - Sheet 3 ('30 - 90 Days'): Items 31-90 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
-    - Sheet 4 ('Above 90 Days'): Critical items > 90 days pending, organized into dedicated visual cards / blocks per Vessel & In-charge.
-    - Sheet 5 ('All Details'): Complete fleet items list, organized into dedicated visual cards / blocks per Vessel & In-charge.
+    """Build an interactive, modern standard Excel report (.xlsx):
+    - When exporting Invoice items:
+      * Sheet 1 ('Vendor Summary'): High-level vendor-grouped matrix showing all vendors in rows,
+        columns grouped by Ageing (Above 90 Days, 30-90 Days, Below 30 Days) with TSI/TA
+        separation. Non-zero counts are clickable hyperlinks jumping directly to that vendor's items.
+      * Sheet 2 ('Ageing Summary'): Vessel-grouped matrix with TSI/TA separation.
+      * Sheet 3 ('Above 90 Days'): Critical items > 90 days pending, organized into dedicated visual cards.
+      * Sheet 4 ('30 - 90 Days'): Items 31-90 days pending, organized into dedicated visual cards.
+      * Sheet 5 ('Below 30 Days'): Items <= 30 days pending, organized into dedicated visual cards.
+      * Sheet 6 ('All Details'): Complete fleet items list, organized into dedicated visual cards.
+    - When exporting other stages (Requisition, PO):
+      * 5 clean sheets starting with 'Ageing Summary' matrix.
 
-    Clicking any cell count in the Summary matrix jumps directly to that specific Vessel & In-charge block!
+    Clicking any cell count in the Summary matrix jumps directly to that specific block or vendor!
     """
     workbook = Workbook()
 
@@ -2457,9 +2490,14 @@ def _build_pending_items_ageing_workbook(
 
     # For Invoice stage, items have no title/description (title=None). Omit column entirely!
     is_invoice = (
-        (stage_filter and len(stage_filter) == 1 and stage_filter[0].strip().lower() == "invoice")
-        or (bool(items) and all(i.stage == "Invoice" for i in items))
+        (stage_filter and any(s.strip().lower() == "invoice" for s in stage_filter) and len(stage_filter) == 1)
+        or (bool(items) and all((i.stage or "").strip().lower() == "invoice" for i in items))
     )
+
+    if is_invoice:
+        ws_vendor = workbook.active
+        ws_vendor.title = "Vendor Summary"
+        ws_vendor.views.sheetView[0].showGridLines = True
 
     if is_invoice:
         block_columns: list[tuple[str, int, Alignment]] = [
@@ -2488,24 +2526,41 @@ def _build_pending_items_ageing_workbook(
     # ─────────────────────────────────────────────────────────────────────────
     # Function to build detail sheets with DISTINCT VISUAL BLOCKS / CARDS
     # ─────────────────────────────────────────────────────────────────────────
-    def build_block_detail_sheet(sheet_title: str, banner_label: str, hdr_color: str, sheet_items: list[PendingItemOut]) -> dict[tuple[str, str], int]:
+    def build_block_detail_sheet(sheet_title: str, banner_label: str, hdr_color: str, sheet_items: list[PendingItemOut]) -> tuple[dict[tuple[str, str], int], dict[str, int], dict[tuple[str, str], int]]:
         ws = workbook.create_sheet(title=sheet_title)
         ws.views.sheetView[0].showGridLines = True
 
-        # Row 1: Return Button & Title
+        # Row 1: Return Button(s) & Title
         ws.row_dimensions[1].height = 34
-        ws.cell(row=1, column=1, value="⟵ Back to Summary")
-        style_range(ws, 1, 1, 1, 1, fill=fill_title, font=font_nav_back, alignment=align_center)
-        set_link(ws.cell(row=1, column=1), "Ageing Summary", "A1", font=font_nav_back)
+        if is_invoice:
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
+            btn_vend = ws.cell(row=1, column=1, value="⟵ Vendor Summary")
+            style_range(ws, 1, 1, 2, 1, fill=fill_title, font=font_nav_back, alignment=align_center)
+            set_link(btn_vend, "Vendor Summary", "A1", font=font_nav_back)
 
-        ws.merge_cells(start_row=1, start_column=2, end_row=1, end_column=num_detail_cols)
-        ws.cell(row=1, column=2, value=banner_label)
-        style_range(ws, 2, 1, num_detail_cols, 1, fill=PatternFill("solid", fgColor=hdr_color), font=font_title, alignment=align_center)
+            ws.cell(row=1, column=3, value="⟵ Vessel Matrix")
+            style_range(ws, 3, 1, 3, 1, fill=PatternFill("solid", fgColor="1E293B"), font=font_nav_back, alignment=align_center)
+            set_link(ws.cell(row=1, column=3), "Ageing Summary", "A1", font=font_nav_back)
+
+            ws.merge_cells(start_row=1, start_column=4, end_row=1, end_column=num_detail_cols)
+            ws.cell(row=1, column=4, value=banner_label)
+            style_range(ws, 4, 1, num_detail_cols, 1, fill=PatternFill("solid", fgColor=hdr_color), font=font_title, alignment=align_center)
+        else:
+            ws.cell(row=1, column=1, value="⟵ Back to Summary")
+            style_range(ws, 1, 1, 1, 1, fill=fill_title, font=font_nav_back, alignment=align_center)
+            set_link(ws.cell(row=1, column=1), "Ageing Summary", "A1", font=font_nav_back)
+
+            ws.merge_cells(start_row=1, start_column=2, end_row=1, end_column=num_detail_cols)
+            ws.cell(row=1, column=2, value=banner_label)
+            style_range(ws, 2, 1, num_detail_cols, 1, fill=PatternFill("solid", fgColor=hdr_color), font=font_title, alignment=align_center)
 
         # Row 2: Subtitle
         ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_detail_cols)
         ws.row_dimensions[2].height = 20
-        ws.cell(row=2, column=1, value=f"{len(sheet_items)} item(s) in this view   |   Organized by Vessel & In-charge Blocks   |   Click '⟵ Back to Summary' in A1 anytime")
+        if is_invoice:
+            ws.cell(row=2, column=1, value=f"{len(sheet_items)} item(s) in this view   |   Organized by Vessel & In-charge Blocks   |   Click '⟵ Vendor Summary' or '⟵ Vessel Matrix' anytime")
+        else:
+            ws.cell(row=2, column=1, value=f"{len(sheet_items)} item(s) in this view   |   Organized by Vessel & In-charge Blocks   |   Click '⟵ Back to Summary' in A1 anytime")
         style_range(ws, 1, 2, num_detail_cols, 2, fill=fill_subtitle, font=font_subtitle, alignment=align_center)
 
         # Row 3: Gap
@@ -2528,8 +2583,10 @@ def _build_pending_items_ageing_workbook(
             for role in grouped[v]:
                 grouped[v][role].sort(key=lambda x: (-(x.ageing_days if x.ageing_days is not None else -1), x.reference_no or ""))
 
-        # Track row jumps: (vessel, role) -> row, and (vessel, "ALL") -> row
+        # Track row jumps: (vessel, role) -> row, (vessel, "ALL") -> row, vendor -> row, (vendor, role) -> row
         row_map: dict[tuple[str, str], int] = {}
+        vendor_row_map: dict[str, int] = {}
+        vendor_role_row_map: dict[tuple[str, str], int] = {}
         curr_r = 4
 
         if not sheet_items:
@@ -2539,7 +2596,7 @@ def _build_pending_items_ageing_workbook(
             style_range(ws, 1, curr_r, num_detail_cols, curr_r, fill=fill_white, font=font_subtitle, alignment=align_center, border=border_cell)
             curr_r += 1
             ws.freeze_panes = "A4"
-            return row_map
+            return row_map, vendor_row_map, vendor_role_row_map
 
         ordered_vessels = list(active_vessels)
         for v in sorted(grouped.keys()):
@@ -2648,6 +2705,14 @@ def _build_pending_items_ageing_workbook(
                         if num_fmt:
                             c.number_format = num_fmt
 
+                    # Track row location for vendor jump links
+                    v_raw = (itm.vendor or "").strip()
+                    v_norm = v_raw.upper() if v_raw else "UNASSIGNED / NO VENDOR"
+                    if v_norm not in vendor_row_map:
+                        vendor_row_map[v_norm] = curr_r
+                    if (v_norm, role_key) not in vendor_role_row_map:
+                        vendor_role_row_map[(v_norm, role_key)] = curr_r
+
                     curr_r += 1
 
                 # 4. Block Subtotal Row
@@ -2678,23 +2743,250 @@ def _build_pending_items_ageing_workbook(
         # Freeze panes at row 4 so Rows 1-3 stay pinned at top
         ws.freeze_panes = "A4"
 
-        return row_map
+        return row_map, vendor_row_map, vendor_role_row_map
 
-    # Build the 4 detail sheets with distinct block layout and track coordinates
-    # Ordering: 90+ first, then 30 to 90, then below 30
+    # ─────────────────────────────────────────────────────────────────────────
+    # Function to build VENDOR-GROUPED detail sheets with dedicated vendor cards
+    # ─────────────────────────────────────────────────────────────────────────
+    vendor_display_names: dict[str, str] = {}
+    for item in items:
+        v_raw = (item.vendor or "").strip()
+        if not v_raw:
+            v_norm = "UNASSIGNED / NO VENDOR"
+            v_disp = "Unassigned / No Vendor"
+        else:
+            v_norm = v_raw.upper()
+            v_disp = v_raw
+        if v_norm not in vendor_display_names:
+            vendor_display_names[v_norm] = v_disp
+
+    vendor_detail_columns: list[tuple[str, int, Alignment]] = [
+        ("Sl No.", 8, align_center),
+        ("Invoice No.", 24, align_center),
+        ("Vessel Name", 26, align_left),
+        ("In-Charge", 22, align_center),
+        ("Status", 18, align_center),
+        ("Ageing (Days)", 14, align_center),
+        ("Reference Date", 16, align_center),
+    ]
+    num_vendor_detail_cols = len(vendor_detail_columns)
+
+    def build_vendor_block_detail_sheet(
+        sheet_title: str,
+        banner_label: str,
+        hdr_color: str,
+        sheet_items: list[PendingItemOut],
+    ) -> dict[str, int]:
+        ws = workbook.create_sheet(title=sheet_title)
+        ws.views.sheetView[0].showGridLines = True
+
+        # Row 1: Return Buttons & Banner Header
+        ws.row_dimensions[1].height = 34
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
+        btn_vend = ws.cell(row=1, column=1, value="⟵ Vendor Summary")
+        style_range(ws, 1, 1, 2, 1, fill=fill_title, font=font_nav_back, alignment=align_center)
+        set_link(btn_vend, "Vendor Summary", "A1", font=font_nav_back)
+
+        ws.cell(row=1, column=3, value="⟵ Vessel Matrix")
+        style_range(ws, 3, 1, 3, 1, fill=PatternFill("solid", fgColor="1E293B"), font=font_nav_back, alignment=align_center)
+        set_link(ws.cell(row=1, column=3), "Ageing Summary", "A1", font=font_nav_back)
+
+        ws.merge_cells(start_row=1, start_column=4, end_row=1, end_column=num_vendor_detail_cols)
+        ws.cell(row=1, column=4, value=banner_label)
+        style_range(ws, 4, 1, num_vendor_detail_cols, 1, fill=PatternFill("solid", fgColor=hdr_color), font=font_title, alignment=align_center)
+
+        # Row 2: Subtitle
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_vendor_detail_cols)
+        ws.row_dimensions[2].height = 20
+        ws.cell(row=2, column=1, value=f"{len(sheet_items)} invoice(s) in this view   |   Grouped into Dedicated Vendor Cards   |   Click '⟵ Vendor Summary' in A1 anytime")
+        style_range(ws, 1, 2, num_vendor_detail_cols, 2, fill=fill_subtitle, font=font_subtitle, alignment=align_center)
+
+        # Row 3: Gap
+        ws.row_dimensions[3].height = 6
+
+        # Set column widths
+        for col_idx, (_name, width, _al) in enumerate(vendor_detail_columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            ws.column_dimensions[col_letter].width = width
+
+        # Group sheet_items by Vendor
+        grouped_by_vendor: dict[str, list[PendingItemOut]] = defaultdict(list)
+        for itm in sheet_items:
+            v_raw = (itm.vendor or "").strip()
+            v_norm = v_raw.upper() if v_raw else "UNASSIGNED / NO VENDOR"
+            grouped_by_vendor[v_norm].append(itm)
+
+        # Sort items inside each vendor group by ageing desc
+        for v_norm in grouped_by_vendor:
+            grouped_by_vendor[v_norm].sort(
+                key=lambda x: (-(x.ageing_days if x.ageing_days is not None else -1), x.reference_no or "")
+            )
+
+        # Track row jumps: vendor -> row
+        vendor_block_map: dict[str, int] = {}
+        curr_r = 4
+
+        if not sheet_items:
+            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_vendor_detail_cols)
+            ws.row_dimensions[curr_r].height = 24
+            ws.cell(row=curr_r, column=1, value=f"— No pending invoices match {sheet_title} bracket under current filters —")
+            style_range(ws, 1, curr_r, num_vendor_detail_cols, curr_r, fill=fill_white, font=font_subtitle, alignment=align_center, border=border_cell)
+            curr_r += 1
+            ws.freeze_panes = "A4"
+            return vendor_block_map
+
+        ordered_vendor_keys = sorted(
+            grouped_by_vendor.keys(),
+            key=lambda k: (-len(grouped_by_vendor[k]), k)
+        )
+
+        for v_norm in ordered_vendor_keys:
+            v_items = grouped_by_vendor[v_norm]
+            v_disp = vendor_display_names.get(v_norm, v_norm)
+
+            vessels_for_vendor = sorted({itm.vessel_name.strip().upper() for itm in v_items if itm.vessel_name and itm.vessel_name.strip()})
+            vessels_txt = ", ".join(vessels_for_vendor) if vessels_for_vendor else "Unassigned"
+
+            # 1. Vendor Block Header Banner
+            ws.row_dimensions[curr_r].height = 28
+            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_vendor_detail_cols)
+            block_title = f"  ■  {v_disp}   |   {len(v_items)} Invoice(s) Pending   |   Vessels: {vessels_txt}"
+            ws.cell(row=curr_r, column=1, value=block_title)
+            v_hdr_fill = PatternFill("solid", fgColor="1E293B")
+            style_range(ws, 1, curr_r, num_vendor_detail_cols, curr_r, fill=v_hdr_fill, font=font_block_hdr, alignment=align_left)
+
+            vendor_block_map[v_norm] = curr_r
+            curr_r += 1
+
+            # 2. Mini-table column headers
+            ws.row_dimensions[curr_r].height = 22
+            for col_idx, (col_name, _w, _al) in enumerate(vendor_detail_columns, start=1):
+                c = ws.cell(row=curr_r, column=col_idx, value=col_name)
+                c.fill = PatternFill("solid", fgColor="334155")
+                c.font = font_block_subhdr
+                c.alignment = align_center
+                c.border = border_cell
+            curr_r += 1
+
+            # 3. Data rows
+            for b_idx, itm in enumerate(v_items, start=1):
+                ws.row_dimensions[curr_r].height = 20
+                row_fill = fill_white if b_idx % 2 != 0 else fill_zebra
+
+                age = itm.ageing_days
+                if age is None or age <= 30:
+                    age_pill = PatternFill("solid", fgColor=PILL_0_30_BG)
+                    age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_0_30_FG)
+                elif age <= 90:
+                    age_pill = PatternFill("solid", fgColor=PILL_30_90_BG)
+                    age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_30_90_FG)
+                else:
+                    age_pill = PatternFill("solid", fgColor=PILL_90_PLUS_BG)
+                    age_font = Font(name="Calibri", size=9.5, bold=True, color=PILL_90_PLUS_FG)
+
+                ref_date_val = itm.reference_date
+                if isinstance(ref_date_val, datetime):
+                    ref_date_val = ref_date_val.date()
+
+                incharge_str = f"{itm.owner_name} ({itm.owner_role})" if itm.owner_name else (itm.owner_role or "—")
+
+                row_vals = [
+                    (b_idx, align_center, font_detail_data_bold, row_fill, None),
+                    (itm.reference_no or "—", align_center, font_detail_data_bold, row_fill, None),
+                    (itm.vessel_name or "—", align_left, font_detail_data_bold, row_fill, None),
+                    (incharge_str, align_center, font_detail_data, row_fill, None),
+                    (itm.status or "—", align_center, font_detail_data, row_fill, None),
+                    (f"{itm.ageing_days}d" if itm.ageing_days is not None else "—", align_center, age_font, age_pill, None),
+                    (ref_date_val if isinstance(ref_date_val, (date, datetime)) else "—", align_center, font_detail_data, row_fill, "DD-MMM-YYYY" if isinstance(ref_date_val, (date, datetime)) else None),
+                ]
+
+                for col_idx, (val, al, fnt, fll, num_fmt) in enumerate(row_vals, start=1):
+                    c = ws.cell(row=curr_r, column=col_idx, value=val)
+                    c.alignment = al
+                    c.font = fnt
+                    c.fill = fll
+                    c.border = border_cell
+                    if num_fmt:
+                        c.number_format = num_fmt
+
+                curr_r += 1
+
+            # 4. Block Subtotal Row
+            ws.row_dimensions[curr_r].height = 20
+            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_vendor_detail_cols - 2)
+            ws.cell(row=curr_r, column=1, value=f"   Subtotal {v_disp}")
+            style_range(ws, 1, curr_r, num_vendor_detail_cols - 2, curr_r, fill=PatternFill("solid", fgColor="F1F5F9"), font=font_block_tot, alignment=align_left, border=border_block_tot)
+
+            ws.merge_cells(start_row=curr_r, start_column=num_vendor_detail_cols - 1, end_row=curr_r, end_column=num_vendor_detail_cols)
+            ws.cell(row=curr_r, column=num_vendor_detail_cols - 1, value=f"{len(v_items)} invoice(s)")
+            style_range(ws, num_vendor_detail_cols - 1, curr_r, num_vendor_detail_cols, curr_r, fill=PatternFill("solid", fgColor="F1F5F9"), font=font_block_tot, alignment=align_center, border=border_block_tot)
+            curr_r += 1
+
+            # 5. Spacer between vendor cards
+            ws.row_dimensions[curr_r].height = 12
+            curr_r += 1
+
+        # Sheet Grand Total Row
+        ws.row_dimensions[curr_r].height = 24
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_vendor_detail_cols - 2)
+        ws.cell(row=curr_r, column=1, value=f"   TOTAL {sheet_title.upper()} INVOICES")
+        style_range(ws, 1, curr_r, num_vendor_detail_cols - 2, curr_r, fill=fill_grand, font=font_tier1, alignment=align_left, border=border_grand)
+
+        ws.merge_cells(start_row=curr_r, start_column=num_vendor_detail_cols - 1, end_row=curr_r, end_column=num_vendor_detail_cols)
+        ws.cell(row=curr_r, column=num_vendor_detail_cols - 1, value=f"{len(sheet_items)} invoice(s)")
+        style_range(ws, num_vendor_detail_cols - 1, curr_r, num_vendor_detail_cols, curr_r, fill=fill_grand, font=font_tier1, alignment=align_center, border=border_grand)
+
+        ws.freeze_panes = "A4"
+        return vendor_block_map
+
+    # Build detail sheets
     d_role = clean_roles[0] if clean_roles else None
     all_hdr_color = "1E3A8A" if d_role == "TSI" else ("581C87" if d_role == "TA" else COLOR_TOTAL_HDR)
 
-    map_90_plus = build_block_detail_sheet("Above 90 Days", f"{role_banner_prefix} — 90+ DAYS (CRITICAL)", COLOR_90_PLUS_HDR, items_90_plus)
-    map_30_90 = build_block_detail_sheet("30 - 90 Days", f"{role_banner_prefix} — 30 TO 90 DAYS (ATTENTION)", COLOR_30_90_HDR, items_30_90)
-    map_0_30 = build_block_detail_sheet("Below 30 Days", f"{role_banner_prefix} — BELOW 30 DAYS (NORMAL)", "6D28D9" if d_role == "TA" else COLOR_0_30_HDR, items_0_30)
-    map_all = build_block_detail_sheet("All Details", f"{role_banner_prefix} — ALL DETAILED ITEMS", all_hdr_color, items)
+    if is_invoice:
+        map_v_90_plus = build_vendor_block_detail_sheet(
+            "Vendor - Above 90",
+            f"VENDOR INVOICES — 90+ DAYS PENDING (CRITICAL)",
+            COLOR_90_PLUS_HDR,
+            items_90_plus,
+        )
+        map_v_30_90 = build_vendor_block_detail_sheet(
+            "Vendor - 30 to 90",
+            f"VENDOR INVOICES — 30 TO 90 DAYS PENDING (ATTENTION)",
+            COLOR_30_90_HDR,
+            items_30_90,
+        )
+        map_v_0_30 = build_vendor_block_detail_sheet(
+            "Vendor - Below 30",
+            f"VENDOR INVOICES — BELOW 30 DAYS PENDING (NORMAL)",
+            COLOR_0_30_HDR,
+            items_0_30,
+        )
+        map_v_all = build_vendor_block_detail_sheet(
+            "Vendor - All Details",
+            f"VENDOR INVOICES — ALL PENDING INVOICES LIST",
+            all_hdr_color,
+            items,
+        )
+    else:
+        map_v_90_plus = {}
+        map_v_30_90 = {}
+        map_v_0_30 = {}
+        map_v_all = {}
+
+    map_90_plus, vmap_90_plus, vrole_map_90 = build_block_detail_sheet("Above 90 Days", f"{role_banner_prefix} — 90+ DAYS (CRITICAL)", COLOR_90_PLUS_HDR, items_90_plus)
+    map_30_90, vmap_30_90, vrole_map_30_90 = build_block_detail_sheet("30 - 90 Days", f"{role_banner_prefix} — 30 TO 90 DAYS (ATTENTION)", COLOR_30_90_HDR, items_30_90)
+    map_0_30, vmap_0_30, vrole_map_0_30 = build_block_detail_sheet("Below 30 Days", f"{role_banner_prefix} — BELOW 30 DAYS (NORMAL)", "6D28D9" if d_role == "TA" else COLOR_0_30_HDR, items_0_30)
+    map_all, vmap_all, vrole_map_all = build_block_detail_sheet("All Details", f"{role_banner_prefix} — ALL DETAILED ITEMS", all_hdr_color, items)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Sheet 1: The Main Vessel Matrix Summary Table
+    # Sheet 1 or Sheet 2: The Main Vessel Matrix Summary Table
     # ─────────────────────────────────────────────────────────────────────────
-    ws_main = workbook.active
-    ws_main.title = "Ageing Summary"
+    if is_invoice:
+        ws_main = workbook.create_sheet(title="Ageing Summary", index=1)
+    else:
+        ws_main = workbook.active
+        ws_main.title = "Ageing Summary"
     ws_main.views.sheetView[0].showGridLines = True
 
     single_role = clean_roles[0] if len(clean_roles) == 1 and clean_roles[0] in ("TSI", "TA") else None
@@ -2714,10 +3006,20 @@ def _build_pending_items_ageing_workbook(
     title_bg = "1E3A8A" if single_role == "TSI" else ("581C87" if single_role == "TA" else NAVY_TOP)
     fill_summary_title = PatternFill("solid", fgColor=title_bg)
 
-    ws_main.merge_cells(start_row=1, start_column=1, end_row=1, end_column=TOTAL_COLS)
     ws_main.row_dimensions[1].height = 36
-    ws_main.cell(row=1, column=1, value=summary_main_title)
-    style_range(ws_main, 1, 1, TOTAL_COLS, 1, fill=fill_summary_title, font=font_title, alignment=align_center)
+    if is_invoice:
+        ws_main.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
+        btn_vsum = ws_main.cell(row=1, column=1, value="⟵ Vendor Summary")
+        style_range(ws_main, 1, 1, 2, 1, fill=PatternFill("solid", fgColor="1E293B"), font=font_nav_back, alignment=align_center)
+        set_link(btn_vsum, "Vendor Summary", "A1", font=font_nav_back)
+
+        ws_main.merge_cells(start_row=1, start_column=3, end_row=1, end_column=TOTAL_COLS)
+        ws_main.cell(row=1, column=3, value=summary_main_title)
+        style_range(ws_main, 3, 1, TOTAL_COLS, 1, fill=fill_summary_title, font=font_title, alignment=align_center)
+    else:
+        ws_main.merge_cells(start_row=1, start_column=1, end_row=1, end_column=TOTAL_COLS)
+        ws_main.cell(row=1, column=1, value=summary_main_title)
+        style_range(ws_main, 1, 1, TOTAL_COLS, 1, fill=fill_summary_title, font=font_title, alignment=align_center)
 
     # 2. Subtitle Banner
     ws_main.merge_cells(start_row=2, start_column=1, end_row=2, end_column=TOTAL_COLS)
@@ -3085,8 +3387,392 @@ def _build_pending_items_ageing_workbook(
     # Freeze panes on summary sheet at row 9 so headers stay locked
     ws_main.freeze_panes = "A9"
 
-    # Ensure Ageing Summary is active tab when opened
-    workbook.active = ws_main
+    # ─────────────────────────────────────────────────────────────────────────
+    # Sheet 1: The Vendor Matrix Summary Table (When is_invoice)
+    # ─────────────────────────────────────────────────────────────────────────
+    if is_invoice:
+        TOTAL_VENDOR_COLS = 6 if single_role else 14
+
+        # 1. Main Title Banner
+        if stage_upper and single_role:
+            summary_vendor_title = f"{stage_upper} ({single_role} PENDING) — VENDOR AGEING MATRIX"
+        elif stage_upper:
+            summary_vendor_title = f"{stage_upper} (ALL PENDING) — VENDOR AGEING MATRIX"
+        elif single_role:
+            summary_vendor_title = f"{single_role} PENDING ITEMS — VENDOR AGEING MATRIX"
+        else:
+            summary_vendor_title = "INVOICE PENDING ITEMS — VENDOR AGEING MATRIX"
+
+        v_title_bg = "1E3A8A" if single_role == "TSI" else ("581C87" if single_role == "TA" else NAVY_TOP)
+        fill_vendor_title = PatternFill("solid", fgColor=v_title_bg)
+
+        # Row 1: Title and Link to Vessel Matrix
+        nav_cols = 2 if single_role else 3
+        title_end_col = TOTAL_VENDOR_COLS - nav_cols
+
+        ws_vendor.merge_cells(start_row=1, start_column=1, end_row=1, end_column=title_end_col)
+        ws_vendor.row_dimensions[1].height = 36
+        ws_vendor.cell(row=1, column=1, value=summary_vendor_title)
+        style_range(ws_vendor, 1, 1, title_end_col, 1, fill=fill_vendor_title, font=font_title, alignment=align_center)
+
+        ws_vendor.merge_cells(start_row=1, start_column=title_end_col + 1, end_row=1, end_column=TOTAL_VENDOR_COLS)
+        btn_vessel_matrix = ws_vendor.cell(row=1, column=title_end_col + 1, value="View Vessel Matrix ⟶")
+        style_range(ws_vendor, title_end_col + 1, 1, TOTAL_VENDOR_COLS, 1, fill=PatternFill("solid", fgColor="1E293B"), font=font_nav_back, alignment=align_center)
+        set_link(btn_vessel_matrix, "Ageing Summary", "A1", font=font_nav_back)
+
+        # 2. Subtitle Banner
+        ws_vendor.merge_cells(start_row=2, start_column=1, end_row=2, end_column=TOTAL_VENDOR_COLS)
+        ws_vendor.row_dimensions[2].height = 20
+        ws_vendor.cell(row=2, column=1, value=f"{subtitle_text}   |   Tip: Click any number to jump directly to that vendor's items in the detail sheet")
+        style_range(ws_vendor, 1, 2, TOTAL_VENDOR_COLS, 2, fill=fill_subtitle, font=font_subtitle, alignment=align_center)
+
+        ws_vendor.row_dimensions[3].height = 8
+
+        # Group items by Vendor
+        vendor_display_names: dict[str, str] = {}
+        vendor_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for item in items:
+            v_raw = (item.vendor or "").strip()
+            if not v_raw:
+                v_norm = "UNASSIGNED / NO VENDOR"
+                v_disp = "Unassigned / No Vendor"
+            else:
+                v_norm = v_raw.upper()
+                v_disp = v_raw
+
+            if v_norm not in vendor_display_names:
+                vendor_display_names[v_norm] = v_disp
+
+            b = bucket_key(item.ageing_days)
+            role = (item.owner_role or "").strip().upper()
+            if role in ("TSI", "TA"):
+                vendor_counts[v_norm][f"{b}_{role.lower()}"] += 1
+                vendor_counts[v_norm][f"{b}_tot"] += 1
+                vendor_counts[v_norm][f"tot_{role.lower()}"] += 1
+                vendor_counts[v_norm]["tot_all"] += 1
+            else:
+                vendor_counts[v_norm][f"{b}_tot"] += 1
+                vendor_counts[v_norm]["tot_all"] += 1
+
+        vendors_sorted = sorted(
+            vendor_counts.keys(),
+            key=lambda v: (-vendor_counts[v]["tot_all"], -vendor_counts[v]["90_plus_tot"], -vendor_counts[v]["30_90_tot"], v)
+        )
+
+        # 3. KPI Summary Cards
+        ws_vendor.row_dimensions[4].height = 16
+        ws_vendor.row_dimensions[5].height = 24
+
+        if single_role == "TSI":
+            kpi_vendor_defs = [
+                ("TOTAL TSI INVOICES", len(items), "FFFFFF", "1E3A8A", 1, 2, "Vendor - All Details"),
+                ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Vendor - Above 90"),
+                ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "Vendor - 30 to 90"),
+                ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 5, 6, "Vendor - Below 30"),
+            ]
+        elif single_role == "TA":
+            kpi_vendor_defs = [
+                ("TOTAL TA INVOICES", len(items), "FFFFFF", "581C87", 1, 2, "Vendor - All Details"),
+                ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Vendor - Above 90"),
+                ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "Vendor - 30 to 90"),
+                ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", "6D28D9", 5, 6, "Vendor - Below 30"),
+            ]
+        else:
+            kpi_vendor_defs = [
+                ("TOTAL VENDORS", len(vendors_sorted), "FFFFFF", "0F172A", 1, 2, None),
+                ("TOTAL INVOICES PENDING", len(items), "FFFFFF", COLOR_TOTAL_HDR, 3, 5, "Vendor - All Details"),
+                ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 6, 8, "Vendor - Above 90"),
+                ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 9, 11, "Vendor - 30 to 90"),
+                ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 12, 14, "Vendor - Below 30"),
+            ]
+
+        for label, count_val, bg_hex, fg_hex, c_start, c_end, target_sheet in kpi_vendor_defs:
+            if c_end > c_start:
+                ws_vendor.merge_cells(start_row=4, start_column=c_start, end_row=4, end_column=c_end)
+            ws_vendor.cell(row=4, column=c_start, value=label)
+            style_range(ws_vendor, c_start, 4, c_end, 4, fill=PatternFill("solid", fgColor=bg_hex), font=Font(name="Calibri", size=8.5, bold=True, color="FF64748B"), alignment=align_center, border=border_card)
+
+            if c_end > c_start:
+                ws_vendor.merge_cells(start_row=5, start_column=c_start, end_row=5, end_column=c_end)
+            c_val = ws_vendor.cell(row=5, column=c_start, value=count_val)
+            f_kpi = Font(name="Calibri", size=14, bold=True, color=f"FF{fg_hex}")
+            style_range(ws_vendor, c_start, 5, c_end, 5, fill=PatternFill("solid", fgColor=bg_hex), font=f_kpi, alignment=align_center, border=border_card)
+            if target_sheet:
+                set_link(c_val, target_sheet, "A1", font=f_kpi)
+
+        ws_vendor.row_dimensions[6].height = 12
+
+        # 4. Table Header Tier 1 (Category Banners)
+        ws_vendor.row_dimensions[7].height = 28
+        if single_role == "TSI":
+            v_tier1_groups = [
+                ("VENDOR INFORMATION", 1, 2, "1E293B"),
+                ("90+ DAYS (CRITICAL)", 3, 3, "BE123C"),
+                ("30 TO 90 DAYS (ATTENTION)", 4, 4, "B45309"),
+                ("BELOW 30 DAYS (NORMAL)", 5, 5, "1E40AF"),
+                ("TOTAL PENDING", 6, 6, "1E3A8A"),
+            ]
+        elif single_role == "TA":
+            v_tier1_groups = [
+                ("VENDOR INFORMATION", 1, 2, "1E293B"),
+                ("90+ DAYS (CRITICAL)", 3, 3, "BE123C"),
+                ("30 TO 90 DAYS (ATTENTION)", 4, 4, "B45309"),
+                ("BELOW 30 DAYS (NORMAL)", 5, 5, "6D28D9"),
+                ("TOTAL PENDING", 6, 6, "581C87"),
+            ]
+        else:
+            v_tier1_groups = [
+                ("VENDOR INFORMATION", 1, 2, "1E293B"),
+                ("90+ DAYS (CRITICAL)", 3, 5, "BE123C"),
+                ("30 TO 90 DAYS (ATTENTION)", 6, 8, "B45309"),
+                ("BELOW 30 DAYS (NORMAL)", 9, 11, "1E40AF"),
+                ("TOTAL PENDING", 12, 14, "0F2942"),
+            ]
+
+        for title_text, c_start, c_end, color_hex in v_tier1_groups:
+            if c_end > c_start:
+                ws_vendor.merge_cells(start_row=7, start_column=c_start, end_row=7, end_column=c_end)
+            ws_vendor.cell(row=7, column=c_start, value=title_text)
+            style_range(
+                ws_vendor,
+                c_start,
+                7,
+                c_end,
+                7,
+                fill=PatternFill("solid", fgColor=color_hex),
+                font=Font(name="Calibri", size=10.5, bold=True, color="FFFFFFFF"),
+                alignment=align_center,
+                border=border_cell,
+            )
+
+        # 5. Table Header Tier 2 (Column Headers)
+        ws_vendor.row_dimensions[8].height = 24
+        if single_role == "TSI":
+            v_tier2_cols = [
+                ("Sl No.", 8, align_center, "1E293B", 9.5),
+                ("Vendor Name", 42, align_left, "1E293B", 9.5),
+                ("90+", 16, align_center, "E11D48", 9.5),
+                ("30-90", 16, align_center, "D97706", 9.5),
+                ("<30", 16, align_center, "2563EB", 9.5),
+                ("TSI Total", 16, align_center, "1E3A8A", 9.5),
+            ]
+        elif single_role == "TA":
+            v_tier2_cols = [
+                ("Sl No.", 8, align_center, "1E293B", 9.5),
+                ("Vendor Name", 42, align_left, "1E293B", 9.5),
+                ("90+", 16, align_center, "E11D48", 9.5),
+                ("30-90", 16, align_center, "D97706", 9.5),
+                ("<30", 16, align_center, "7C3AED", 9.5),
+                ("TA Total", 16, align_center, "581C87", 9.5),
+            ]
+        else:
+            v_tier2_cols = [
+                ("Sl No.", 8, align_center, "1E293B", 9.5),
+                ("Vendor Name", 40, align_left, "1E293B", 9.5),
+                # 90+ Days
+                ("TSI", 10, align_center, "E11D48", 9.5),
+                ("TA", 10, align_center, "C026D3", 9.5),
+                ("Total", 11, align_center, "BE123C", 9.5),
+                # 30 to 90 Days
+                ("TSI", 10, align_center, "D97706", 9.5),
+                ("TA", 10, align_center, "8B5CF6", 9.5),
+                ("Total", 11, align_center, "B45309", 9.5),
+                # Below 30 Days
+                ("TSI", 10, align_center, "2563EB", 9.5),
+                ("TA", 10, align_center, "7C3AED", 9.5),
+                ("Total", 11, align_center, "1D4ED8", 9.5),
+                # Total Pending
+                ("TSI Total", 12, align_center, "1E3A8A", 9.5),
+                ("TA Total", 12, align_center, "581C87", 9.5),
+                ("Grand Total", 13, align_center, "0F172A", 10.0),
+            ]
+
+        for col_idx, (col_name, width, al, bg_hex, f_size) in enumerate(v_tier2_cols, start=1):
+            cell = ws_vendor.cell(row=8, column=col_idx, value=col_name)
+            cell.fill = PatternFill("solid", fgColor=bg_hex)
+            cell.font = Font(name="Calibri", size=f_size, bold=True, color="FFFFFFFF")
+            cell.alignment = align_center
+            cell.border = border_cell
+            col_letter = get_column_letter(col_idx)
+            ws_vendor.column_dimensions[col_letter].width = width
+
+        # 6. Data Rows (Vendors)
+        v_curr_row = 9
+        v_fleet_sums = defaultdict(int)
+
+        if not vendors_sorted:
+            ws_vendor.merge_cells(start_row=v_curr_row, start_column=1, end_row=v_curr_row, end_column=TOTAL_VENDOR_COLS)
+            ws_vendor.row_dimensions[v_curr_row].height = 24
+            ws_vendor.cell(row=v_curr_row, column=1, value="— No pending invoices match current filters —")
+            style_range(ws_vendor, 1, v_curr_row, TOTAL_VENDOR_COLS, v_curr_row, fill=fill_white, font=font_subtitle, alignment=align_center, border=border_cell)
+            v_curr_row += 1
+        else:
+            for idx, v_norm in enumerate(vendors_sorted, start=1):
+                ws_vendor.row_dimensions[v_curr_row].height = 21
+                row_fill = fill_white if idx % 2 != 0 else fill_zebra
+
+                v_disp = vendor_display_names.get(v_norm, v_norm)
+                vc = vendor_counts[v_norm]
+
+                c_0_30_tsi = vc["0_30_tsi"]
+                c_0_30_ta = vc["0_30_ta"]
+                c_0_30_tot = vc["0_30_tot"]
+
+                c_30_90_tsi = vc["30_90_tsi"]
+                c_30_90_ta = vc["30_90_ta"]
+                c_30_90_tot = vc["30_90_tot"]
+
+                c_90_tsi = vc["90_plus_tsi"]
+                c_90_ta = vc["90_plus_ta"]
+                c_90_tot = vc["90_plus_tot"]
+
+                c_tot_tsi = vc["tot_tsi"]
+                c_tot_ta = vc["tot_ta"]
+                c_tot_all = vc["tot_all"]
+
+                v_fleet_sums["0_30_tsi"] += c_0_30_tsi
+                v_fleet_sums["0_30_ta"] += c_0_30_ta
+                v_fleet_sums["0_30_tot"] += c_0_30_tot
+
+                v_fleet_sums["30_90_tsi"] += c_30_90_tsi
+                v_fleet_sums["30_90_ta"] += c_30_90_ta
+                v_fleet_sums["30_90_tot"] += c_30_90_tot
+
+                v_fleet_sums["90_plus_tsi"] += c_90_tsi
+                v_fleet_sums["90_plus_ta"] += c_90_ta
+                v_fleet_sums["90_plus_tot"] += c_90_tot
+
+                v_fleet_sums["tot_tsi"] += c_tot_tsi
+                v_fleet_sums["tot_ta"] += c_tot_ta
+                v_fleet_sums["tot_all"] += c_tot_all
+
+                # Row coordinates in dedicated vendor detail sheets
+                r_v_90 = map_v_90_plus.get(v_norm)
+                r_v_30_90 = map_v_30_90.get(v_norm)
+                r_v_0_30 = map_v_0_30.get(v_norm)
+                r_v_all = map_v_all.get(v_norm)
+
+                # Col 1: Sl No.
+                c_sl = ws_vendor.cell(row=v_curr_row, column=1, value=idx)
+                c_sl.alignment = align_center
+                c_sl.font = Font(name="Calibri", size=9.5, bold=True, color="FF64748B")
+                c_sl.fill = row_fill
+                c_sl.border = border_cell
+
+                # Col 2: Vendor Name
+                c_vname = ws_vendor.cell(row=v_curr_row, column=2, value=v_disp)
+                f_vname = Font(name="Calibri", size=9.5, bold=True, color="FF0F172A")
+                c_vname.font = f_vname
+                c_vname.alignment = align_left
+                c_vname.fill = row_fill
+                c_vname.border = border_cell
+                if r_v_all:
+                    set_link(c_vname, "Vendor - All Details", f"A{r_v_all}", font=f_vname)
+
+                if single_role == "TSI":
+                    v_count_mappings = [
+                        (3, c_90_tsi, COLOR_90_PLUS_NUM, "Vendor - Above 90", f"A{r_v_90}" if r_v_90 else None),
+                        (4, c_30_90_tsi, COLOR_30_90_NUM, "Vendor - 30 to 90", f"A{r_v_30_90}" if r_v_30_90 else None),
+                        (5, c_0_30_tsi, COLOR_0_30_NUM, "Vendor - Below 30", f"A{r_v_0_30}" if r_v_0_30 else None),
+                        (6, c_tot_tsi, COLOR_TOTAL_NUM, "Vendor - All Details", f"A{r_v_all}" if r_v_all else None),
+                    ]
+                elif single_role == "TA":
+                    v_count_mappings = [
+                        (3, c_90_ta, COLOR_90_PLUS_NUM, "Vendor - Above 90", f"A{r_v_90}" if r_v_90 else None),
+                        (4, c_30_90_ta, COLOR_30_90_NUM, "Vendor - 30 to 90", f"A{r_v_30_90}" if r_v_30_90 else None),
+                        (5, c_0_30_ta, "6D28D9", "Vendor - Below 30", f"A{r_v_0_30}" if r_v_0_30 else None),
+                        (6, c_tot_ta, "581C87", "Vendor - All Details", f"A{r_v_all}" if r_v_all else None),
+                    ]
+                else:
+                    v_count_mappings = [
+                        (3, c_90_tsi, COLOR_90_PLUS_NUM, "Vendor - Above 90", f"A{r_v_90}" if r_v_90 else None),
+                        (4, c_90_ta, COLOR_90_PLUS_NUM, "Vendor - Above 90", f"A{r_v_90}" if r_v_90 else None),
+                        (5, c_90_tot, COLOR_90_PLUS_NUM, "Vendor - Above 90", f"A{r_v_90}" if r_v_90 else None),
+
+                        (6, c_30_90_tsi, COLOR_30_90_NUM, "Vendor - 30 to 90", f"A{r_v_30_90}" if r_v_30_90 else None),
+                        (7, c_30_90_ta, COLOR_30_90_NUM, "Vendor - 30 to 90", f"A{r_v_30_90}" if r_v_30_90 else None),
+                        (8, c_30_90_tot, COLOR_30_90_NUM, "Vendor - 30 to 90", f"A{r_v_30_90}" if r_v_30_90 else None),
+
+                        (9, c_0_30_tsi, COLOR_0_30_NUM, "Vendor - Below 30", f"A{r_v_0_30}" if r_v_0_30 else None),
+                        (10, c_0_30_ta, "6D28D9", "Vendor - Below 30", f"A{r_v_0_30}" if r_v_0_30 else None),
+                        (11, c_0_30_tot, COLOR_0_30_NUM, "Vendor - Below 30", f"A{r_v_0_30}" if r_v_0_30 else None),
+
+                        (12, c_tot_tsi, "1E3A8A", "Vendor - All Details", f"A{r_v_all}" if r_v_all else None),
+                        (13, c_tot_ta, "581C87", "Vendor - All Details", f"A{r_v_all}" if r_v_all else None),
+                        (14, c_tot_all, COLOR_TOTAL_NUM, "Vendor - All Details", f"A{r_v_all}" if r_v_all else None),
+                    ]
+
+                for col_idx, cnt, num_color, tgt_sheet, tgt_coord in v_count_mappings:
+                    cell = ws_vendor.cell(row=v_curr_row, column=col_idx)
+                    cell.alignment = align_center
+                    cell.fill = row_fill
+                    cell.border = border_cell
+
+                    if cnt == 0:
+                        cell.value = "—"
+                        cell.font = font_cell_muted
+                    else:
+                        cell.value = cnt
+                        f_num = Font(name="Calibri", size=10, bold=True, color=f"FF{num_color}")
+                        cell.font = f_num
+                        if tgt_sheet and tgt_coord:
+                            set_link(cell, tgt_sheet, tgt_coord, font=f_num)
+
+                v_curr_row += 1
+
+        # 7. Bottom Vendor Grand Total Row
+        ws_vendor.merge_cells(start_row=v_curr_row, start_column=1, end_row=v_curr_row, end_column=2)
+        ws_vendor.row_dimensions[v_curr_row].height = 26
+        ws_vendor.cell(row=v_curr_row, column=1, value=f"   GRAND TOTAL ({len(vendors_sorted)} Vendors)")
+        style_range(ws_vendor, 1, v_curr_row, 2, v_curr_row, fill=fill_fleet_grand, font=Font(name="Calibri", size=10, bold=True, color="FFFFFFFF"), alignment=align_left, border=border_fleet_grand)
+
+        if single_role == "TSI":
+            v_fleet_col_map = [
+                (3, v_fleet_sums["90_plus_tsi"], "Vendor - Above 90"),
+                (4, v_fleet_sums["30_90_tsi"], "Vendor - 30 to 90"),
+                (5, v_fleet_sums["0_30_tsi"], "Vendor - Below 30"),
+                (6, v_fleet_sums["tot_tsi"], "Vendor - All Details"),
+            ]
+        elif single_role == "TA":
+            v_fleet_col_map = [
+                (3, v_fleet_sums["90_plus_ta"], "Vendor - Above 90"),
+                (4, v_fleet_sums["30_90_ta"], "Vendor - 30 to 90"),
+                (5, v_fleet_sums["0_30_ta"], "Vendor - Below 30"),
+                (6, v_fleet_sums["tot_ta"], "Vendor - All Details"),
+            ]
+        else:
+            v_fleet_col_map = [
+                (3, v_fleet_sums["90_plus_tsi"], "Vendor - Above 90"),
+                (4, v_fleet_sums["90_plus_ta"], "Vendor - Above 90"),
+                (5, v_fleet_sums["90_plus_tot"], "Vendor - Above 90"),
+                (6, v_fleet_sums["30_90_tsi"], "Vendor - 30 to 90"),
+                (7, v_fleet_sums["30_90_ta"], "Vendor - 30 to 90"),
+                (8, v_fleet_sums["30_90_tot"], "Vendor - 30 to 90"),
+                (9, v_fleet_sums["0_30_tsi"], "Vendor - Below 30"),
+                (10, v_fleet_sums["0_30_ta"], "Vendor - Below 30"),
+                (11, v_fleet_sums["0_30_tot"], "Vendor - Below 30"),
+                (12, v_fleet_sums["tot_tsi"], "Vendor - All Details"),
+                (13, v_fleet_sums["tot_ta"], "Vendor - All Details"),
+                (14, v_fleet_sums["tot_all"], "Vendor - All Details"),
+            ]
+
+        for col_idx, tot_val, tgt_sheet in v_fleet_col_map:
+            cell = ws_vendor.cell(row=v_curr_row, column=col_idx, value=tot_val)
+            cell.fill = fill_fleet_grand
+            f_tot = Font(name="Calibri", size=10, bold=True, color="FFFFFFFF")
+            cell.font = f_tot
+            cell.alignment = align_center
+            cell.border = border_fleet_grand
+            if tgt_sheet:
+                set_link(cell, tgt_sheet, "A1", font=f_tot)
+
+        ws_vendor.freeze_panes = "A9"
+
+    # Ensure Vendor Summary (if invoice) or Ageing Summary is active tab when opened
+    if is_invoice:
+        workbook.active = ws_vendor
+    else:
+        workbook.active = ws_main
 
     return workbook
 
@@ -3452,12 +4138,17 @@ def _build_pending_items_html_summary(
             </tfoot>
         """
 
+    if stage_label and stage_label.upper() == "INVOICE":
+        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{filename}</strong>) is attached to this email with interactive <strong>Vendor Summary</strong> (Sheet 1), <strong>Vessel Ageing Matrix</strong>, and all drill-down item records."
+    else:
+        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{filename}</strong>) is attached to this email with all vessel-wise drill-down item records."
+
     html += f"""
           </table>
         </div>
 
         <div style="margin: 0 20px 20px 20px; background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 14px 18px; font-size: 13px; color: #1E40AF;">
-          <strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{filename}</strong>) is attached to this email with all vessel-wise drill-down item records.
+          {attachment_msg}
         </div>
 
         <div style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 14px 20px; font-size: 11px; color: #64748B; text-align: center;">
@@ -3548,6 +4239,7 @@ def preview_pending_items_summary_email(
 def send_pending_items_summary_email(
     payload: SendPendingSummaryEmailRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
 ) -> SendPendingSummaryEmailResponse:
     target_role = (payload.role or "ALL").strip().upper()
     if target_role not in ("ALL", "TSI", "TA"):
@@ -3623,6 +4315,8 @@ def send_pending_items_summary_email(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No active recipient emails provided or found for '{target_role}'.",
         )
+
+    _validate_internal_recipients(recipients, cc_recipients, db)
 
     # Determine Subject
     date_str = datetime.now().strftime("%d %b %Y")

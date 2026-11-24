@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import { api, ApiError } from '../../lib/api';
 import type { TrackedVendorEntry, VendorBankRequestPreview } from '../../shared';
 import { Toast } from '../common/Toast';
@@ -26,6 +27,15 @@ const FROM_OPTIONS = [
   { email: 'jayasri.v@ozellar.com', label: 'Jayasri Viswanathan (jayasri.v@ozellar.com)' },
   { email: 'gayathri.p@ozellar.com', label: 'Gayathri Sarvanan (gayathri.p@ozellar.com)' },
 ];
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 /**
  * Converts raw HTML from the server into clean, natural plain text that normal
@@ -81,10 +91,10 @@ function plainTextToHtml(text: string): string {
     const isBullet = line.startsWith('•') || line.startsWith('- ') || line.startsWith('* ');
     if (isBullet) {
       flushPara();
-      currentBullets.push(line.replace(/^[•\-\*]\s*/, ''));
+      currentBullets.push(escapeHtml(line.replace(/^[•\-\*]\s*/, '')));
     } else {
       flushBullets();
-      currentPara.push(line);
+      currentPara.push(escapeHtml(line));
     }
   }
   flushBullets();
@@ -349,7 +359,7 @@ export function VendorBankRequestModal({ entry, onSent, onClose }: Props) {
                 <div className="vendor-bank-email-preview-wrapper">
                   <div
                     className="vendor-bank-email-preview-content"
-                    dangerouslySetInnerHTML={{ __html: plainTextToHtml(plainBody) }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plainTextToHtml(plainBody)) }}
                   />
                 </div>
               ) : (

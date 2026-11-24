@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import { api, ApiError } from '../../lib/api';
 import type {
   PreviewVesselPrReviewEmailResponse,
@@ -655,7 +656,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 <div className="vessel-mail-html-preview-card">
                   <div
                     className="vessel-mail-html-body"
-                    dangerouslySetInnerHTML={{ __html: previewData?.htmlBody || '<p>No preview generated</p>' }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewData?.htmlBody || '<p>No preview generated</p>') }}
                   />
                 </div>
               </div>
