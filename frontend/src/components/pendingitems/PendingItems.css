@@ -1,40 +1,29 @@
 /* ==========================================================================
-   TSI / TA Pending Module — Natural Full Page Scrolling (Mobile → 4K)
-   Overrides global.css tracker-page 100vh lock so the entire window scrolls smoothly
+   TSI / TA Pending Module — Viewport-Locked Table Layout with Fixed TopNav
    ========================================================================== */
 
-html:has(.pending-items-page),
-body:has(.pending-items-page) {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  height: auto !important;
-  min-height: 100% !important;
-}
-
-body:has(.pending-items-page) #root,
-body:has(.pending-items-page) .app-shell {
-  height: auto !important;
-  min-height: 100% !important;
-  max-height: none !important;
-  overflow: visible !important;
-}
-
-body:has(.pending-items-page) .page-content {
-  padding: 0 !important;
-  display: block !important;
-  overflow: visible !important;
-  height: auto !important;
-  min-height: 100% !important;
-  max-height: none !important;
-}
-
 .tracker-page.pending-items-page {
-  flex: none !important;
-  height: auto !important;
-  min-height: 100% !important;
-  max-height: none !important;
-  overflow: visible !important;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--color-bg);
+}
+
+.pending-items-page .tracker-table-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pending-items-page .tracker-table-shell:last-child,
+.pending-items-page .tracker-table-shell[style*="24px"] {
+  border-bottom: 1px solid rgba(17, 20, 36, 0.08);
+  border-radius: 14px;
 }
 
 /* Stage Tabs segmented control */
@@ -49,6 +38,7 @@ body:has(.pending-items-page) .page-content {
   border: 1px solid rgba(17, 20, 36, 0.12);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
 }
 
 .pending-stage-tab {
@@ -109,6 +99,7 @@ body:has(.pending-items-page) .page-content {
   margin: 0 28px 12px;
   gap: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .pending-role-pills {
@@ -230,6 +221,9 @@ body:has(.pending-items-page) .page-content {
 /* Dashboard Cards Grid (for Requisition) */
 .pending-breakdown-wrapper {
   margin: 0 28px 14px;
+  flex-shrink: 0;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .pending-cards-grid {
@@ -549,6 +543,9 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-items-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -557,6 +554,7 @@ body:has(.pending-items-page) .page-content {
   color: #475569;
   text-transform: uppercase;
   background: #f8fafc;
+  box-shadow: 0 1px 0 #cbd5e1;
 }
 
 .pending-items-table .sort-indicator {
@@ -703,6 +701,10 @@ body:has(.pending-items-page) .page-content {
 }
 
 .pending-dashboard-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -2509,6 +2511,7 @@ body:has(.pending-items-page) .page-content {
   border-radius: 10px;
   border: 1px solid #CBD5E1;
   overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .pending-pr-tab-btn {
@@ -2919,6 +2922,7 @@ body:has(.pending-items-page) .page-content {
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  flex-shrink: 0;
 }
 
 .overdue-fleet-summary-header {
@@ -3080,6 +3084,7 @@ body:has(.pending-items-page) .page-content {
   gap: 8px;
   flex-wrap: wrap;
   margin: 0 28px 14px;
+  flex-shrink: 0;
 }
 
 .overdue-vessel-quick-label {
@@ -3155,7 +3160,8 @@ body:has(.pending-items-page) .page-content {
   text-transform: uppercase;
   padding: 10px 12px;
   border-bottom: 2px solid #334155;
-  z-index: 3;
+  z-index: 10;
+  box-shadow: 0 1px 0 #334155;
 }
 
 .vessel-group-first-row td {
