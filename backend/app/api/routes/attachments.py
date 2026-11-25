@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import require_module_access, require_roles
 from app.core.config import settings
 from app.core.enums import AuditAction, AuditEntityType, UserRole
 from app.db.session import get_db
@@ -19,9 +19,24 @@ from app.schemas.attachment import (
     AttachmentOut,
 )
 from app.services.audit import write_audit_log
-from app.services.blob_storage import build_blob_key, delete_blob, generate_download_sas_url, generate_upload_sas_url
+from app.services.blob_storage import (
+    build_blob_key,
+    delete_blob,
+    generate_download_sas_url,
+    generate_upload_sas_url,
+    is_valid_entry_blob_key,
+)
 
-router = APIRouter(prefix="/pi-entries", tags=["attachments"])
+router = APIRouter(
+    prefix="/pi-entries",
+    tags=["attachments"],
+    dependencies=[Depends(require_module_access("pi"))],
+)
+
+
+def _require_valid_pi_blob_key(blob_key: str, pi_entry_id: uuid.UUID) -> None:
+    if not is_valid_entry_blob_key(blob_key, "pi-entries", pi_entry_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid blob key for this PI entry")
 
 _SELECT_BY_ENTRY = """
     SELECT ia.id, ia.pi_entry_id, ia.blob_key, ia.file_name, ia.content_type, ia.size_bytes,
@@ -42,9 +57,7 @@ _SELECT_BY_ID = """
 
 
 @router.get("/{pi_entry_id}/attachments", response_model=list[AttachmentOut])
-def list_attachments(
-    pi_entry_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)
-) -> list[dict]:
+def list_attachments(pi_entry_id: uuid.UUID, db: Session = Depends(get_db)) -> list[dict]:
     rows = db.execute(text(_SELECT_BY_ENTRY), {"pi_entry_id": str(pi_entry_id)}).mappings().all()
     return [{**dict(row), "download_url": generate_download_sas_url(row["blob_key"])} for row in rows]
 
@@ -74,6 +87,8 @@ def complete_attachment_upload(
     entry = db.get(PiEntry, pi_entry_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI entry not found")
+
+    _require_valid_pi_blob_key(payload.blob_key, pi_entry_id)
 
     attachment = InvoiceAttachment(
         pi_entry_id=pi_entry_id,
@@ -120,6 +135,8 @@ def delete_attachment(
     attachment = db.get(InvoiceAttachment, attachment_id)
     if not attachment or attachment.pi_entry_id != pi_entry_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    _require_valid_pi_blob_key(attachment.blob_key, pi_entry_id)
 
     file_name = attachment.file_name
     try:

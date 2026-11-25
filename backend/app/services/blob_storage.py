@@ -18,9 +18,35 @@ def _get_service_client() -> BlobServiceClient:
     return _service_client
 
 
-def build_blob_key(pi_entry_id: uuid.UUID, file_name: str) -> str:
+def build_entry_blob_key(folder: str, entry_id: uuid.UUID, file_name: str) -> str:
     safe_name = "".join(c for c in file_name if c.isalnum() or c in "._- ") or "file"
-    return f"pi-entries/{pi_entry_id}/{uuid.uuid4()}-{safe_name}"
+    return f"{folder}/{entry_id}/{uuid.uuid4()}-{safe_name}"
+
+
+def build_blob_key(pi_entry_id: uuid.UUID, file_name: str) -> str:
+    return build_entry_blob_key("pi-entries", pi_entry_id, file_name)
+
+
+def is_valid_entry_blob_key(blob_key: str, folder: str, entry_id: uuid.UUID) -> bool:
+    """Verify `blob_key` belongs strictly under `{folder}/{entry_id}/{uuid}-{safe_name}` with no
+    path traversal segments or cross-entry references (while preserving spaces, Unicode, and
+    repeated dots inside filenames such as `file..pdf`)."""
+    prefix = f"{folder}/{entry_id}/"
+    if not blob_key.startswith(prefix):
+        return False
+    remainder = blob_key[len(prefix):]
+    if "/" in remainder or "\\" in remainder or any(ord(c) < 32 for c in remainder):
+        return False
+    if len(remainder) < 38 or remainder[36] != "-":
+        return False
+    try:
+        uuid.UUID(remainder[:36])
+    except ValueError:
+        return False
+    filename = remainder[37:]
+    if not filename or filename in (".", ".."):
+        return False
+    return all(c.isalnum() or c in "._- " for c in filename)
 
 
 def _sas_url(blob_key: str, permission: BlobSasPermissions, expiry_minutes: int) -> str:

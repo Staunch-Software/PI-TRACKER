@@ -16,13 +16,14 @@ def get_current_user(
     if not pi_session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    user_id = read_session_token(pi_session)
-    if not user_id:
+    parsed = read_session_token(pi_session)
+    if not parsed:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
 
+    user_id, token_version = parsed
     user = db.get(User, user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account not found or inactive")
+    if not user or not user.is_active or user.token_version != token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
 
     return user
 

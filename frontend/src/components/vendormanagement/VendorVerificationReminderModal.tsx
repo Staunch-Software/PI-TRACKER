@@ -39,6 +39,7 @@ function htmlToPlainText(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
     .replace(/&nbsp;/g, ' ');
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }

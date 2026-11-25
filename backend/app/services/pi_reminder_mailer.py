@@ -18,6 +18,7 @@
 # ===========================================================================
 import base64
 import logging
+import re
 
 import truststore
 
@@ -43,6 +44,21 @@ DEFAULT_FROM_MAILBOX = "sunilkumar.s@ozellar.com"
 # the Purchase team's shared distribution list, so it's fine as a CC target even though it can't
 # be used as a sending mailbox (see DEFAULT_FROM_MAILBOX above).
 ALWAYS_CC = ["purchase@ozellar.com"]
+
+MAX_OUTBOUND_RECIPIENTS = 50
+_SINGLE_EMAIL_RE = re.compile(r"^[^\s,;<>@:\x00-\x1f]+@[^\s,;<>@:\x00-\x1f]+\.[^\s,;<>@:\x00-\x1f]+$")
+
+
+def validate_recipient_emails(emails: list[str], max_recipients: int = MAX_OUTBOUND_RECIPIENTS) -> str | None:
+    """Validate single-address syntax (blocking multi-address delimiters and header/control
+    characters) and total recipient count without restricting email domains. Returns an error
+    message if invalid, or ``None`` when all addresses are valid."""
+    if len(emails) > max_recipients:
+        return f"Too many recipients ({len(emails)}); maximum allowed per email is {max_recipients}."
+    for email in emails:
+        if not _SINGLE_EMAIL_RE.match(email.strip().lower()):
+            return f"Recipient '{email}' is not a valid email address."
+    return None
 
 
 def _get_token() -> str:

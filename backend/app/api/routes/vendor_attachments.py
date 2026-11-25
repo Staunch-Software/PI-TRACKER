@@ -20,12 +20,18 @@ from app.schemas.vendor_attachment import (
     VendorBankAttachmentOut,
     VendorMasterAttachmentOut,
 )
-from app.services.blob_storage import delete_blob, generate_download_sas_url, generate_upload_sas_url
+from app.services.blob_storage import (
+    build_entry_blob_key,
+    delete_blob,
+    generate_download_sas_url,
+    generate_upload_sas_url,
+    is_valid_entry_blob_key,
+)
 
 
-def _build_vendor_bank_blob_key(entry_id: uuid.UUID, file_name: str) -> str:
-    safe_name = "".join(c for c in file_name if c.isalnum() or c in "._- ") or "file"
-    return f"vendor-bank/{entry_id}/{uuid.uuid4()}-{safe_name}"
+def _require_valid_vendor_blob_key(blob_key: str, entry_id: uuid.UUID) -> None:
+    if not is_valid_entry_blob_key(blob_key, "vendor-bank", entry_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid blob key for this vendor entry")
 
 router = APIRouter(
     prefix="/vendor-management",
@@ -70,7 +76,7 @@ def init_bank_attachment_upload(
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
 
-    blob_key = _build_vendor_bank_blob_key(entry_id, payload.file_name)
+    blob_key = build_entry_blob_key("vendor-bank", entry_id, payload.file_name)
     return {"blob_key": blob_key, "upload_url": generate_upload_sas_url(blob_key)}
 
 
@@ -84,6 +90,8 @@ def complete_bank_attachment_upload(
     entry = db.get(VendorTrackerEntry, entry_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vendor tracker entry not found")
+
+    _require_valid_vendor_blob_key(payload.blob_key, entry_id)
 
     attachment = VendorBankAttachment(
         vendor_tracker_entry_id=entry_id,
@@ -111,6 +119,8 @@ def delete_bank_attachment(
     attachment = db.get(VendorBankAttachment, attachment_id)
     if not attachment or attachment.vendor_tracker_entry_id != entry_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    _require_valid_vendor_blob_key(attachment.blob_key, entry_id)
 
     try:
         delete_blob(attachment.blob_key)

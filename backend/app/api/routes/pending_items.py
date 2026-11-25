@@ -1,3 +1,4 @@
+from html import escape as _html_escape
 import os
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -15,7 +16,6 @@ from PIL import Image as PILImage, ImageDraw, ImageFont
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_module_access, require_roles
-from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.session import get_db
 from app.models.excluded_category_po import ExcludedCategoryPo
@@ -24,7 +24,7 @@ from app.models.pr_entry import PrEntry
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.pending_weekly_snapshot import PendingWeeklySnapshot
 from app.models.user import User
-from app.services.pi_reminder_mailer import send_mail
+from app.services.pi_reminder_mailer import send_mail, validate_recipient_emails
 from app.services.po_scraper.scraper import _EXCLUDED_CATEGORIES, _normalize_category
 from app.schemas.common import PaginatedResult
 from app.schemas.pending_items import (
@@ -58,23 +58,10 @@ router = APIRouter(
 _writers = require_roles(UserRole.ADMIN, UserRole.EDITOR)
 
 
-def _validate_internal_recipients(recipients: list[str], cc_recipients: list[str], db: Session | None = None) -> None:
-    active_user_emails: set[str] = set()
-    if db is not None:
-        active_user_emails = {
-            str(u[0]).strip().lower()
-            for u in db.query(User.email).filter(User.is_active.is_(True), User.email.isnot(None)).all()
-            if u[0]
-        }
-    for email in recipients + cc_recipients:
-        clean = email.strip().lower()
-        is_internal_domain = any(clean.endswith(f"@{domain.lower()}") for domain in settings.internal_email_domains)
-        is_active_user = clean in active_user_emails
-        if not (is_internal_domain or is_active_user):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Recipient '{email}' is not permitted. All pending items reports are internal and must be addressed to an authorized company domain.",
-            )
+def _validate_recipients(recipients: list[str], cc_recipients: list[str]) -> None:
+    err = validate_recipient_emails(recipients + cc_recipients)
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
 # Vessel -> (TSI, TA) assignment, provided by the user 2026-11-15. No DB table for this yet — it's
 # a short, infrequently-changed list, so it lives here as code rather than behind an admin screen.
@@ -1304,7 +1291,7 @@ def _make_trend_html_circles(
     circles = []
     circles.append('<div style="display:inline-flex;align-items:center;justify-content:center;gap:3px;font-family:sans-serif;white-space:nowrap;">')
     for i in range(4):
-        lbl = week_labels[i] if i < len(week_labels) else f"Week {i+1}"
+        lbl = _html_escape(str(week_labels[i] if i < len(week_labels) else f"Week {i+1}"), quote=True)
         if pts[i] is None:
             circles.append(f'<span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:#F1F5F9;border:1px dashed #CBD5E1;color:#94A3B8;font-size:10px;font-weight:700;text-align:center;vertical-align:middle;" title="{lbl}: Awaiting Saturday snapshot">&mdash;</span>')
         else:
@@ -1312,7 +1299,7 @@ def _make_trend_html_circles(
             circles.append(f'<span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:{c_bg};color:#FFFFFF;font-size:10px;font-weight:700;text-align:center;vertical-align:middle;" title="{lbl}: {pts[i]} pending">{pts[i]}</span>')
         circles.append('<span style="display:inline-block;width:8px;height:2px;background:#CBD5E1;vertical-align:middle;"></span>')
 
-    curr_lbl = week_labels[4] if len(week_labels) > 4 else "Week 5"
+    curr_lbl = _html_escape(str(week_labels[4] if len(week_labels) > 4 else "Week 5"), quote=True)
     if pts[4] is None:
         circles.append(f'<span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:50%;background:#F1F5F9;border:1px dashed #CBD5E1;color:#94A3B8;font-size:11px;font-weight:700;text-align:center;vertical-align:middle;" title="{curr_lbl}: Awaiting Saturday snapshot">&mdash;</span>')
     else:
@@ -1389,7 +1376,7 @@ def _build_dashboard_html_summary(
                 trend_markup = _make_trend_html_circles(v.weekly_trend, v.weekly_trend_statuses, v.trend_diff, v.trend_status, week_labels)
                 owner_cell = ""
                 if v_idx == 0:
-                    owner_cell = f'<td rowspan="{len(g.vessels)}" style="padding:10px 12px;border:1px solid #E2E8F0;font-weight:700;color:#0F172A;vertical-align:middle;background:#FFFFFF;">{g.owner_name}<div style="font-size:11px;color:#64748B;font-weight:normal;">{len(g.vessels)} {"Vessel" if len(g.vessels) == 1 else "Vessels"}</div></td>'
+                    owner_cell = f'<td rowspan="{len(g.vessels)}" style="padding:10px 12px;border:1px solid #E2E8F0;font-weight:700;color:#0F172A;vertical-align:middle;background:#FFFFFF;">{_html_escape(str(g.owner_name), quote=True)}<div style="font-size:11px;color:#64748B;font-weight:normal;">{len(g.vessels)} {"Vessel" if len(g.vessels) == 1 else "Vessels"}</div></td>'
 
                 pr_val = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:12px;">{v.requisition_count}</span>' if v.requisition_count > 0 else '<span style="color:#CBD5E1;">&mdash;</span>'
                 po_val = f'<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:12px;">{v.po_count}</span>' if v.po_count > 0 else '<span style="color:#CBD5E1;">&mdash;</span>'
@@ -1399,7 +1386,7 @@ def _build_dashboard_html_summary(
                 rows_html.append(f"""
                 <tr style="background:#FFFFFF;">
                     {owner_cell}
-                    <td style="padding:8px 12px;border:1px solid #E2E8F0;font-weight:600;color:#1E293B;vertical-align:middle;">{v.vessel_name}</td>
+                    <td style="padding:8px 12px;border:1px solid #E2E8F0;font-weight:600;color:#1E293B;vertical-align:middle;">{_html_escape(str(v.vessel_name), quote=True)}</td>
                     <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;vertical-align:middle;">{pr_val}</td>
                     <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;vertical-align:middle;">{po_val}</td>
                     <td style="padding:8px 10px;border:1px solid #E2E8F0;text-align:center;vertical-align:middle;">{inv_val}</td>
@@ -1417,7 +1404,7 @@ def _build_dashboard_html_summary(
             <tr style="background:#F1F5F9;border-top:1px solid #CBD5E1;font-weight:700;">
                 <td colspan="2" style="padding:9px 12px;border:1px solid #CBD5E1;color:#0F172A;vertical-align:middle;">
                     <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#E2E8F0;color:#334155;font-size:10px;margin-right:6px;letter-spacing:0.5px;">&#8721; SUBTOTAL</span>
-                    <strong>{g.owner_name}</strong>
+                    <strong>{_html_escape(str(g.owner_name), quote=True)}</strong>
                     <span style="font-size:11px;color:#64748B;font-weight:normal;margin-left:6px;">({len(g.vessels)} vessels)</span>
                 </td>
                 <td style="padding:9px 10px;border:1px solid #CBD5E1;text-align:center;vertical-align:middle;">{pr_sub}</td>
@@ -1448,7 +1435,7 @@ def _build_dashboard_html_summary(
                         <th style="padding:8px 10px;text-align:center;border:1px solid #475569;width:80px;">POs</th>
                         <th style="padding:8px 10px;text-align:center;border:1px solid #475569;width:80px;">Invoices</th>
                         <th style="padding:8px 10px;text-align:center;border:1px solid #475569;width:80px;">Total</th>
-                        <th style="padding:8px 10px;text-align:center;border:1px solid #475569;width:220px;">5-Wk Trend ({wk_start} &rarr; {wk_end})</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #475569;width:220px;">5-Wk Trend ({_html_escape(str(wk_start), quote=True)} &rarr; {_html_escape(str(wk_end), quote=True)})</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1484,7 +1471,7 @@ def _build_dashboard_html_summary(
     <div style="background:{banner_bg};padding:24px 28px;color:#FFFFFF;">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.8;margin-bottom:4px;font-weight:700;">OZELLAR MARINE MANAGEMENT &bull; PI TRACKER</div>
         <h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-0.2px;">{banner_title}</h1>
-        <div style="margin-top:6px;font-size:12px;opacity:0.85;">Generated on {date_str} &bull; 5-Week Weekly Backlog Trend ({wk_start} to {wk_end})</div>
+        <div style="margin-top:6px;font-size:12px;opacity:0.85;">Generated on {date_str} &bull; 5-Week Weekly Backlog Trend ({_html_escape(str(wk_start), quote=True)} to {_html_escape(str(wk_end), quote=True)})</div>
     </div>
 
     <div style="padding:24px 28px;">
@@ -1526,17 +1513,17 @@ def _build_dashboard_html_summary(
             <table style="width:100%;border-collapse:collapse;font-size:12px;color:#334155;">
                 <tr>
                     <td style="padding:5px 0;width:24px;color:#2563EB;font-weight:700;">1.</td>
-                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{attachment_filenames[0]}</td>
+                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{_html_escape(str(attachment_filenames[0]), quote=True)}</td>
                     <td style="padding:5px 0;color:#64748B;font-size:11px;">Requisitions Ageing Matrix & Complete Line Items</td>
                 </tr>
                 <tr>
                     <td style="padding:5px 0;width:24px;color:#D97706;font-weight:700;">2.</td>
-                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{attachment_filenames[1]}</td>
+                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{_html_escape(str(attachment_filenames[1]), quote=True)}</td>
                     <td style="padding:5px 0;color:#64748B;font-size:11px;">Purchase Orders Ageing Matrix & Complete Line Items</td>
                 </tr>
                 <tr>
                     <td style="padding:5px 0;width:24px;color:#059669;font-weight:700;">3.</td>
-                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{attachment_filenames[2]}</td>
+                    <td style="padding:5px 0;font-weight:600;color:#0F172A;">{_html_escape(str(attachment_filenames[2]), quote=True)}</td>
                     <td style="padding:5px 0;color:#64748B;font-size:11px;">Invoices Ageing Matrix & Complete Line Items</td>
                 </tr>
             </table>
@@ -1546,7 +1533,7 @@ def _build_dashboard_html_summary(
         </div>''' if attachment_filenames and len(attachment_filenames) >= 3 else f'''<!-- Attachment Box -->
         <div style="margin-top:24px;padding:14px 18px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:8px;display:flex;align-items:center;">
             <div>
-                <strong style="color:#0F172A;font-size:13px;">Attached Spreadsheet: {filename}</strong>
+                <strong style="color:#0F172A;font-size:13px;">Attached Spreadsheet: {_html_escape(str(filename), quote=True)}</strong>
                 <div style="font-size:11px;color:#64748B;margin-top:2px;">
                     Full interactive workbook with 5 sheets including Ageing Summary matrix, ageing bracket breakdowns (Below 30, 30-90, Above 90 Days), and complete item details.
                 </div>
@@ -1807,7 +1794,7 @@ def send_pending_items_dashboard_summary_email(
             detail=f"No active recipient emails provided or found for '{target_role}'.",
         )
 
-    _validate_internal_recipients(recipients, cc_recipients, db)
+    _validate_recipients(recipients, cc_recipients)
 
     date_str = datetime.now().strftime("%d %b %Y")
     if payload.subject and payload.subject.strip():
@@ -1922,7 +1909,7 @@ def _build_vessel_pr_review_html(
         else:
             age_badge = f'<span style="display:inline-block;padding:2px 7px;border-radius:4px;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:11px;">{age}d</span>'
 
-        prio_str = (item.priority or "NORMAL").upper()
+        prio_str = _html_escape(str((item.priority or "NORMAL").upper()), quote=True)
         if item.critical:
             prio_badge = '<span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#DC2626;color:#FFFFFF;font-weight:800;font-size:10px;">CRITICAL</span>'
         elif prio_str in ("URGENT/IMMEDIATE", "HIGH"):
@@ -1931,14 +1918,15 @@ def _build_vessel_pr_review_html(
             prio_badge = f'<span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#E2E8F0;color:#475569;font-weight:600;font-size:10px;">{prio_str}</span>'
 
         date_formatted = item.reference_date.strftime("%d-%b-%Y") if item.reference_date else "—"
-        dept = item.department or item.req_category or "Technical"
-        title = item.title or "Requisition Items"
-        st = item.status or "Pending"
+        dept = _html_escape(str(item.department or item.req_category or "Technical"), quote=True)
+        title = _html_escape(str(item.title or "Requisition Items"), quote=True)
+        st = _html_escape(str(item.status or "Pending"), quote=True)
+        ref_no = _html_escape(str(item.reference_no or "—"), quote=True)
 
         rows_html.append(f"""
         <tr style="background:{'#FFFFFF' if idx % 2 != 0 else '#F8FAFC'};">
             <td style="padding:7px 10px;border:1px solid #CBD5E1;text-align:center;font-size:11px;color:#64748B;">{idx}</td>
-            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-weight:700;color:#0F172A;font-size:11.5px;white-space:nowrap;">{item.reference_no}</td>
+            <td style="padding:7px 10px;border:1px solid #CBD5E1;font-weight:700;color:#0F172A;font-size:11.5px;white-space:nowrap;">{ref_no}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11px;color:#334155;white-space:nowrap;">{date_formatted}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11px;color:#475569;font-weight:600;">{dept}</td>
             <td style="padding:7px 10px;border:1px solid #CBD5E1;font-size:11.5px;color:#1E293B;">{title}</td>
@@ -1955,19 +1943,22 @@ def _build_vessel_pr_review_html(
     else:
         scope_text = "have been pending for more than 90 days"
 
+    safe_vessel = _html_escape(str(vessel_name), quote=True)
+    safe_filename = _html_escape(str(filename), quote=True)
+
     body_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{vessel_name} - Review of Pending Requisitions</title>
+<title>{safe_vessel} - Review of Pending Requisitions</title>
 </head>
 <body style="margin:0;padding:20px;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;font-size:13.5px;line-height:1.6;">
 
     <p style="margin:0 0 14px 0;font-size:14px;"><strong>Dear Captain,</strong></p>
 
     <p style="margin:0 0 12px 0;">
-        Please be informed that the following purchase requisitions raised for <strong>{vessel_name}</strong> {scope_text}.
+        Please be informed that the following purchase requisitions raised for <strong>{safe_vessel}</strong> {scope_text}.
     </p>
 
     <p style="margin:0 0 16px 0;">
@@ -1993,7 +1984,7 @@ def _build_vessel_pr_review_html(
     </table>
 
     <p style="margin:0 0 14px 0;font-size:12.5px;color:#64748B;">
-        The itemized Excel review workbook (<strong>{filename}</strong>) has been generated and attached for your records and reference.
+        The itemized Excel review workbook (<strong>{safe_filename}</strong>) has been generated and attached for your records and reference.
     </p>
 
     <p style="margin:16px 0 0 0;font-size:13px;color:#334155;">
@@ -2230,7 +2221,7 @@ def send_vessel_pr_review_email(
             detail=f"No recipient email addresses available for vessel '{target_vessel}'.",
         )
 
-    _validate_internal_recipients(recipients, cc_recipients, db)
+    _validate_recipients(recipients, cc_recipients)
 
     # Build workbook
     wb = _build_vessel_pr_workbook(target_vessel, pr_type, filtered_items)
@@ -3866,7 +3857,7 @@ def _build_pending_items_html_summary(
     theme_bg = "#1E3A8A" if role_norm == "TSI" else ("#581C87" if role_norm == "TA" else "#0F2942")
     role_title = f"{role_norm} PENDING ITEMS — VESSEL AGEING MATRIX"
     if stage_label:
-        role_title += f" ({stage_label.upper()})"
+        role_title += f" ({_html_escape(str(stage_label.upper()), quote=True)})"
 
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
@@ -4138,10 +4129,11 @@ def _build_pending_items_html_summary(
             </tfoot>
         """
 
+    safe_summary_filename = _html_escape(str(filename), quote=True)
     if stage_label and stage_label.upper() == "INVOICE":
-        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{filename}</strong>) is attached to this email with interactive <strong>Vendor Summary</strong> (Sheet 1), <strong>Vessel Ageing Matrix</strong>, and all drill-down item records."
+        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{safe_summary_filename}</strong>) is attached to this email with interactive <strong>Vendor Summary</strong> (Sheet 1), <strong>Vessel Ageing Matrix</strong>, and all drill-down item records."
     else:
-        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{filename}</strong>) is attached to this email with all vessel-wise drill-down item records."
+        attachment_msg = f"<strong>Attachment Included:</strong> The complete detailed Excel report (<strong>{safe_summary_filename}</strong>) is attached to this email with all vessel-wise drill-down item records."
 
     html += f"""
           </table>
@@ -4316,7 +4308,7 @@ def send_pending_items_summary_email(
             detail=f"No active recipient emails provided or found for '{target_role}'.",
         )
 
-    _validate_internal_recipients(recipients, cc_recipients, db)
+    _validate_recipients(recipients, cc_recipients)
 
     # Determine Subject
     date_str = datetime.now().strftime("%d %b %Y")

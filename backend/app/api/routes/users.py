@@ -74,8 +74,15 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     updates = payload.model_dump(exclude_unset=True, exclude={"password"})
+    should_revoke = (
+        bool(payload.password)
+        or ("role" in updates and updates["role"] != user.role)
+        or (updates.get("is_active") is False)
+    )
     if payload.password:
         user.password_hash = hash_password(payload.password)
+    if should_revoke:
+        user.token_version += 1
 
     if updates:
         before = {field: getattr(user, field) for field in updates}

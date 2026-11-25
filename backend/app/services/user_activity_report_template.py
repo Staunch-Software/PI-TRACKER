@@ -5,6 +5,7 @@
 # api/routes/user_activity.py) — a weekly Registered-by/Rejected-by count summary. Same plain
 # string-template convention as pi_reminder_templates.py, not a templating engine.
 # ===========================================================================
+import html
 from datetime import date
 
 
@@ -16,7 +17,7 @@ def _summary_rows(summary: list[dict], person_key: str, cell_style: str) -> str:
     if not summary:
         return f"<tr><td colspan='2' style='{cell_style};color:#64748B'>No activity in this range.</td></tr>"
     return "".join(
-        f"<tr><td style='{cell_style}'>{row[person_key]}</td><td style='{cell_style};text-align:right'>{row['count']}</td></tr>"
+        f"<tr><td style='{cell_style}'>{html.escape(str(row[person_key]), quote=True)}</td><td style='{cell_style};text-align:right'>{html.escape(str(row['count']), quote=True)}</td></tr>"
         for row in summary
     )
 

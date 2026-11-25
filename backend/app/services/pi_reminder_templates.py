@@ -6,6 +6,7 @@
 # see PR notes. Kept as plain string templates, not a templating engine, since there are only two
 # of them and no user-editable customization was asked for.
 # ===========================================================================
+import html
 from datetime import date
 from decimal import Decimal
 from typing import Literal, TYPE_CHECKING
@@ -14,6 +15,10 @@ from app.core.enums import FollowUpStatus, FOLLOW_UP_STATUS_LABELS
 
 if TYPE_CHECKING:
     from app.models.vendor_bank_detail import VendorBankDetail
+
+
+def _esc(val: object) -> str:
+    return html.escape(str(val), quote=True)
 
 
 def _fmt_date(d: date | None) -> str:
@@ -42,16 +47,16 @@ def vendor_notice_email(
     subject = f"PI Follow-up – DPR No. {dpr_no or '(pending)'} – {vessel_name} / {vendor_name}"
     amount = _fmt_amount(fc_amount, currency) if fc_amount is not None else _fmt_amount(amount_inr, "INR")
     body = f"""
-    <p>Dear {vendor_name} Team,</p>
+    <p>Dear {_esc(vendor_name)} Team,</p>
     <p>Please find below the details of a Proforma Invoice raised against your services.
     Kindly share your final tax invoice with the DN at the earliest.</p>
     <table cellpadding="4" cellspacing="0" style="border-collapse:collapse">
-      <tr><td><b>DPR No.</b></td><td>{dpr_no or '—'}</td></tr>
-      <tr><td><b>DPR Date</b></td><td>{_fmt_date(dpr_date)}</td></tr>
-      <tr><td><b>Vessel</b></td><td>{vessel_name}</td></tr>
-      <tr><td><b>PO Number</b></td><td>{po_number or '—'}</td></tr>
-      <tr><td><b>Service Details</b></td><td>{service_details or '—'}</td></tr>
-      <tr><td><b>Amount</b></td><td>{amount}</td></tr>
+      <tr><td><b>DPR No.</b></td><td>{_esc(dpr_no or '—')}</td></tr>
+      <tr><td><b>DPR Date</b></td><td>{_esc(_fmt_date(dpr_date))}</td></tr>
+      <tr><td><b>Vessel</b></td><td>{_esc(vessel_name)}</td></tr>
+      <tr><td><b>PO Number</b></td><td>{_esc(po_number or '—')}</td></tr>
+      <tr><td><b>Service Details</b></td><td>{_esc(service_details or '—')}</td></tr>
+      <tr><td><b>Amount</b></td><td>{_esc(amount)}</td></tr>
     </table>
     <p>Thank you,<br>Purchase Team</p>
     """
@@ -72,10 +77,10 @@ def bank_details_request_email(*, vendor_name: str, missing_fields: list[str]) -
     fields = missing_fields or [
         "Beneficiary Name", "Bank Name", "Branch Name", "Account Number", "IBAN", "Swift Code",
     ]
-    items = "\n".join(f"      <li>{field}</li>" for field in fields)
+    items = "\n".join(f"      <li>{_esc(field)}</li>" for field in fields)
     subject = f"Request for Bank Details – {vendor_name}"
     body = f"""
-    <p>Dear {vendor_name} Team,</p>
+    <p>Dear {_esc(vendor_name)} Team,</p>
     <p>As part of our standard vendor verification process, we request you to share your bank
     account details on your company's official letterhead, duly signed by an authorized
     signatory. Please include the following details:</p>
@@ -113,18 +118,18 @@ def verification_reminder_email(
     subject = f"Bank Details Verification Required – {vendor_name}"
 
     vendor_lines = [
-        f"Email : {vendor_email or '—'}",
-        f"Phone : {vendor_phone or '—'}",
-        f"Address : {vendor_address or '—'}",
+        f"Email : {_esc(vendor_email or '—')}",
+        f"Phone : {_esc(vendor_phone or '—')}",
+        f"Address : {_esc(vendor_address or '—')}",
     ]
     if bank_row:
         bank_lines = [
-            f"Beneficiary Name : {bank_row.beneficiary_name or '—'}",
-            f"Bank Name : {bank_row.bank_name or '—'}",
-            f"Branch Name : {bank_row.branch_name or '—'}",
-            f"Account Number : {bank_row.account_number or '—'}",
-            f"IBAN : {bank_row.iban or '—'}",
-            f"Swift Code : {bank_row.swift_code or '—'}",
+            f"Beneficiary Name : {_esc(bank_row.beneficiary_name or '—')}",
+            f"Bank Name : {_esc(bank_row.bank_name or '—')}",
+            f"Branch Name : {_esc(bank_row.branch_name or '—')}",
+            f"Account Number : {_esc(bank_row.account_number or '—')}",
+            f"IBAN : {_esc(bank_row.iban or '—')}",
+            f"Swift Code : {_esc(bank_row.swift_code or '—')}",
         ]
     else:
         bank_lines = ["No bank details on file."]
@@ -133,7 +138,7 @@ def verification_reminder_email(
     bank_block = "<br>".join(bank_lines)
     body = f"""
     <p>Dear Team,</p>
-    <p>These are the bank details we received from <b>{vendor_name}</b>. Kindly verify them from
+    <p>These are the bank details we received from <b>{_esc(vendor_name)}</b>. Kindly verify them from
     your side before they are used for any payment.</p>
     <p><b>Vendor Details</b><br>
     {vendor_block}</p>
@@ -169,16 +174,16 @@ def owner_reminder_email(
     <p>Dear Team,</p>
     <p>Kindly update the current status of the following PI at your earliest convenience.</p>
     <table cellpadding="4" cellspacing="0" style="border-collapse:collapse">
-      <tr><td><b>DPR No.</b></td><td>{dpr_no or '—'}</td></tr>
-      <tr><td><b>DPR Date</b></td><td>{_fmt_date(dpr_date)}</td></tr>
-      <tr><td><b>Vessel</b></td><td>{vessel_name}</td></tr>
-      <tr><td><b>Vendor</b></td><td>{vendor_name}</td></tr>
-      <tr><td><b>PO Number</b></td><td>{po_number or '—'}</td></tr>
-      <tr><td><b>Service Details</b></td><td>{service_details or '—'}</td></tr>
-      <tr><td><b>Amount</b></td><td>{amount}</td></tr>
-      <tr><td><b>Payment Date</b></td><td>{_fmt_date(payment_date)}</td></tr>
-      <tr><td><b>Follow-up Status</b></td><td>{FOLLOW_UP_STATUS_LABELS[followup_status]}</td></tr>
-      <tr><td><b>Last Known Remark</b></td><td>{last_known_remark or '—'}</td></tr>
+      <tr><td><b>DPR No.</b></td><td>{_esc(dpr_no or '—')}</td></tr>
+      <tr><td><b>DPR Date</b></td><td>{_esc(_fmt_date(dpr_date))}</td></tr>
+      <tr><td><b>Vessel</b></td><td>{_esc(vessel_name)}</td></tr>
+      <tr><td><b>Vendor</b></td><td>{_esc(vendor_name)}</td></tr>
+      <tr><td><b>PO Number</b></td><td>{_esc(po_number or '—')}</td></tr>
+      <tr><td><b>Service Details</b></td><td>{_esc(service_details or '—')}</td></tr>
+      <tr><td><b>Amount</b></td><td>{_esc(amount)}</td></tr>
+      <tr><td><b>Payment Date</b></td><td>{_esc(_fmt_date(payment_date))}</td></tr>
+      <tr><td><b>Follow-up Status</b></td><td>{_esc(FOLLOW_UP_STATUS_LABELS[followup_status])}</td></tr>
+      <tr><td><b>Last Known Remark</b></td><td>{_esc(last_known_remark or '—')}</td></tr>
     </table>
     <p>Please share an update on the payment/approval status.</p>
     <p>Thank you,<br>Purchase Team</p>
