@@ -5,54 +5,54 @@
    ========================================================================== */
 
 body:has(.pending-items-page) .page-content {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
 }
 
 .tracker-page.pending-items-page {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  height: auto;
-  flex: none;
-  overflow: visible;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100% !important;
+  height: auto !important;
+  flex: none !important;
+  overflow: visible !important;
   background: var(--color-bg);
 }
 
 .pending-items-page .tracker-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 25;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(17, 20, 36, 0.06);
+  position: relative;
+  z-index: 10;
+  margin: 0 28px 12px;
 }
 
 .pending-items-page .tracker-table-shell {
+  height: calc(100vh - 180px);
+  min-height: 460px;
   display: flex;
   flex-direction: column;
-  height: auto;
-  min-height: 380px;
-  overflow: visible;
-  background: #FFFFFF;
+  overflow: hidden;
   margin: 0 28px;
   border: 1px solid rgba(17, 20, 36, 0.08);
   border-bottom: none;
   border-radius: 14px 14px 0 0;
-  box-shadow: 0 2px 6px rgba(17, 20, 36, 0.04), 0 8px 24px rgba(17, 20, 36, 0.04);
+  background: #FFFFFF;
 }
 
 .pending-items-page .tracker-table-shell:last-child,
 .pending-items-page .tracker-table-shell[style*="24px"] {
   border-bottom: 1px solid rgba(17, 20, 36, 0.08);
   border-radius: 14px;
+}
+
+.pending-items-page .tracker-pagination {
+  margin: 0 28px 24px;
+  flex-shrink: 0;
 }
 
 /* Stage Tabs segmented control */
@@ -559,10 +559,9 @@ body:has(.pending-items-page) .page-content {
 
 /* Table Cells */
 .pending-items-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
-  height: auto;
+  flex: 1;
   min-height: 0;
+  overflow: auto;
 }
 
 .pending-items-table {
@@ -571,8 +570,8 @@ body:has(.pending-items-page) .page-content {
 
 .pending-items-table th {
   position: sticky;
-  top: 58px;
-  z-index: 20;
+  top: 0;
+  z-index: 10;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -3174,7 +3173,7 @@ body:has(.pending-items-page) .page-content {
 
 .pending-spanned-vessel-table thead tr th {
   position: sticky;
-  top: 58px;
+  top: 0;
   background: #0F172A !important;
   color: #FFFFFF !important;
   font-size: 11px;
@@ -3183,7 +3182,7 @@ body:has(.pending-items-page) .page-content {
   text-transform: uppercase;
   padding: 10px 12px;
   border-bottom: 2px solid #334155;
-  z-index: 20;
+  z-index: 10;
   box-shadow: 0 1px 0 #334155;
 }
 
