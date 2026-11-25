@@ -5,15 +5,15 @@ parse be reprocessed later (improved keyword lists, bug fixes) without re-pollin
 and lets a human see the actual raw content behind an "UNPARSED-..." placeholder line item
 instead of just its label. See SoaDocument docstring.
 
-Revision ID: 0024
-Revises: 0023
+Revision ID: 0059
+Revises: 0058
 Create Date: 2026-11-25
 
 """
 from alembic import op
 
-revision = "0024"
-down_revision = "0023"
+revision = "0059"
+down_revision = "0058"
 branch_labels = None
 depends_on = None
 
