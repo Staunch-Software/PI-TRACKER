@@ -1,4 +1,8 @@
+from datetime import datetime, timedelta, timezone
+import uuid
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -21,6 +25,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.schemas.user import ChangePasswordRequest, LoginRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,8 +33,23 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _cookie_secure = settings.environment != "development"
 
 
-def _set_session_cookie(response: Response, user: User) -> None:
-    token = create_session_token(str(user.id), user.token_version)
+def _issue_session(db: Session, response: Response, user: User) -> None:
+    """Create a per-browser UserSession row and set the signed cookie (pruning stale rows)."""
+    now = datetime.now(timezone.utc)
+    db.query(UserSession).filter(
+        UserSession.user_id == user.id,
+        or_(UserSession.expires_at <= now, UserSession.revoked_at < now - timedelta(days=1)),
+    ).delete(synchronize_session=False)
+
+    session_row = UserSession(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        expires_at=now + timedelta(seconds=SESSION_MAX_AGE_SECONDS),
+    )
+    db.add(session_row)
+    db.commit()
+
+    token = create_session_token(str(user.id), user.token_version, str(session_row.id))
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
@@ -60,7 +80,7 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     auth_rate_limiter.reset([acct_key])
-    _set_session_cookie(response, user)
+    _issue_session(db, response, user)
     return user
 
 
@@ -73,11 +93,16 @@ def logout(
     if pi_session:
         parsed = read_session_token(pi_session)
         if parsed:
-            user_id, token_version = parsed
-            user = db.get(User, user_id)
-            if user and user.token_version == token_version:
-                user.token_version += 1
-                db.commit()
+            user_id, _, session_id = parsed
+            try:
+                session_uuid = uuid.UUID(session_id)
+            except ValueError:
+                session_uuid = None
+            if session_uuid:
+                session_row = db.get(UserSession, session_uuid)
+                if session_row and str(session_row.user_id) == user_id and session_row.revoked_at is None:
+                    session_row.revoked_at = datetime.now(timezone.utc)
+                    db.commit()
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
     return {"ok": True}
 
@@ -107,9 +132,12 @@ def change_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
 
     auth_rate_limiter.reset([cp_key])
+    now = datetime.now(timezone.utc)
     current_user.password_hash = hash_password(payload.new_password)
     current_user.token_version += 1
-    db.commit()
-    db.refresh(current_user)
-    _set_session_cookie(response, current_user)
+    db.query(UserSession).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.revoked_at.is_(None),
+    ).update({"revoked_at": now}, synchronize_session=False)
+    _issue_session(db, response, current_user)
     return {"ok": True}

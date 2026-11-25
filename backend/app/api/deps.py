@@ -1,4 +1,6 @@
 from collections.abc import Callable
+from datetime import datetime, timezone
+import uuid
 
 from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from app.core.enums import UserRole
 from app.core.security import SESSION_COOKIE_NAME, read_session_token
 from app.db.session import get_db
 from app.models.user import User
+from app.models.user_session import UserSession
 
 
 def get_current_user(
@@ -20,9 +23,24 @@ def get_current_user(
     if not parsed:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
 
-    user_id, token_version = parsed
+    user_id, token_version, session_id = parsed
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid") from exc
+
     user = db.get(User, user_id)
     if not user or not user.is_active or user.token_version != token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
+
+    session_row = db.get(UserSession, session_uuid)
+    now = datetime.now(timezone.utc)
+    if (
+        not session_row
+        or session_row.user_id != user.id
+        or session_row.revoked_at is not None
+        or session_row.expires_at <= now
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
 
     return user

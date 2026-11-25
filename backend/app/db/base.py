@@ -28,6 +28,7 @@ from app.models import (  # noqa: E402,F401
     soa_vendor_domain_alias,
     table_layout_preference,
     user,
+    user_session,
     vendor,
     vendor_bank_attachment,
     vendor_bank_detail,
