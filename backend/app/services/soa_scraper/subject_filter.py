@@ -1,10 +1,10 @@
 # ===========================================================================
 # backend/app/services/soa_scraper/subject_filter.py
 #
-# Cheap pre-filter run BEFORE the expensive Ollama extraction call, so ingest.py doesn't burn
-# minutes-per-message running full extraction against every unrelated email in what are mostly
-# ordinary people's inboxes (sunilkumar.s@, Karunya.pius@, viswanathan.n@ozellar.com — confirmed
-# live these also receive CVs, RFQs, FDA notices, etc., not just SOA/invoice mail).
+# Cheap pre-filter run BEFORE table extraction, so ingest.py doesn't bother parsing attachments
+# for every unrelated email in what are mostly ordinary people's inboxes (sunilkumar.s@,
+# Karunya.pius@, viswanathan.n@ozellar.com — confirmed live these also receive CVs, RFQs, FDA
+# notices, etc., not just SOA/invoice mail).
 #
 # Keyword match on subject only — cheap, instant, no LLM cost. Keywords are drawn from real
 # subjects confirmed live: "DEN-JET MARINE_OZELLAR_SOA 18092026", "RE: Follow-Up on Outstanding

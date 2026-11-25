@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -39,8 +39,8 @@ class SoaDocument(Base):
     # across every recipient's mailbox-scoped copy of one physical email. THIS is the real
     # ingestion dedupe key: confirmed live that a CC'd SOA email lands in multiple of the 4
     # polled SOA mailboxes with a DIFFERENT graph_message_id in each one, so deduping on that
-    # alone let the same email get extracted (and billed in Ollama compute) once per mailbox it
-    # happened to CC. Checked before running extraction at all, not just before insert.
+    # alone let the same email get extracted once per mailbox it happened to CC. Checked before
+    # running extraction at all, not just before insert.
     internet_message_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
 
     mailbox: Mapped[str] = mapped_column(Text, nullable=False)
@@ -70,5 +70,14 @@ class SoaDocument(Base):
     # Soft-delete/versioning flag — see class docstring. False means a newer SOA superseded it;
     # the row and its line items are kept for audit history, never hard-deleted.
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # The deterministically-extracted table structure exactly as parsed from the email
+    # body/attachments (see table_extraction.Table — one {"rows": [...], "context_text": ...,
+    # "source": ...} dict per table found), stored regardless of whether a recognizable
+    # line-item header was found. Lets a failed/incomplete parse be reprocessed later (improved
+    # keyword lists, bug fixes — see line_item_extractor.py) without re-polling Microsoft Graph,
+    # and lets a human see the actual raw content behind an "UNPARSED-..." placeholder line item
+    # instead of just its label.
+    raw_tables_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
 
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

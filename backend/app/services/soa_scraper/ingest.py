@@ -2,9 +2,9 @@
 # backend/app/services/soa_scraper/ingest.py
 #
 # Main SOA/invoice-mail ingestion pipeline: poll the configured mailboxes via Microsoft Graph
-# (ms_graph_client.py), extract structured line items via Ollama (ollama_extractor.py), and
-# persist. Run as a standalone script for now (see __main__) — not yet wired to a schedule or
-# API endpoint; that comes once ingestion is verified against real mail.
+# (ms_graph_client.py), extract structured line items deterministically (table_extraction.py +
+# line_item_extractor.py — no LLM), and persist. Run as a standalone script (see __main__),
+# scheduled via pi_tracker_soa_ingest.timer (see deploy/).
 #
 # Versioning: when a new SOA arrives from a vendor (identified by sender_domain — see
 # soa_document.py docstring) that already has a current SOA, the previous one is soft-deleted
@@ -23,11 +23,12 @@ from app.models.soa_line_item import SoaLineItem
 from app.models.soa_vendor_domain_alias import SoaVendorDomainAlias
 from app.models.vessel import Vessel
 from app.services.pir_vessel_matcher import normalize_vessel_name
-from app.services.soa_scraper.document_text import build_document_text, extract_original_external_sender
+from app.services.soa_scraper.document_text import extract_original_external_sender
+from app.services.soa_scraper.line_item_extractor import ExtractedLineItem, extract_line_items
 from app.services.soa_scraper.ms_graph_client import GraphMessage, MsGraphClient
 from app.services.soa_scraper.normalize import extract_domain, normalize_invoice_number, parse_iso_date
-from app.services.soa_scraper.ollama_extractor import extract_line_items
 from app.services.soa_scraper.subject_filter import looks_like_invoice_subject, looks_like_soa_subject
+from app.services.soa_scraper.table_extraction import extract_all_tables
 
 log = logging.getLogger(__name__)
 
@@ -134,21 +135,33 @@ def ingest_soa_mailbox(
                 )
         canonical_domain = _resolve_canonical_domain(vendor_domain, alias_cache)
 
-        document_text = build_document_text(message.body_html, message.attachments)
         try:
-            items = extract_line_items(
-                document_text,
-                sender_name=vendor_name or vendor_domain,
-                sender_domain=vendor_domain,
-                document_kind="Statement of Account (SOA)",
-            )
+            tables = extract_all_tables(message.body_html, message.attachments)
+            items = extract_line_items(tables, list(vessel_cache.keys()))
         except Exception:
             log.exception("Extraction failed for message %s from %s — skipping", message.id, message.sender_email)
             continue
 
         if not items:
-            log.info("No line items extracted from %s (%s) — not creating a document", message.id, message.subject)
-            continue
+            # No table with a recognizable header — deterministic parsing couldn't make sense of
+            # this vendor's layout (see line_item_extractor.py module docstring on this
+            # trade-off). Still create the document with one placeholder line item rather than
+            # silently dropping a message that passed the SOA subject filter, so it surfaces in
+            # the "Needs Triage" tab for manual follow-up instead of vanishing entirely.
+            log.warning(
+                "No line items extracted from %s (%s) — creating placeholder for manual review",
+                message.id, message.subject,
+            )
+            items = [
+                ExtractedLineItem(
+                    invoice_number=f"UNPARSED-{(message.subject or message.id)[:60]}",
+                    invoice_date=None,
+                    amount=None,
+                    remaining_amount=None,
+                    currency=None,
+                    vessel_name=None,
+                )
+            ]
 
         # Soft-delete the vendor's previous current SOA, keyed on canonical_domain — not raw
         # sender_domain — so an aliased vendor (see SoaVendorDomainAlias docstring) correctly
@@ -172,6 +185,9 @@ def ingest_soa_mailbox(
             received_at=message.received_at,
             is_current=True,
             has_attachment=message.has_attachments,
+            raw_tables_json=[
+                {"rows": t.rows, "context_text": t.context_text, "source": t.source} for t in tables
+            ],
         )
         db.add(doc)
         db.flush()  # populate doc.id for the line items below
@@ -197,6 +213,7 @@ def ingest_soa_mailbox(
                         "remaining_amount": item.remaining_amount,
                         "currency": item.currency,
                         "vessel_name": item.vessel_name,
+                        "unparsed": item.invoice_number.startswith("UNPARSED-"),
                     },
                 )
             )
@@ -232,14 +249,9 @@ def ingest_invoice_mailbox(db: Session, client: MsGraphClient, mailbox: str, ves
         message: GraphMessage = client.get_message(mailbox, raw)
         sender_domain = extract_domain(message.sender_email)
 
-        document_text = build_document_text(message.body_html, message.attachments)
         try:
-            items = extract_line_items(
-                document_text,
-                sender_name=message.sender_name or sender_domain,
-                sender_domain=sender_domain,
-                document_kind="invoice email",
-            )
+            tables = extract_all_tables(message.body_html, message.attachments)
+            items = extract_line_items(tables, list(vessel_cache.keys()))
         except Exception:
             log.exception("Extraction failed for invoice message %s from %s — skipping", message.id, message.sender_email)
             continue

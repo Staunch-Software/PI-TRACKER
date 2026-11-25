@@ -59,13 +59,6 @@ class Settings(BaseSettings):
     # soa_scraper/document_text.py extract_original_external_sender.
     internal_email_domains: set[str] = {"ozellar.com"}
 
-    # ── Ollama (local LLM extraction — see soa_extraction/) ─────────────────────
-    # Self-hosted, not the Anthropic API — SOA/invoice content never leaves the network. Model
-    # chosen for the dev PoC (CPU-only laptop, no dedicated GPU); swap for a larger model once
-    # this runs on real infrastructure.
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:7b-instruct"
-
 
 settings = Settings()
 

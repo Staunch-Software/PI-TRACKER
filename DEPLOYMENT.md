@@ -153,10 +153,8 @@ sudo systemctl enable --now pi_tracker_smartpal_invoice_scrape.timer
 sudo systemctl enable --now pi_tracker_invoice_registration_scrape.timer
 sudo systemctl enable --now pi_tracker_po_scrape.timer
 sudo systemctl enable --now pi_tracker_vendor_master_scrape.timer
+sudo systemctl enable --now pi_tracker_soa_ingest.timer
 ```
-
-`pi_tracker_soa_ingest.timer` is installed above but **not** enabled — it's not currently running
-on production. Only `enable --now` it once SOA mailbox ingestion is ready to go live.
 
 ## 7. First deploy
 
@@ -227,9 +225,8 @@ needed for scraper changes, they just pick up whatever `current` points to next 
 fires.
 
 There's also `pi_tracker_soa_ingest` (`app.services.soa_scraper.ingest`, every 4 hours — SOA
-mailbox ingestion via Graph + Ollama extraction). Its unit and timer are in `deploy/` and get
-installed in step 6, but the timer is **not currently enabled on production** — it's not live
-yet.
+mailbox ingestion via Graph + deterministic table extraction, no LLM). Its unit and timer are in
+`deploy/` and get installed and enabled in step 6 alongside the other scraper timers.
 
 Check status/logs for any of them:
 

@@ -1,6 +1,6 @@
 [Unit]
-Description=PI Follow-up Tracker - SOA mailbox ingestion (Graph + Ollama extraction)
-After=network.target ollama.service
+Description=PI Follow-up Tracker - SOA mailbox ingestion (Graph + deterministic extraction)
+After=network.target
 
 [Service]
 Type=oneshot

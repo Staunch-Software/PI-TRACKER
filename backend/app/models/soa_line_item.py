@@ -13,12 +13,15 @@ soa_match_source_enum = ENUM("SMARTPAL", "PIR", "INVOICE_MAIL", "NONE", name="so
 
 
 class SoaLineItem(Base):
-    """One extracted invoice line from a vendor SOA (soa_documents), normalized by the Ollama
-    extraction step (see soa_extraction/) since every vendor's SOA layout is different — column
-    names, whether a vessel is even named per line (confirmed live: Shell's SOA has none at all,
-    Den-Jet's does but sometimes names the vendor's own company instead of a ship), PDF vs Excel
-    vs inline-HTML-table-in-the-email-body. There is no reliable per-vendor column parser, so
-    extraction is LLM-based against a fixed target schema rather than hand-coded per format.
+    """One extracted invoice line from a vendor SOA (soa_documents), normalized by the
+    deterministic header-keyword extraction step (see soa_scraper/line_item_extractor.py) since
+    every vendor's SOA layout is different — column names, whether a vessel is even named per
+    line (confirmed live: Shell's SOA has none at all, Den-Jet's does but sometimes names the
+    vendor's own company instead of a ship), PDF vs Excel vs inline-HTML-table-in-the-email-body.
+    Extraction matches column headers against a keyword list rather than a per-vendor parser; a
+    vendor layout with no recognizable header row won't extract any line items (see
+    line_item_extractor.py's module docstring) and instead surfaces as a single "UNPARSED-..."
+    placeholder line item for manual review.
 
     match_source / match_status_label / matched_entry_id together answer "where does this
     invoice currently sit, and in what state" — NOT just found/not-found. Checked in this
