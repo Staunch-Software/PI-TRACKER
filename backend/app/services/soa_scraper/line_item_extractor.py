@@ -25,10 +25,20 @@ from app.services.soa_scraper.table_extraction import Table
 log = logging.getLogger(__name__)
 
 _HEADER_KEYWORDS: dict[str, list[str]] = {
-    "invoice_number": ["invoice no", "invoice number", "inv no", "inv.no", "inv#", "reference no",
-                        "reference", "ref no", "voucher no", "voucher", "bill no", "document no"],
+    # "transaction#"/"txn" must be checked before a looser "reference" match can steal the slot:
+    # a ledger-export vendor (confirmed live) has BOTH a "Transaction#" column (the real invoice
+    # number) and a separate "Reference#" column (the PO number) — without recognizing
+    # "Transaction#" at all, "Reference#" was the only invoice_number-shaped header found, so
+    # every line item got the PO number stored as its invoice number instead. This relies on
+    # Transaction# sitting to the LEFT of Reference# in that export (confirmed), since whichever
+    # column is evaluated first (ascending column index) claims the field — see _detect_header.
+    "invoice_number": ["transaction#", "transaction no", "txn#", "txn no", "invoice no", "invoice number",
+                        "inv no", "inv.no", "inv#", "reference no", "reference", "ref no", "voucher no",
+                        "voucher", "bill no", "document no"],
     "invoice_date": ["invoice date", "inv date", "bill date", "document date", "date"],
-    "amount": ["invoice amount", "gross amount", "total amount", "amount", "value", "debit"],
+    # "total" (the same ledger export's "Total (FCY)" column — confirmed live) covers a vendor
+    # that labels the original amount with no "amount"/"invoice amount" wording at all.
+    "amount": ["invoice amount", "gross amount", "total amount", "total", "amount", "value", "debit"],
     # "remaining amount"/"remaining" must come before the bare "amount" keyword wins by accident
     # (checked in _FIELD_ORDER, not list order, but still: without this, a "Remaining Amount"
     # header only matches on the substring "amount" and collides with a real Amount column —
