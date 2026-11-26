@@ -35,11 +35,17 @@ class SoaLineItem(Base):
       3. INVOICE_MAIL — matched against invoice_mail_entries (extracted from invoice@ozellar.com)
          when not found in either of the above — the invoice is only known to exist because a
          copy of it arrived in the invoice mailbox, not because SmartPAL/PIR have record of it.
-      4. NONE — none of the above; needs triage.
+      4/5. FALLBACK — when none of 1-3 match by invoice number, matching.py tries SmartPAL then
+         PIR again by same-vendor (via email domain, never name similarity) + exact amount +
+         invoice_date within 7 days, for vendors who format their own invoice numbers differently
+         from how they landed in SmartPAL/PIR. An ambiguous fallback (more than one candidate) is
+         left as NONE rather than guessed at. match_status_label is suffixed "(amount/date match)"
+         so this is visibly distinct from an exact invoice-number match — see matching.py's module
+         docstring for the full rationale.
+      6. NONE — none of the above; needs triage.
 
-    Matching key is invoice_number (normalized — see normalize_invoice_number in
-    soa_matching.py), cross-checked against amount where available, since invoice numbers are
-    not guaranteed unique across vendors.
+    Matching key is invoice_number (normalized — see normalize_invoice_number in normalize.py)
+    for 1-3; see matching.py for the fallback's own amount/date/vendor criteria.
 
     amount vs remaining_amount: some vendor formats show both (an original invoice amount and
     what's still outstanding after partial payment — confirmed live in the Den-Jet sample);
