@@ -3,13 +3,17 @@
 #
 # Re-extracts already-ingested SOA documents whose line items could improve from here on: a
 # document stored as a single "UNPARSED-..." placeholder (nothing was recognized at ingestion
-# time) or one whose raw_tables_json came back empty, where a code fix SINCE THEN might now find
-# real line items (the whole point of persisting raw_tables_json — see SoaDocument docstring).
+# time) or one whose extraction came back wrong, where a code fix SINCE THEN might now find real
+# (or correct) line items — by re-running extract_line_items against the RAW TABLES ALREADY
+# PERSISTED at ingestion time (doc.raw_tables_json), not by re-fetching the message. This is the
+# whole point of persisting raw_tables_json in the first place (see SoaDocument docstring): a
+# document whose real content lived entirely in the email body (no attachments) can be
+# reprocessed here exactly like one from an attachment, since we never need the live body again.
 #
-# Does NOT re-poll a mailbox's message list or touch ingest.py's dedupe state (graph_message_id/
-# internet_message_id) — it re-fetches each target message directly by its already-stored
-# graph_message_id/mailbox, so this is safe to run repeatedly after any extraction-logic change
-# without risk of re-ingesting duplicates or affecting what a normal ingest run considers "new".
+# Does NOT re-poll a mailbox, re-fetch via Graph, or touch ingest.py's dedupe state — it only
+# reads/rewrites rows already in the DB, so this is safe to run repeatedly after any
+# extraction-logic change without risk of re-ingesting duplicates, affecting what a normal ingest
+# run considers "new", or depending on mailbox/network access at all.
 #
 # Usage (from backend/):
 #   python -m app.services.soa_scraper.reprocess
@@ -20,6 +24,11 @@
 #       current state — use this for a document with real-looking but WRONG line items (a
 #       header-keyword fix that changes what an already-non-empty extraction produces), which the
 #       no-argument form's auto-detect can't tell apart from a correct one.
+#
+# A document with genuinely empty raw_tables_json (nothing was ever extracted, e.g. no tables
+# existed at all in the original message) stays unparseable here, same as before — there is no
+# "re-fetch from mail" fallback by design; see module history for why that path was removed (its
+# own body_html blind spot made it unable to reprocess body-only documents at all).
 # ===========================================================================
 import logging
 import sys
@@ -34,9 +43,8 @@ from app.models.vessel import Vessel
 from app.services.pir_vessel_matcher import normalize_vessel_name
 from app.services.soa_scraper.line_item_extractor import extract_line_items
 from app.services.soa_scraper.matching import rematch_all_current_line_items
-from app.services.soa_scraper.ms_graph_client import MsGraphClient
 from app.services.soa_scraper.normalize import normalize_invoice_number, parse_iso_date
-from app.services.soa_scraper.table_extraction import extract_all_tables
+from app.services.soa_scraper.table_extraction import Table
 
 log = logging.getLogger(__name__)
 
@@ -82,41 +90,18 @@ def _resolve_vessel_id(db: Session, vessel_name: str | None, vessel_cache: dict[
     return vessel_cache.get(normalize_vessel_name(vessel_name))
 
 
-def reprocess_document(db: Session, client: MsGraphClient, doc: SoaDocument, vessel_cache: dict[str, str]) -> bool:
-    """Returns True if this document's line items changed (placeholder/empty replaced with real
-    extracted items)."""
-    raw = {
-        "id": doc.graph_message_id,
-        "internetMessageId": doc.internet_message_id,
-        "subject": doc.subject,
-        "receivedDateTime": doc.received_at.isoformat(),
-        "from": {"emailAddress": {"address": doc.sender_email, "name": doc.sender_name}},
-        "hasAttachments": doc.has_attachment,
-    }
-    message = client.get_message(doc.mailbox, raw, with_attachments=True)
-
-    # NOTE: message.body_html will always be empty here — see debug_message.py's note on the same
-    # limitation. Only attachment-sourced tables are meaningfully reprocessable through this path.
-    tables = extract_all_tables("", message.attachments)
+def reprocess_document(db: Session, doc: SoaDocument, vessel_cache: dict[str, str]) -> bool:
+    """Returns True if this document's line items changed (placeholder/wrong replaced with real
+    extracted items). Re-extracts from the ALREADY-PERSISTED raw_tables_json (set at ingestion
+    time, or by a previous reprocess run) rather than re-fetching the message — see module
+    docstring. A document whose raw_tables_json is empty has nothing to re-extract from and stays
+    unparseable."""
+    tables = [Table(rows=t["rows"], context_text=t.get("context_text", ""), source=t.get("source", ""))
+              for t in doc.raw_tables_json]
     items = extract_line_items(tables, list(vessel_cache.keys()))
 
     if not items:
-        # Don't overwrite raw_tables_json with this script's own blind spot: a document with NO
-        # attachments (has_attachment=False) had all its real content in the body, which
-        # ingest.py's original run could see (and may have already extracted real line items
-        # from) but this script cannot. Recording "0 tables" here would erase an honest
-        # ingestion-time value with a false negative caused purely by this script's limitation,
-        # not a real re-check. Only record a negative result when there WERE attachments to
-        # actually re-examine.
-        if message.attachments:
-            doc.raw_tables_json = [
-                {"rows": t.rows, "context_text": t.context_text, "source": t.source} for t in tables
-            ]
         return False
-
-    doc.raw_tables_json = [
-        {"rows": t.rows, "context_text": t.context_text, "source": t.source} for t in tables
-    ]
 
     for li in _line_items_for(db, doc.id):
         db.delete(li)
@@ -159,12 +144,11 @@ def main(subject_substring: str | None) -> None:
         candidates = _find_candidates(db, subject_substring)
         print(f"{len(candidates)} candidate document(s) to reprocess.")
 
-        client = MsGraphClient()
         improved = 0
         for doc in candidates:
             print(f"- {doc.vendor_name_raw!r} / {doc.subject!r} ...", end=" ")
             try:
-                changed = reprocess_document(db, client, doc, vessel_cache)
+                changed = reprocess_document(db, doc, vessel_cache)
             except Exception:
                 log.exception("Failed to reprocess document %s", doc.id)
                 db.rollback()
@@ -175,7 +159,7 @@ def main(subject_substring: str | None) -> None:
                 improved += 1
                 print(f"now {len(_line_items_for(db, doc.id))} real line item(s)")
             else:
-                print("still unparseable (raw_tables_json updated for future debugging)")
+                print("still unparseable")
 
         print(f"\n{improved}/{len(candidates)} document(s) improved.")
         print("Running match pass...")
