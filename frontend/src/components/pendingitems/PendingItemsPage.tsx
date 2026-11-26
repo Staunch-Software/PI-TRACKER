@@ -1434,6 +1434,7 @@ export function PendingItemsPage() {
                           <col style={{ width: 130 }} />
                           <col style={{ width: 100 }} />
                           <col style={{ width: 110 }} />
+                          {ownerRoleFilter === 'Disputed' && <col style={{ width: 280 }} />}
                         </colgroup>
                         <thead>
                           <tr>
@@ -1444,6 +1445,7 @@ export function PendingItemsPage() {
                             <th onClick={() => handleSort('ownerName')}>Owner {sortIndicator('ownerName')}</th>
                             <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
                             <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
+                            {ownerRoleFilter === 'Disputed' && <th>Dispute Details</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -1463,11 +1465,28 @@ export function PendingItemsPage() {
                                 </span>
                               </td>
                               <td className="date-cell">{formatDisplayDate(item.referenceDate)}</td>
+                              {ownerRoleFilter === 'Disputed' && (
+                                <td className="dispute-details-cell">
+                                  {item.disputedBy || item.disputedRemarks ? (
+                                    <>
+                                      {item.disputedBy && (
+                                        <div className="dispute-detail-by">
+                                          {item.disputedBy}
+                                          {item.disputedAt ? ` · ${formatDisplayDate(item.disputedAt)}` : ''}
+                                        </div>
+                                      )}
+                                      {item.disputedRemarks && <div className="dispute-detail-remarks">{item.disputedRemarks}</div>}
+                                    </>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                              )}
                             </tr>
                           ))}
                           {itemsQuery.data && itemsQuery.data.items.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="pending-items-empty">
+                              <td colSpan={ownerRoleFilter === 'Disputed' ? 8 : 7} className="pending-items-empty">
                                 No invoices match the current filters.
                               </td>
                             </tr>

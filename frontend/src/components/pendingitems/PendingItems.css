@@ -657,6 +657,22 @@ body:has(.pending-items-page) .page-content {
   cursor: help;
 }
 
+.dispute-details-cell {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.dispute-detail-by {
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.dispute-detail-remarks {
+  color: #475569;
+  margin-top: 2px;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
