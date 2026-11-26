@@ -33,7 +33,14 @@ def main(subject_substring: str) -> None:
         print(f"Found: mailbox={doc.mailbox} graph_message_id={doc.graph_message_id} subject={doc.subject!r}")
 
         client = MsGraphClient()
-        raw = {"id": doc.graph_message_id, "hasAttachments": doc.has_attachment}
+        raw = {
+            "id": doc.graph_message_id,
+            "internetMessageId": doc.internet_message_id,
+            "subject": doc.subject,
+            "receivedDateTime": doc.received_at.isoformat(),
+            "from": {"emailAddress": {"address": doc.sender_email, "name": doc.sender_name}},
+            "hasAttachments": doc.has_attachment,
+        }
         message = client.get_message(doc.mailbox, raw, with_attachments=True)
 
         print(f"\nbody_html length: {len(message.body_html)} chars")
