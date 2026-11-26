@@ -73,13 +73,25 @@ def reprocess_document(db: Session, client: MsGraphClient, doc: SoaDocument, ves
     # NOTE: message.body_html will always be empty here — see debug_message.py's note on the same
     # limitation. Only attachment-sourced tables are meaningfully reprocessable through this path.
     tables = extract_all_tables("", message.attachments)
+    items = extract_line_items(tables, list(vessel_cache.keys()))
+
+    if not items:
+        # Don't overwrite raw_tables_json with this script's own blind spot: a document with NO
+        # attachments (has_attachment=False) had all its real content in the body, which
+        # ingest.py's original run could see (and may have already extracted real line items
+        # from) but this script cannot. Recording "0 tables" here would erase an honest
+        # ingestion-time value with a false negative caused purely by this script's limitation,
+        # not a real re-check. Only record a negative result when there WERE attachments to
+        # actually re-examine.
+        if message.attachments:
+            doc.raw_tables_json = [
+                {"rows": t.rows, "context_text": t.context_text, "source": t.source} for t in tables
+            ]
+        return False
+
     doc.raw_tables_json = [
         {"rows": t.rows, "context_text": t.context_text, "source": t.source} for t in tables
     ]
-
-    items = extract_line_items(tables, list(vessel_cache.keys()))
-    if not items:
-        return False
 
     for li in _line_items_for(db, doc.id):
         db.delete(li)
