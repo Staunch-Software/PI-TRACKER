@@ -20,10 +20,14 @@ from app.services.soa_scraper.ms_graph_client import MsGraphClient
 from app.services.soa_scraper.table_extraction import html_tables, pdf_tables, xlsx_tables
 
 
-def _print_table_preview(table, max_rows: int = 3) -> None:
+def _print_table_preview(table, max_rows: int = 40) -> None:
     print(f"      source={table.source!r} rows={len(table.rows)} context_text={table.context_text[:80]!r}")
-    for row in table.rows[:max_rows]:
-        print(f"        {row}")
+    for i, row in enumerate(table.rows[:max_rows]):
+        # Only show non-blank cells with their column index, so a mostly-empty wide row (common
+        # in these vendor exports — see line_item_extractor.py's header-window docstring) stays
+        # readable instead of a wall of ''.
+        non_blank = [(idx, cell) for idx, cell in enumerate(row) if cell.strip()] if isinstance(row, list) else []
+        print(f"        row {i}: {non_blank}")
 
 
 def main(subject_substring: str) -> None:
