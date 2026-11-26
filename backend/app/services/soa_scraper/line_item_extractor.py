@@ -19,6 +19,7 @@ from datetime import date
 from dateutil import parser as dateutil_parser
 
 from app.services.pir_vessel_matcher import normalize_vessel_name
+from app.services.soa_scraper.normalize import normalize_invoice_number
 from app.services.soa_scraper.table_extraction import Table
 
 log = logging.getLogger(__name__)
@@ -293,4 +294,24 @@ def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> li
 
         log.debug("Parsed %d line item(s) from %s", len(items), table.source)
 
-    return items
+    return _dedupe_by_invoice_number(items)
+
+
+def _dedupe_by_invoice_number(items: list[ExtractedLineItem]) -> list[ExtractedLineItem]:
+    """Outlook quotes the entire prior thread in a reply's body, and html_tables() has no way to
+    tell "this reply's own content" apart from "the old table quoted below it" — so a vendor who
+    sends an inline-HTML-table SOA and replies in the SAME thread with an update would otherwise
+    have both the new AND the stale quoted table extracted, duplicating/conflicting line items
+    within one document. Keeps the FIRST occurrence of a given invoice number (top-posting is the
+    overwhelmingly common convention, so the newest content is normally what appears first)."""
+    seen: set[str] = set()
+    deduped = []
+    for item in items:
+        key = normalize_invoice_number(item.invoice_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    if len(deduped) != len(items):
+        log.info("Dropped %d duplicate invoice number(s) within the same document", len(items) - len(deduped))
+    return deduped
