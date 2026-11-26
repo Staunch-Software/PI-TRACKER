@@ -48,6 +48,11 @@ from app.schemas.pending_items import (
 
 _STAGES = ("Requisition", "Purchase Order", "Invoice")
 _OWNER_ROLES = ("TSI", "TA")
+# "Disputed" is a separate bucket, not folded into either team's normal pending queue — confirmed
+# with the user 2026-11-26. Kept out of _OWNER_ROLES (used for the TSI/TA-only counts tab loop and
+# the vessel-trend dashboard summary) and handled as its own addition wherever needed.
+_DISPUTED_ROLE = "Disputed"
+_ALL_OWNER_ROLES_WITH_DISPUTED = _OWNER_ROLES + (_DISPUTED_ROLE,)
 
 router = APIRouter(
     prefix="/pending-items",
@@ -271,6 +276,7 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         .filter(
             (SmartpalInvoiceEntry.status.ilike("Pending%"))
             | (SmartpalInvoiceEntry.status.in_(_APPROVED_STATUSES))
+            | (SmartpalInvoiceEntry.status == _DISPUTED_ROLE)
         )
         .all()
     )
@@ -283,8 +289,18 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
             continue
         if inv.po_nos and any(p.strip() in excluded_po_nos for p in inv.po_nos.split(",")):
             continue
-        is_pending = bool(inv.status) and inv.status.lower().startswith("pending")
-        owner_role, owner_name = _owner(inv.vessel_name, "TA" if is_pending else "TSI")
+
+        is_disputed = inv.status == _DISPUTED_ROLE
+        if is_disputed:
+            # Disputed invoices are their own bucket (confirmed with the user 2026-11-26) rather
+            # than TSI's or TA's pending queue — still attributed to the vessel's TA in-charge for
+            # filtering/context (vendor disputes are typically chased up by TA), but owner_role is
+            # kept distinct so it never gets counted into the TSI/TA Pending totals.
+            _, owner_name = _owner(inv.vessel_name, "TA")
+            owner_role = _DISPUTED_ROLE
+        else:
+            is_pending = bool(inv.status) and inv.status.lower().startswith("pending")
+            owner_role, owner_name = _owner(inv.vessel_name, "TA" if is_pending else "TSI")
         if owner_name is None:
             continue
         items.append(
@@ -299,6 +315,9 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
                 owner_name=owner_name,
                 ageing_days=_ageing(inv.invoice_date),
                 reference_date=inv.invoice_date,
+                disputed_by=inv.disputed_by if is_disputed else None,
+                disputed_at=inv.disputed_at if is_disputed else None,
+                disputed_remarks=inv.disputed_remarks if is_disputed else None,
             )
         )
 
@@ -439,7 +458,7 @@ def get_pending_items_counts(
     return [
         PendingItemsCountEntry(stage=stage, owner_role=role, count=counts.get((stage, role), 0))
         for stage in _STAGES
-        for role in _OWNER_ROLES
+        for role in _ALL_OWNER_ROLES_WITH_DISPUTED
     ]
 
 

@@ -165,6 +165,9 @@ export interface PendingItem {
   critical?: boolean | null;
   department?: string | null;
   reqCategory?: string | null;
+  disputedBy?: string | null;
+  disputedAt?: string | null;
+  disputedRemarks?: string | null;
 }
 
 export interface PendingItemsFilterOptions {

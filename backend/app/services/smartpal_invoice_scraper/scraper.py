@@ -73,6 +73,100 @@ def _select_all_tab(page) -> None:
     page.wait_for_timeout(1000)
 
 
+_DISPUTED_TAB_LABEL = "Disputed"
+
+
+def _select_disputed_tab(page) -> None:
+    tab = page.locator(f"*:text-is('{_DISPUTED_TAB_LABEL}')").first
+    try:
+        tab.click(timeout=10000)
+    except PlaywrightTimeoutError:
+        page.locator(f"text={_DISPUTED_TAB_LABEL}").first.click(timeout=10000, force=True)
+    try:
+        page.locator("#loading-container").wait_for(state="hidden", timeout=15000)
+    except PlaywrightTimeoutError:
+        pass
+    page.wait_for_timeout(1000)
+
+
+def _fetch_dispute_details(page, smartpal_id: int) -> dict | None:
+    """Confirmed live 2026-11-26: each grid row has its own "Show Pending Users" icon
+    (`a.pendinglistpopup1`, `data-id` = the row's smartpal invoice id) — clicking it fires a GET
+    to PurchasePALApp/api/ServiceRouter/GET?pData=docId=<id>&docType=0&pageType=INV_DEF, returning
+    the invoice's full approval-workflow history (every status it's passed through, each with its
+    own userName/actionDate/remarks). A raw `page.request.get()` to that same URL 500s — it
+    depends on several session-init headers (s_key, v_cmpid, etc.) set by the page's own JS, not
+    reproducible from outside a real click — so this drives the actual icon click and captures the
+    response, same "prefer a real click over guessing the API" stance as elsewhere in this
+    codebase. Returns the entry whose OWN status is "Disputed" (who disputed it / when / remarks),
+    or None if the icon isn't on the current page or no matching response arrives in time.
+    Best-effort closes the popup afterward regardless of outcome, so the grid is left usable for
+    the next row."""
+    icon = page.locator(f"a.pendinglistpopup1[data-id='{smartpal_id}']").first
+    if icon.count() == 0:
+        return None
+    history: list[dict] = []
+    try:
+        with page.expect_response(
+            lambda resp: resp.request.method == "GET"
+            and "ServiceRouter" in resp.url
+            and f"docId%3D{smartpal_id}%26" in resp.url,
+            timeout=15000,
+        ) as resp_info:
+            icon.click(timeout=10000)
+        history = json.loads(resp_info.value.text())
+    except (PlaywrightTimeoutError, json.JSONDecodeError) as e:
+        log.warning(f"[DISPUTE]  No Pending List history captured for invoice id={smartpal_id}: {e}")
+    finally:
+        try:
+            page.locator("button:has-text('×'), .close, [aria-label='Close']").first.click(timeout=3000)
+            page.wait_for_timeout(300)
+        except Exception:
+            pass
+
+    for entry in history:
+        if entry.get("status") == "Disputed":
+            action_date = entry.get("actionDate")
+            try:
+                disputed_at = datetime.fromisoformat(action_date) if action_date else None
+            except ValueError:
+                disputed_at = None
+            return {
+                "disputed_by": entry.get("userName"),
+                "disputed_at": disputed_at,
+                "disputed_remarks": entry.get("remarks"),
+            }
+    return None
+
+
+def _scrape_dispute_details(page, disputed_ids: set[int]) -> dict[int, dict]:
+    """Switches to the Disputed tab (a small ~100-row subset, not the full ~2400-row All tab) and
+    pages through it, fetching each row's dispute history via _fetch_dispute_details. Keyed by
+    smartpal_invoice_id so the caller can merge results back into the main All-tab row set."""
+    collected: dict[int, dict] = {}
+    _select_disputed_tab(page)
+
+    while True:
+        icons = page.locator("a.pendinglistpopup1")
+        for i in range(icons.count()):
+            data_id = icons.nth(i).get_attribute("data-id")
+            if not data_id:
+                continue
+            smartpal_id = int(data_id)
+            if smartpal_id not in disputed_ids or smartpal_id in collected:
+                continue
+            detail = _fetch_dispute_details(page, smartpal_id)
+            if detail:
+                collected[smartpal_id] = detail
+
+        next_page_rows = _advance_and_capture(page)
+        if next_page_rows is None:
+            break
+        page.wait_for_timeout(500)
+
+    return collected
+
+
 # SmartPAL date format (DD-Mon-YYYY), confirmed live 2026-11-23 from the captured request body's
 # own 'fromDate'/'toDate' fields. Matches po_scraper.py's 2025 backfill start — same "every PR/PO/
 # invoice from here onward" scope, not a narrower rolling window.
@@ -200,6 +294,18 @@ def run() -> None:
                 page.wait_for_timeout(3000)
                 rows = _extract_rows(page)
 
+            disputed_ids = {row["id"] for row in rows if row.get("status") == "Disputed" and row.get("id") is not None}
+            dispute_details: dict[int, dict] = {}
+            if disputed_ids:
+                log.info(f"[DISPUTE]  Fetching dispute details for {len(disputed_ids)} disputed invoice(s)...")
+                try:
+                    dispute_details = _scrape_dispute_details(page, disputed_ids)
+                except Exception as e:
+                    log.error(f"[DISPUTE]  Failed to scrape dispute details: {e} — continuing without them.")
+                log.info(
+                    f"[DISPUTE]  Captured dispute details for {len(dispute_details)}/{len(disputed_ids)} disputed invoice(s)."
+                )
+
             browser.close()
 
         if not rows:
@@ -242,6 +348,12 @@ def run() -> None:
                     "category_name": row.get("categoryName"),
                     "raw_json": row,
                 }
+                if row.get("status") == "Disputed":
+                    dispute = dispute_details.get(smartpal_id)
+                    if dispute:
+                        values["disputed_by"] = dispute["disputed_by"]
+                        values["disputed_at"] = dispute["disputed_at"]
+                        values["disputed_remarks"] = dispute["disputed_remarks"]
 
                 existing = db.query(SmartpalInvoiceEntry).filter(
                     SmartpalInvoiceEntry.smartpal_invoice_id == smartpal_id

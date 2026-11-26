@@ -74,6 +74,16 @@ class SmartpalInvoiceEntry(Base):
     # api/routes/dd_tracker.py for how it's surfaced as DD Tracker's Payment Status column.
     paid_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Who disputed the invoice, when, and why — not present on the main Invoice List grid at all;
+    # only available via a separate per-invoice "Pending List" popup (the clock icon next to each
+    # row / on the invoice's own detail page), which exposes the full approval-workflow history.
+    # Scraped only for status == "Disputed" rows (see smartpal_invoice_scraper.py) by picking the
+    # history entry whose own status is "Disputed" out of that popup's response. Null for every
+    # other invoice status.
+    disputed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    disputed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disputed_remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     raw_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     first_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

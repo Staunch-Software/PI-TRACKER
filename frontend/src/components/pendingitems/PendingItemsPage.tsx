@@ -106,7 +106,7 @@ type SortColumn = 'referenceNo' | 'title' | 'vesselName' | 'vendor' | 'status' |
 const STAGES = ['Requisition', 'Purchase Order', 'Invoice'] as const;
 type Stage = (typeof STAGES)[number];
 
-type OwnerRoleFilter = 'ALL' | 'TSI' | 'TA';
+type OwnerRoleFilter = 'ALL' | 'TSI' | 'TA' | 'Disputed';
 
 interface PendingItemFilters {
   search: string;
@@ -191,11 +191,17 @@ function getAgeingClass(days: number | null): string {
   return 'ageing-green';
 }
 
-function renderStatusPill(stage: Stage, status: string | null, ownerRole: string) {
+function renderStatusPill(
+  stage: Stage,
+  status: string | null,
+  ownerRole: string,
+  dispute?: { disputedBy?: string | null; disputedAt?: string | null; disputedRemarks?: string | null }
+) {
   const s = status || '—';
   const lower = s.toLowerCase();
   const isPending = lower.includes('pending');
   const isApproved = lower.includes('approved');
+  const isDisputed = lower === 'disputed';
 
   let label = s;
   if (stage === 'Requisition') {
@@ -209,10 +215,22 @@ function renderStatusPill(stage: Stage, status: string | null, ownerRole: string
     else if (isApproved) label = `Approved (${ownerRole})`;
   }
 
-  const pillClass = isPending ? 'status-pending' : isApproved ? 'status-approved' : 'status-neutral';
+  const pillClass = isDisputed ? 'status-disputed' : isPending ? 'status-pending' : isApproved ? 'status-approved' : 'status-neutral';
+
+  let title: string | undefined;
+  if (isDisputed && dispute && (dispute.disputedBy || dispute.disputedRemarks)) {
+    const when = dispute.disputedAt ? formatDisplayDate(dispute.disputedAt) : null;
+    title = [
+      dispute.disputedBy ? `Disputed by: ${dispute.disputedBy}` : null,
+      when ? `Date: ${when}` : null,
+      dispute.disputedRemarks ? `Remarks: ${dispute.disputedRemarks}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
 
   return (
-    <span className={`pending-status-pill ${pillClass}`}>
+    <span className={`pending-status-pill ${pillClass}`} title={title}>
       <span className="status-dot" />
       {label}
     </span>
@@ -490,7 +508,7 @@ export function PendingItemsPage() {
     placeholderData: keepPreviousData,
   });
 
-  function countFor(s: Stage, role: 'TSI' | 'TA'): number {
+  function countFor(s: Stage, role: 'TSI' | 'TA' | 'Disputed'): number {
     return countsQuery.data?.find((c) => c.stage === s && c.ownerRole === role)?.count ?? 0;
   }
 
@@ -557,13 +575,16 @@ export function PendingItemsPage() {
   const totalForCurrentStage = stageTotal(stage);
   const tsiForCurrentStage = countFor(stage, 'TSI');
   const taForCurrentStage = countFor(stage, 'TA');
+  const disputedForCurrentStage = countFor(stage, 'Disputed');
 
   const activeRoleLabel =
     ownerRoleFilter === 'ALL'
       ? 'All Roles'
       : ownerRoleFilter === 'TSI'
         ? 'TSI Pending'
-        : 'TA Pending';
+        : ownerRoleFilter === 'TA'
+          ? 'TA Pending'
+          : 'Disputed';
 
   return (
     <div className="tracker-page pending-items-page">
@@ -718,6 +739,18 @@ export function PendingItemsPage() {
               {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'TA').length
                 : taForCurrentStage}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`pending-role-pill pending-role-pill-disputed ${ownerRoleFilter === 'Disputed' ? 'active' : ''}`}
+            onClick={() => selectRoleFilter('Disputed')}
+          >
+            Disputed
+            <span className="pending-role-pill-count">
+              {stage === 'Requisition' && prTab === 'ageing_90'
+                ? activePrList.filter((x) => x.ownerRole === 'Disputed').length
+                : disputedForCurrentStage}
             </span>
           </button>
         </div>
@@ -1166,24 +1199,26 @@ export function PendingItemsPage() {
 
             <div className="tracker-toolbar-spacer" />
 
-            <button
-              type="button"
-              className="btn-tracker-action btn-pending-mail-trigger"
-              onClick={() => setIsMailModalOpen(true)}
-              title={`Preview and send summary email to ${activeRoleLabel}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-              <span>
-                {ownerRoleFilter === 'ALL'
-                  ? 'Email All (TSI & TA)'
-                  : ownerRoleFilter === 'TSI'
-                    ? 'Email TSI Summary'
-                    : 'Email TA Summary'}
-              </span>
-            </button>
+            {ownerRoleFilter !== 'Disputed' && (
+              <button
+                type="button"
+                className="btn-tracker-action btn-pending-mail-trigger"
+                onClick={() => setIsMailModalOpen(true)}
+                title={`Preview and send summary email to ${activeRoleLabel}`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+                <span>
+                  {ownerRoleFilter === 'ALL'
+                    ? 'Email All (TSI & TA)'
+                    : ownerRoleFilter === 'TSI'
+                      ? 'Email TSI Summary'
+                      : 'Email TA Summary'}
+                </span>
+              </button>
+            )}
 
             <button
               className="btn-tracker-action btn-tracker-secondary"
@@ -1314,9 +1349,9 @@ export function PendingItemsPage() {
                               <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
                               <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
-                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1367,9 +1402,9 @@ export function PendingItemsPage() {
                               <td className="pr-title-cell" title={item.title ?? ''}>{item.title ?? '—'}</td>
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{item.vendor ?? '—'}</td>
-                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1417,9 +1452,9 @@ export function PendingItemsPage() {
                               <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{item.vendor ?? '—'}</td>
-                              <td>{renderStatusPill(stage, item.status, item.ownerRole)}</td>
+                              <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : 'role-ta'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1510,7 +1545,7 @@ export function PendingItemsPage() {
         <VesselPrMailModal
           vesselName={selectedVesselMail.vesselName}
           prType={selectedVesselMail.prType}
-          role={ownerRoleFilter}
+          role={ownerRoleFilter === 'Disputed' ? 'ALL' : ownerRoleFilter}
           onClose={() => setSelectedVesselMail(null)}
           onSuccess={(msg) => {
             setMailSuccessMessage(msg);

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from app.schemas.base import CamelModel
 
@@ -10,7 +10,7 @@ class PendingItemOut(CamelModel):
     vessel_name: str | None
     vendor: str | None
     status: str | None
-    owner_role: str  # "TSI" | "TA"
+    owner_role: str  # "TSI" | "TA" | "Disputed"
     owner_name: str | None
     ageing_days: int | None
     reference_date: date | None
@@ -18,6 +18,11 @@ class PendingItemOut(CamelModel):
     critical: bool | None = None
     department: str | None = None
     req_category: str | None = None
+    # Only populated for Invoice-stage rows whose status is "Disputed" — see
+    # smartpal_invoice_scraper.py's _scrape_dispute_details. Null for every other item.
+    disputed_by: str | None = None
+    disputed_at: datetime | None = None
+    disputed_remarks: str | None = None
 
 
 class PendingItemsFilterOptions(CamelModel):

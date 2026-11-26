@@ -212,6 +212,19 @@ body:has(.pending-items-page) .page-content {
   color: #6d28d9;
 }
 
+.pending-role-pill-disputed.active {
+  background: #ffffff;
+  color: #b91c1c;
+  border-color: #dc2626;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.2);
+  font-weight: 700;
+}
+
+.pending-role-pill-disputed.active .pending-role-pill-count {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
 .pending-breakdown-meta {
   display: flex;
   align-items: center;
@@ -638,6 +651,12 @@ body:has(.pending-items-page) .page-content {
   color: #475569;
 }
 
+.pending-status-pill.status-disputed {
+  background: #fee2e2;
+  color: #b91c1c;
+  cursor: help;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
@@ -664,6 +683,10 @@ body:has(.pending-items-page) .page-content {
 
 .owner-role-badge-text.role-ta {
   color: #7c3aed;
+}
+
+.owner-role-badge-text.role-disputed {
+  color: #b91c1c;
 }
 
 .ageing-chip {
