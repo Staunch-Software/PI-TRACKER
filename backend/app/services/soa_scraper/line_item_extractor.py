@@ -28,9 +28,24 @@ _HEADER_KEYWORDS: dict[str, list[str]] = {
                         "reference", "ref no", "voucher no", "voucher", "bill no", "document no"],
     "invoice_date": ["invoice date", "inv date", "bill date", "document date", "date"],
     "amount": ["invoice amount", "gross amount", "total amount", "amount", "value", "debit"],
-    "remaining_amount": ["balance", "outstanding", "o/s amount", "os amount", "due amount", "net due", "unpaid"],
+    # "remaining amount"/"remaining" must come before the bare "amount" keyword wins by accident
+    # (checked in _FIELD_ORDER, not list order, but still: without this, a "Remaining Amount"
+    # header only matches on the substring "amount" and collides with a real Amount column —
+    # confirmed live on Den-Jet's export, which has both, and whose "Balance" column — matched
+    # here too — is a running cumulative total, NOT the per-invoice remaining balance).
+    "remaining_amount": ["remaining amount", "remaining", "balance", "outstanding", "o/s amount",
+                          "os amount", "due amount", "net due", "unpaid"],
     "currency": ["currency", "curr"],
     "vessel": ["vessel", "ship", "vessel name"],
+}
+
+# Matched by exact cell equality (after strip/lower), never substring — for terse single-word
+# headers that would false-positive as a substring of something unrelated (a bare "num" would
+# also match inside "item number", "numeric code", etc).
+_EXACT_HEADER_KEYWORDS: dict[str, list[str]] = {
+    # QuickBooks-style exports (Navarino — confirmed live) label the invoice/document number
+    # column just "Num".
+    "invoice_number": ["num"],
 }
 
 # Checked in this order — a header cell matching an earlier field "wins" so e.g. "invoice date"
@@ -65,6 +80,9 @@ def _match_field(header_cell: str) -> str | None:
     cell = header_cell.strip().lower()
     if not cell:
         return None
+    for field_name in _FIELD_ORDER:
+        if cell in _EXACT_HEADER_KEYWORDS.get(field_name, []):
+            return field_name
     for field_name in _FIELD_ORDER:
         if any(kw in cell for kw in _HEADER_KEYWORDS[field_name]):
             return field_name
@@ -112,20 +130,23 @@ def _parse_amount(raw: str | None) -> float | None:
     return value
 
 
-_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
 
 def _parse_date(raw: str | None) -> str | None:
-    """Tries unambiguous ISO (YYYY-MM-DD) first — dateutil's dayfirst=True below would otherwise
-    happily swap day/month on an already-unambiguous ISO string (confirmed: "2026-07-10" with
-    dayfirst=True parses as 2026-10-07). Falls back to dateutil for every other vendor format
-    (DD/MM/YYYY, DD-Mon-YYYY, etc.), where dayfirst is the right default for this business."""
+    """Tries unambiguous ISO (YYYY-MM-DD, with or without a trailing time-of-day — confirmed live:
+    Navarino's QuickBooks export writes "2026-08-01 00:00:00") first — dateutil's dayfirst=True
+    below would otherwise happily swap day/month on an already-unambiguous ISO date (confirmed:
+    both "2026-07-10" and "2026-08-01 00:00:00" with dayfirst=True parse with day/month swapped).
+    Falls back to dateutil for every other vendor format (DD/MM/YYYY, DD-Mon-YYYY, etc.), where
+    dayfirst is the right default for this business."""
     if not raw or not raw.strip():
         return None
     raw = raw.strip()
-    if _ISO_DATE_RE.match(raw):
+    iso_match = _ISO_DATE_PREFIX_RE.match(raw)
+    if iso_match:
         try:
-            return date.fromisoformat(raw).isoformat()
+            return date.fromisoformat(iso_match.group(1)).isoformat()
         except ValueError:
             return None
     try:
@@ -149,34 +170,64 @@ _MIN_VESSEL_SUBSTRING_LEN = 4
 _MAX_CONTEXT_LEN_FOR_BARE_NAME_FALLBACK = 60
 
 
-def _find_vessel(text: str, known_vessel_names_normalized: set[str]) -> str | None:
-    """Only ever returns a name that's actually in our fleet (known_vessel_names_normalized) —
-    never invents one from arbitrary free text. Covers 'To Master/Owners of Vessel "X"' style
-    context text (Den-Jet — confirmed live) as well as a short context that just IS the vessel
-    name (e.g. a per-vessel worksheet titled "AMNS POLAR" with no "Vessel:" keyword at all)."""
+def _find_vessel(text: str, vessel_lookup: dict[str, str]) -> str | None:
+    """Only ever returns a name that's actually in our fleet (a value from vessel_lookup, keyed by
+    normalized name) — never invents one from arbitrary free text, and always returns the DB's own
+    canonical spelling rather than however the source text happened to write it. Covers
+    'To Master/Owners of Vessel "X"' style context text (Den-Jet — confirmed live) as well as a
+    short context that just IS the vessel name (e.g. a per-vessel worksheet titled "AMNS POLAR"
+    with no "Vessel:" keyword at all), and a per-row vessel-column cell that embeds the same
+    free-text phrasing around the name rather than naming it alone (e.g. "Master & Owners of AM
+    UMANG" — Den-Jet, confirmed live — has no literal word "Vessel" at all, so it never matches
+    the regex above and relies on the substring fallback below; returning the whole phrase there
+    instead of just "AM UMANG" would be wrong)."""
     if not text:
         return None
 
     for match in _VESSEL_CONTEXT_RE.finditer(text):
         candidate = match.group(1).strip()
-        if normalize_vessel_name(candidate) in known_vessel_names_normalized:
-            return candidate
+        key = normalize_vessel_name(candidate)
+        if key in vessel_lookup:
+            return vessel_lookup[key]
 
     stripped = text.strip()
     if stripped and len(stripped) <= _MAX_CONTEXT_LEN_FOR_BARE_NAME_FALLBACK:
         normalized_text = normalize_vessel_name(stripped)
         if len(normalized_text) >= _MIN_VESSEL_SUBSTRING_LEN:
             matches = [
-                n for n in known_vessel_names_normalized
-                if len(n) >= _MIN_VESSEL_SUBSTRING_LEN and (n in normalized_text or normalized_text in n)
+                key for key in vessel_lookup
+                if len(key) >= _MIN_VESSEL_SUBSTRING_LEN and (key in normalized_text or normalized_text in key)
             ]
             if len(matches) == 1:  # ambiguous (matches >1) is deliberately not guessed at
-                return stripped
+                return vessel_lookup[matches[0]]
     return None
 
 
+# Some vendor exports (Den-Jet — confirmed live) anchor a merged header cell's text at a
+# different column than the single data cell beneath it — "Inv No" sits at column 7 while the
+# actual invoice numbers are at column 5, same for "Date"/"PO No", apparently because their
+# accounting software writes a merged header's value somewhere other than the merge's top-left
+# cell. A few genuinely single-column headers (Amount/Balance/Vessel Name) line up exactly, so
+# this only kicks in as a fallback when the header's own column is blank in a given data row.
+_COLUMN_ALIGNMENT_WINDOW = 3
+
+
+def _row_value(row: list[str], col_idx: int, claimed: set[int]) -> str:
+    if col_idx < len(row) and row[col_idx].strip() and col_idx not in claimed:
+        claimed.add(col_idx)
+        return row[col_idx]
+    for offset in range(1, _COLUMN_ALIGNMENT_WINDOW + 1):
+        left = col_idx - offset
+        if 0 <= left < len(row) and row[left].strip() and left not in claimed:
+            claimed.add(left)
+            return row[left]
+    return ""
+
+
 def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> list[ExtractedLineItem]:
-    known_vessel_names_normalized = {normalize_vessel_name(n) for n in known_vessel_names}
+    # Normalized name -> canonical DB spelling, so a match is always reported in the fleet's own
+    # casing regardless of how a vendor's source text happened to write it.
+    vessel_lookup = {normalize_vessel_name(n): n for n in known_vessel_names}
     items: list[ExtractedLineItem] = []
 
     for table in tables:
@@ -184,7 +235,7 @@ def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> li
         if not detected:
             continue
         header_idx, column_map = detected
-        context_vessel = _find_vessel(table.context_text, known_vessel_names_normalized)
+        context_vessel = _find_vessel(table.context_text, vessel_lookup)
 
         for row in table.rows[header_idx + 1:]:
             if not any(c.strip() for c in row):
@@ -192,10 +243,10 @@ def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> li
             if row and _TOTALS_ROW_RE.match(row[0] or ""):
                 continue
 
+            claimed: set[int] = set()
             values: dict[str, str] = {}
             for col_idx, field_name in column_map.items():
-                if col_idx < len(row):
-                    values[field_name] = row[col_idx]
+                values[field_name] = _row_value(row, col_idx, claimed)
 
             invoice_number = (values.get("invoice_number") or "").strip()
             if not invoice_number:
@@ -212,9 +263,12 @@ def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> li
             if not currency:
                 currency = _detect_currency(row)
 
-            vessel_name = (values.get("vessel") or "").strip() or None
-            if vessel_name and normalize_vessel_name(vessel_name) not in known_vessel_names_normalized:
-                vessel_name = None
+            # Goes through _find_vessel, not a bare equality check, since a vendor's own "Vessel
+            # Name" column can itself hold the same free-text phrasing as the table's
+            # context_text (e.g. 'To Master/Owners of Vessel "GCL NARMADA"' — Den-Jet, confirmed
+            # live), not just a clean bare name.
+            vessel_cell = (values.get("vessel") or "").strip()
+            vessel_name = _find_vessel(vessel_cell, vessel_lookup) if vessel_cell else None
             if not vessel_name:
                 vessel_name = context_vessel
 
