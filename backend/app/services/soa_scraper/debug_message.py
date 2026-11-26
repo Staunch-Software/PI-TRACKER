@@ -1,12 +1,12 @@
 # ===========================================================================
-# One-off diagnostic: re-fetches a specific already-ingested SOA message (looked up by a subject
-# substring) directly via Graph, bypassing ingest.py's dedupe, and dumps attachment names/types
-# plus per-attachment table-extraction results. Not part of the regular pipeline — run manually
-# when a vendor's SOA comes back with zero extracted tables and the deployed log output doesn't
-# say why.
+# One-off diagnostic: re-fetches a specific already-ingested SOA message (looked up by a
+# substring matched against subject OR sender_email OR vendor_name_raw) directly via Graph,
+# bypassing ingest.py's dedupe, and dumps attachment names/types plus per-attachment
+# table-extraction results. Not part of the regular pipeline — run manually when a vendor's SOA
+# comes back with zero extracted tables and the deployed log output doesn't say why.
 #
 # Usage (from backend/, with the venv active or via venv/bin/python):
-#   python -m app.services.soa_scraper.debug_message "<subject substring>"
+#   python -m app.services.soa_scraper.debug_message "<subject, sender email, or vendor name substring>"
 # ===========================================================================
 import sys
 
@@ -30,16 +30,24 @@ def _print_table_preview(table, max_rows: int = 40) -> None:
         print(f"        row {i}: {non_blank}")
 
 
-def main(subject_substring: str) -> None:
+def main(search: str) -> None:
     db = SessionLocal()
     try:
+        # Several different vendors' emails share near-identical subjects (e.g. "RE: Ozellar
+        # Marine - Invoices Overdue" — confirmed live across at least 3 senders), so match on
+        # sender email / vendor name too, not just subject.
+        like = f"%{search}%"
         doc = db.execute(
             select(SoaDocument)
-            .where(SoaDocument.subject.ilike(f"%{subject_substring}%"))
+            .where(
+                SoaDocument.subject.ilike(like)
+                | SoaDocument.sender_email.ilike(like)
+                | SoaDocument.vendor_name_raw.ilike(like)
+            )
             .order_by(SoaDocument.ingested_at.desc())
         ).scalars().first()
         if not doc:
-            print(f"No soa_documents row matching subject {subject_substring!r}")
+            print(f"No soa_documents row matching {search!r} (subject/sender_email/vendor_name_raw)")
             return
 
         print(f"Found: mailbox={doc.mailbox} graph_message_id={doc.graph_message_id} subject={doc.subject!r}")
