@@ -12,8 +12,14 @@
 # without risk of re-ingesting duplicates or affecting what a normal ingest run considers "new".
 #
 # Usage (from backend/):
-#   python -m app.services.soa_scraper.reprocess                      # every current candidate
-#   python -m app.services.soa_scraper.reprocess "<subject substring>"  # just one
+#   python -m app.services.soa_scraper.reprocess
+#       Every is_current document that LOOKS broken (empty raw_tables_json / an UNPARSED
+#       placeholder) — safe to run unattended.
+#   python -m app.services.soa_scraper.reprocess "<subject, sender email, or vendor name substring>"
+#       FORCE-reprocesses every is_current document matching that search, regardless of its
+#       current state — use this for a document with real-looking but WRONG line items (a
+#       header-keyword fix that changes what an already-non-empty extraction produces), which the
+#       no-argument form's auto-detect can't tell apart from a correct one.
 # ===========================================================================
 import logging
 import sys
@@ -39,10 +45,29 @@ def _line_items_for(db: Session, doc_id) -> list[SoaLineItem]:
     return list(db.execute(select(SoaLineItem).where(SoaLineItem.soa_document_id == doc_id)).scalars())
 
 
-def _find_candidates(db: Session, subject_substring: str | None) -> list[SoaDocument]:
+def _find_candidates(db: Session, search: str | None) -> list[SoaDocument]:
+    """With no search term: every is_current document that LOOKS broken (empty raw_tables_json or
+    an UNPARSED placeholder) — safe to run unattended after any extraction-logic change. With a
+    search term (matched against subject/sender_email/vendor_name_raw): force-reprocesses that
+    document regardless of its current state, since a document can have real-looking, non-empty,
+    non-"unparsed" line items that are still WRONG (confirmed live: a header-keyword collision
+    silently mapped a PO reference into invoice_number instead of the real invoice number — see
+    line_item_extractor.py's Transaction#/Reference# fix) — the auto-detect heuristic has no way
+    to tell that apart from a correct extraction, so an operator targeting a known-bad document by
+    name is trusted over it."""
     query = select(SoaDocument).where(SoaDocument.is_current)
-    if subject_substring:
-        query = query.where(SoaDocument.subject.ilike(f"%{subject_substring}%"))
+    if search:
+        like = f"%{search}%"
+        return list(
+            db.execute(
+                query.where(
+                    SoaDocument.subject.ilike(like)
+                    | SoaDocument.sender_email.ilike(like)
+                    | SoaDocument.vendor_name_raw.ilike(like)
+                )
+            ).scalars()
+        )
+
     docs = db.execute(query).scalars().all()
     return [
         doc for doc in docs
