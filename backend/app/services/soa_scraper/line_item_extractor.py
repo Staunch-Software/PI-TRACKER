@@ -71,10 +71,13 @@ def _match_field(header_cell: str) -> str | None:
     return None
 
 
-def _detect_header(rows: list[list[str]], max_header_rows: int = 5) -> tuple[int, dict[int, str]] | None:
-    """Scans the first few rows for the best-looking header row. Requires an invoice_number
-    column AND at least one of amount/remaining_amount to accept a table as a line-item table —
-    guards against matching an unrelated table (e.g. a bank-details block, a signature table)."""
+def _detect_header(rows: list[list[str]], max_header_rows: int = 20) -> tuple[int, dict[int, str]] | None:
+    """Scans the first rows for the best-looking header row. Requires an invoice_number column
+    AND at least one of amount/remaining_amount to accept a table as a line-item table — guards
+    against matching an unrelated table (e.g. a bank-details block, a signature table). The
+    window is wider than "a header is usually near the top" would suggest because real vendor
+    SOA Excel exports (Den-Jet, Navarino — confirmed live) put several rows of company
+    letterhead/branding ahead of the actual column headers."""
     best: tuple[int, dict[int, str]] | None = None
     for row_idx, row in enumerate(rows[:max_header_rows]):
         column_map: dict[int, str] = {}
