@@ -32,20 +32,28 @@ _HEADER_KEYWORDS: dict[str, list[str]] = {
     # (checked in _FIELD_ORDER, not list order, but still: without this, a "Remaining Amount"
     # header only matches on the substring "amount" and collides with a real Amount column —
     # confirmed live on Den-Jet's export, which has both, and whose "Balance" column — matched
-    # here too — is a running cumulative total, NOT the per-invoice remaining balance).
+    # here too — is a running cumulative total, NOT the per-invoice remaining balance). "amt" (Ket
+    # Marine's "Open_amt" — confirmed live) covers the common abbreviated spelling; an "open"/"due"
+    # amount is by definition still outstanding, so it's treated as remaining_amount, not amount.
     "remaining_amount": ["remaining amount", "remaining", "balance", "outstanding", "o/s amount",
-                          "os amount", "due amount", "net due", "unpaid"],
+                          "os amount", "due amount", "net due", "unpaid", "amt"],
     "currency": ["currency", "curr"],
     "vessel": ["vessel", "ship", "vessel name"],
 }
 
 # Matched by exact cell equality (after strip/lower), never substring — for terse single-word
 # headers that would false-positive as a substring of something unrelated (a bare "num" would
-# also match inside "item number", "numeric code", etc).
+# also match inside "item number", "numeric code", etc; bare "invoice" would also match inside
+# "invoice date"/"invoice amount", which must stay their own fields).
 _EXACT_HEADER_KEYWORDS: dict[str, list[str]] = {
     # QuickBooks-style exports (Navarino — confirmed live) label the invoice/document number
-    # column just "Num".
-    "invoice_number": ["num"],
+    # column just "Num"; Ket Marine International's export (confirmed live) labels it just
+    # "Invoice" with no "No."/"Number" suffix at all.
+    "invoice_number": ["num", "invoice"],
+    # Ket Marine International's export (confirmed live) abbreviates the currency column to
+    # "Cur" — one letter short of the existing substring keyword "curr", so it needs its own
+    # exact entry rather than widening "curr" to a substring risking false positives elsewhere.
+    "currency": ["cur"],
 }
 
 # Checked in this order — a header cell matching an earlier field "wins" so e.g. "invoice date"
