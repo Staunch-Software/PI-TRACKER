@@ -429,18 +429,29 @@ table.data-table.vendor-management-table td.col-center {
   cursor: not-allowed;
 }
 
+.vendor-code-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.vendor-code-row .vendor-code-badge {
+  margin-top: 0;
+}
+
 .vendor-remove-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 6px;
-  padding: 4px 10px;
-  border-radius: 7px;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 6px;
   border: 1px solid #fecaca;
   background: #fef2f2;
   color: #b91c1c;
-  font-size: 11.5px;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }

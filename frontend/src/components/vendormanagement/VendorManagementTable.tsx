@@ -191,19 +191,21 @@ export function VendorManagementTable({
                 </td>
                 <td className="col-vendor">
                   <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
-                  <div className="vendor-code-badge">{entry.vendorCode}</div>
-                  {canEdit && showRemoveAction && entry.id && (
-                    <button
-                      type="button"
-                      className="vendor-remove-btn"
-                      title="Remove from DD Vendors list (does not delete the vendor itself)"
-                      onClick={() => onRemove(entry)}
-                      disabled={isRemovePending}
-                    >
-                      <TrashIcon />
-                      <span>Remove</span>
-                    </button>
-                  )}
+                  <div className="vendor-code-row">
+                    <div className="vendor-code-badge">{entry.vendorCode}</div>
+                    {canEdit && showRemoveAction && entry.id && (
+                      <button
+                        type="button"
+                        className="vendor-remove-btn"
+                        title="Remove from DD Vendors list (does not delete the vendor itself)"
+                        aria-label="Remove from DD Vendors list"
+                        onClick={() => onRemove(entry)}
+                        disabled={isRemovePending}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td className="col-vendor-details">
                   {entry.detailScrapePending ? (
