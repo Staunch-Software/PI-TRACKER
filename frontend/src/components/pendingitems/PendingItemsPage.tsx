@@ -1448,6 +1448,7 @@ export function PendingItemsPage() {
                       <>
                         <colgroup>
                           <col style={{ width: 180 }} />
+                          {ownerRoleFilter === 'Disputed' && <col style={{ width: 160 }} />}
                           <col style={{ width: 160 }} />
                           <col style={{ width: 220 }} />
                           <col style={{ width: 140 }} />
@@ -1462,6 +1463,7 @@ export function PendingItemsPage() {
                             <th onClick={() => handleSort('referenceNo')}>
                               {ownerRoleFilter === 'Disputed' ? 'Vendor Invoice No.' : 'Invoice No.'} {sortIndicator('referenceNo')}
                             </th>
+                            {ownerRoleFilter === 'Disputed' && <th title="SmartPAL's own invoice number — internal reference only, never sent to the vendor">SmartPAL Invoice No.</th>}
                             <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
                             <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
                             <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
@@ -1478,6 +1480,9 @@ export function PendingItemsPage() {
                               <td className="pr-reference-no-cell">
                                 {ownerRoleFilter === 'Disputed' ? item.vendorInvoiceNo ?? item.referenceNo ?? '—' : item.referenceNo ?? '—'}
                               </td>
+                              {ownerRoleFilter === 'Disputed' && (
+                                <td className="pr-reference-no-cell smartpal-invoice-no-cell">{item.referenceNo ?? '—'}</td>
+                              )}
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
@@ -1525,7 +1530,7 @@ export function PendingItemsPage() {
                           ))}
                           {itemsQuery.data && itemsQuery.data.items.length === 0 && (
                             <tr>
-                              <td colSpan={ownerRoleFilter === 'Disputed' ? 9 : 7} className="pending-items-empty">
+                              <td colSpan={ownerRoleFilter === 'Disputed' ? 10 : 7} className="pending-items-empty">
                                 No invoices match the current filters.
                               </td>
                             </tr>

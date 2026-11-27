@@ -621,6 +621,11 @@ body:has(.pending-items-page) .page-content {
   white-space: nowrap;
 }
 
+.smartpal-invoice-no-cell {
+  color: #64748b;
+  font-weight: 500;
+}
+
 .pr-title-cell {
   font-size: 12.5px;
   color: #334155;
