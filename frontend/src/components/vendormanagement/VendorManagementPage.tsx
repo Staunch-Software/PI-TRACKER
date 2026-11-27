@@ -173,6 +173,23 @@ export function VendorManagementPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to mark bank details received.'),
   });
 
+  // DD Vendors tab only — stops tracking this vendor (deletes its vendor_tracker_entries row). The
+  // vendor itself still exists in SmartPAL and reappears under "All Vendors"/"+ Add DD Vendor" if
+  // someone wants to track it again later; this only removes it from the DD list.
+  const removeMutation = useMutation({
+    mutationFn: (entryId: string) => api.delete(`/vendor-management/${entryId}`),
+    onSuccess: invalidateLists,
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to remove vendor.'),
+  });
+
+  function handleRemove(entry: VendorTrackerEntry) {
+    if (!entry.id) return;
+    if (!window.confirm(`Remove ${entry.vendorName ?? entry.vendorCode} from the DD Vendors list? This does not delete the vendor itself.`)) {
+      return;
+    }
+    removeMutation.mutate(entry.id);
+  }
+
   async function handleRefresh(entry: VendorTrackerEntry) {
     const tracked = await ensureTrackingId(entry).catch(() => null);
     if (tracked) refreshMutation.mutate(tracked.id);
@@ -349,6 +366,9 @@ export function VendorManagementPage() {
             onSendVerificationReminder={handleSendVerificationReminder}
             onOpenVerificationComplete={handleOpenVerificationComplete}
             onOpenDocuments={handleOpenDocuments}
+            showRemoveAction={activeTab === 'dd'}
+            isRemovePending={removeMutation.isPending}
+            onRemove={handleRemove}
             emptyMessage={
               activeTab === 'dd'
                 ? 'No vendors are being tracked yet.'

@@ -52,6 +52,15 @@ function CheckShieldIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -110,6 +119,12 @@ interface Props {
   onOpenVerificationComplete: (entry: VendorTrackerEntry) => void;
   onOpenDocuments: (entry: VendorTrackerEntry) => void;
 
+  // DD Vendors tab only — lets the user untrack a vendor (stop it showing in that list). Hidden on
+  // every other tab, since those show vendors that may not even have a tracker row yet.
+  showRemoveAction: boolean;
+  isRemovePending: boolean;
+  onRemove: (entry: VendorTrackerEntry) => void;
+
   emptyMessage: string;
 }
 
@@ -132,6 +147,9 @@ export function VendorManagementTable({
   onSendVerificationReminder,
   onOpenVerificationComplete,
   onOpenDocuments,
+  showRemoveAction,
+  isRemovePending,
+  onRemove,
   emptyMessage,
 }: Props) {
   const [expandedDocRows, setExpandedDocRows] = useState<Record<string, boolean>>({});
@@ -174,6 +192,18 @@ export function VendorManagementTable({
                 <td className="col-vendor">
                   <div className="vendor-name-text">{entry.vendorName ?? entry.vendorCode}</div>
                   <div className="vendor-code-badge">{entry.vendorCode}</div>
+                  {canEdit && showRemoveAction && entry.id && (
+                    <button
+                      type="button"
+                      className="vendor-remove-btn"
+                      title="Remove from DD Vendors list (does not delete the vendor itself)"
+                      onClick={() => onRemove(entry)}
+                      disabled={isRemovePending}
+                    >
+                      <TrashIcon />
+                      <span>Remove</span>
+                    </button>
+                  )}
                 </td>
                 <td className="col-vendor-details">
                   {entry.detailScrapePending ? (
