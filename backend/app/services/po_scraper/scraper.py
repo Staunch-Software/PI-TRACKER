@@ -389,10 +389,17 @@ def _capture_open_po_request(page, url: str) -> tuple[dict, dict] | None:
     "More" dropdown), capturing the genuine gridServerOperations POST the same way
     _capture_grid_request does for the "All" tab. Confirmed live 2026-11-27: this tab POSTs
     approvalFlag="50"/chatStatus="ALL"/isDateFilter="N" — none of these are stable/documented
-    values, just whatever a real click produces. isDateFilter="N" means SmartPAL ignores
-    fromDate/toDate entirely for this tab, which is exactly what's wanted: "Open POs" is a
-    current-state view (confirmed with the user 2026-11-27 it should cover every currently open PO
-    regardless of when it was created), not a FROM_DATE-bounded history like the "All" tab."""
+    values, just whatever a real click produces.
+
+    CONFIRMED DEAD END (2026-11-27): isDateFilter="N" does NOT mean "no date bound" — it's the
+    opposite of what the first version of this scraper assumed. Live comparison against the same
+    tab/filters with isDateFilter="N" vs isDateFilter="Y" + a wide fromDate/toDate range showed "N"
+    silently returns FEWER rows (1099) than "Y" with a wide range (2358) — same approvalFlag/
+    chatStatus, same categoryId either way (tested blank vs every category explicitly selected: no
+    difference, 1099 both ways). So "N" is SmartPAL's own undocumented default-scoped view, not an
+    unbounded one. _fetch_open_po_rows now always forces isDateFilter="Y" with a wide fixed range
+    to get the true current "Open POs" set, per the user's own instruction 2026-11-27 that this
+    should cover every currently open PO regardless of when it was created."""
     captured: dict = {}
 
     def on_request(req):
@@ -423,16 +430,25 @@ def _capture_open_po_request(page, url: str) -> tuple[dict, dict] | None:
     return captured["headers"], _json.loads(captured["body"])
 
 
+_OPEN_PO_FROM_DATE = date(2000, 1, 1)  # see _capture_open_po_request — isDateFilter must be "Y"
+# with a wide range to get every open PO; this start date is simply "long before this company's
+# own SmartPAL data could possibly begin".
+
+
 def _fetch_open_po_rows(page, url: str) -> list[dict]:
     """Captures the real "Open POs" tab request, then pages through the rest by replaying the
     exact same headers/body with only gridServerOperations.page changed — same pagination approach
-    as _fetch_all_rows, but deliberately does NOT override fromDate/toDate: the captured body
-    already carries isDateFilter="N", so SmartPAL ignores those bounds on its own."""
+    as _fetch_all_rows. Forces isDateFilter="Y" with a wide fromDate/toDate range regardless of
+    what was captured — see _capture_open_po_request's docstring for why."""
     captured = _capture_open_po_request(page, url)
     if captured is None:
         raise RuntimeError(f"No gridServerOperations request captured for the Open POs tab on {url}.")
     headers, body = captured
     hdrs = {k: v for k, v in headers.items() if k in _GRID_HEADER_KEYS}
+
+    body["isDateFilter"] = "Y"
+    body["fromDate"] = _to_smartpal_date(_OPEN_PO_FROM_DATE)
+    body["toDate"] = _to_smartpal_date(date.today())
 
     rows: list[dict] = []
     page_num = 1
