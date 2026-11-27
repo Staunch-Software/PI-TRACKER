@@ -3,6 +3,7 @@ import type {
   PendingDashboardOwnerGroup,
   PendingDashboardTotals,
 } from '../../shared';
+import { roleLabel } from '../../shared';
 
 interface PendingDashboardTableProps {
   title: string;
@@ -183,7 +184,7 @@ export function PendingDashboardTable({
             ) : (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             )}
-            <span>{role}</span>
+            <span>{roleLabel(role)}</span>
           </div>
           <h2 className="pending-dashboard-card-title">{title}</h2>
         </div>
@@ -207,7 +208,7 @@ export function PendingDashboardTable({
               <th style={{ width: '220px' }}>
                 <div className="th-content-wrap">
                   <span className="th-dot dot-owner" />
-                  <span>Owner ({role})</span>
+                  <span>Owner ({roleLabel(role)})</span>
                 </div>
               </th>
               <th style={{ width: '220px' }}>
@@ -246,7 +247,7 @@ export function PendingDashboardTable({
             {filteredGroups.length === 0 ? (
               <tr>
                 <td colSpan={6} className="pending-items-empty">
-                  No {role} pending items match the search criteria.
+                  No {roleLabel(role)} pending items match the search criteria.
                 </td>
               </tr>
             ) : (
@@ -414,7 +415,7 @@ export function PendingDashboardTable({
               <td colSpan={2} className="dashboard-grand-total-label">
                 <div className="grand-total-wrap">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                  <span className="grand-total-title">{role} {query ? 'Filtered' : 'Total'} Pending</span>
+                  <span className="grand-total-title">{roleLabel(role)} {query ? 'Filtered' : 'Total'} Pending</span>
                 </div>
               </td>
               <td style={{ textAlign: 'center' }}>
@@ -422,7 +423,7 @@ export function PendingDashboardTable({
                   type="button"
                   className="dashboard-grand-badge badge-pr-grand"
                   onClick={() => onDrillDown('Requisition', role)}
-                  title={`View all ${displayedTotals.requisitionTotal} ${role} Requisitions`}
+                  title={`View all ${displayedTotals.requisitionTotal} ${roleLabel(role)} Requisitions`}
                 >
                   {displayedTotals.requisitionTotal}
                 </button>
@@ -432,7 +433,7 @@ export function PendingDashboardTable({
                   type="button"
                   className="dashboard-grand-badge badge-po-grand"
                   onClick={() => onDrillDown('Purchase Order', role)}
-                  title={`View all ${displayedTotals.poTotal} ${role} POs`}
+                  title={`View all ${displayedTotals.poTotal} ${roleLabel(role)} POs`}
                 >
                   {displayedTotals.poTotal}
                 </button>
@@ -442,7 +443,7 @@ export function PendingDashboardTable({
                   type="button"
                   className="dashboard-grand-badge badge-inv-grand"
                   onClick={() => onDrillDown('Invoice', role)}
-                  title={`View all ${displayedTotals.invoiceTotal} ${role} Invoices`}
+                  title={`View all ${displayedTotals.invoiceTotal} ${roleLabel(role)} Invoices`}
                 >
                   {displayedTotals.invoiceTotal}
                 </button>

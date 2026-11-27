@@ -7,6 +7,7 @@ import type {
   SendVesselPrReviewEmailResponse,
   VesselPrReviewEmailRequest,
 } from '../../shared';
+import { roleLabel } from '../../shared';
 
 import './VesselPrMailModal.css';
 
@@ -419,7 +420,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
         {isLoading ? (
           <div className="vessel-mail-loading-box">
             <div className="vessel-mail-spinner" />
-            <p>Compiling technical PR audit &amp; resolving TSI/TA recipients for {vesselName}...</p>
+            <p>Compiling technical PR audit &amp; resolving {roleLabel('TSI')}/{roleLabel('TA')} recipients for {vesselName}...</p>
           </div>
         ) : fetchError ? (
           <div className="vessel-mail-error-banner">
@@ -452,7 +453,7 @@ export function VesselPrMailModal({ vesselName, prType, role = 'ALL', onClose, o
                 <div className="vessel-mail-field-row">
                   <div className="vessel-mail-field-label-group">
                     <span className="vessel-mail-field-label">To (Action):</span>
-                    <span className="vessel-mail-field-hint">In-Charge (TSI, TA) &amp; Vessel Master</span>
+                    <span className="vessel-mail-field-hint">In-Charge ({roleLabel('TSI')}, {roleLabel('TA')}) &amp; Vessel Master</span>
                   </div>
                   <div
                     className={`vessel-mail-chip-container ${isToDragOver ? 'drag-over' : ''}`}

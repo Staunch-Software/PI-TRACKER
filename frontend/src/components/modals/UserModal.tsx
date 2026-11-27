@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
-import { UserRole, type User } from '../../shared';
+import { UserRole, roleLabel, type User } from '../../shared';
 import { ModernDropdown, type ModernDropdownOption } from '../common/ModernDropdown';
 
 interface Props {
@@ -34,7 +34,7 @@ const MODULES_CONFIG: ModuleItem[] = [
   { key: 'canAccessDd', name: 'DD Tracker', desc: 'Dry docking orders & expenses' },
   { key: 'canAccessVendor', name: 'Vendor Mgmt', desc: 'Approved vendors & suppliers' },
   { key: 'canAccessPd', name: 'PD Tracker', desc: 'Port disbursements & voyage costs' },
-  { key: 'canAccessPendingItems', name: 'TSI/TA Pending', desc: 'Ageing matrix & pending follow-up', badge: 'MAIL READY' },
+  { key: 'canAccessPendingItems', name: `${roleLabel('TSI')}/${roleLabel('TA')} Pending`, desc: 'Ageing matrix & pending follow-up', badge: 'MAIL READY' },
 ];
 
 const ROLE_OPTIONS: ModernDropdownOption[] = [
@@ -77,19 +77,19 @@ const RANK_OPTIONS: ModernDropdownOption[] = [
   {
     value: '',
     label: 'None (Unassigned)',
-    sublabel: 'Not assigned to TSI or TA pending rosters',
+    sublabel: `Not assigned to ${roleLabel('TSI')} or ${roleLabel('TA')} pending rosters`,
   },
   {
     value: 'TSI',
-    label: 'TSI — Technical Superintendent',
-    sublabel: 'Assigned to TSI Pending roster and email dispatches',
-    badge: <span className="badge-rank-tsi">TSI</span>,
+    label: roleLabel('TSI'),
+    sublabel: `Assigned to ${roleLabel('TSI')} Pending roster and email dispatches`,
+    badge: <span className="badge-rank-tsi">{roleLabel('TSI')}</span>,
   },
   {
     value: 'TA',
-    label: 'TA — Technical Assistant',
-    sublabel: 'Assigned to TA Pending roster and email dispatches',
-    badge: <span className="badge-rank-ta">TA</span>,
+    label: roleLabel('TA'),
+    sublabel: `Assigned to ${roleLabel('TA')} Pending roster and email dispatches`,
+    badge: <span className="badge-rank-ta">{roleLabel('TA')}</span>,
   },
 ];
 

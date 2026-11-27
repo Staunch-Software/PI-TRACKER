@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useRole } from '../../auth/useRole';
 import { UserMenu } from './UserMenu';
+import { roleLabel } from '../../shared';
 import './TopNav.css';
 
 const AnchorIcon = () => (
@@ -105,7 +106,7 @@ export function TopNav() {
             <NavLink to="/pd-tracker" className={linkClass} onClick={closeMenu}>PD Tracker</NavLink>
           )}
           {canAccessPendingItems && (
-            <NavLink to="/pending-items" className={linkClass} onClick={closeMenu}>TSI/TA Pending</NavLink>
+            <NavLink to="/pending-items" className={linkClass} onClick={closeMenu}>{roleLabel('TSI')}/{roleLabel('TA')} Pending</NavLink>
           )}
           {canAccessVendor && (
             <NavLink to="/vendor-management" className={linkClass} onClick={closeMenu}>Vendor Management</NavLink>

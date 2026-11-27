@@ -5,6 +5,7 @@ import type {
   PreviewPendingSummaryEmailResponse,
   SendPendingSummaryEmailResponse,
 } from '../../shared';
+import { ROLE_LABELS } from '../../shared';
 
 import './PendingItemsMailModal.css';
 
@@ -387,7 +388,7 @@ export function PendingItemsMailModal({ role, stage, mode = 'detailed', onClose,
     sendMutation.mutate();
   }
 
-  const roleLabel = role === 'TSI' ? 'TSI' : role === 'TA' ? 'TA' : 'All (TSI & TA)';
+  const roleLabel = role === 'TSI' ? ROLE_LABELS.TSI : role === 'TA' ? ROLE_LABELS.TA : `All (${ROLE_LABELS.TSI} & ${ROLE_LABELS.TA})`;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -539,7 +540,7 @@ export function PendingItemsMailModal({ role, stage, mode = 'detailed', onClose,
                           type="button"
                           className="pending-mail-action-btn"
                           onClick={handleResetToDefaults}
-                          title="Reset to default TSI/TA roster recipients"
+                          title={`Reset to default ${ROLE_LABELS.TSI}/${ROLE_LABELS.TA} roster recipients`}
                         >
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <RotateCcwIcon /> Reset Defaults

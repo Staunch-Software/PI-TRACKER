@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext';
 import { api, ApiError } from '../../lib/api';
-import { MODULE_ACCESS_FIELDS, UserRole, type User } from '../../shared';
+import { MODULE_ACCESS_FIELDS, UserRole, roleLabel, type User } from '../../shared';
 import { UserModal } from '../../components/modals/UserModal';
 import { formatDate } from '../../lib/format';
 import { TrashIcon } from '../../components/common/TrashIcon';
@@ -116,9 +116,9 @@ const ROLE_OPTIONS: ModernDropdownOption[] = [
 ];
 
 const RANK_OPTIONS: ModernDropdownOption[] = [
-  { value: 'ALL', label: 'All Ranks (TSI / TA)' },
-  { value: 'TSI', label: 'TSI (Superintendents)', badge: <span className="badge-rank-tsi">TSI</span> },
-  { value: 'TA', label: 'TA (Technical Assistants)', badge: <span className="badge-rank-ta">TA</span> },
+  { value: 'ALL', label: `All Ranks (${roleLabel('TSI')} / ${roleLabel('TA')})` },
+  { value: 'TSI', label: roleLabel('TSI'), badge: <span className="badge-rank-tsi">{roleLabel('TSI')}</span> },
+  { value: 'TA', label: roleLabel('TA'), badge: <span className="badge-rank-ta">{roleLabel('TA')}</span> },
   { value: 'NONE', label: 'General Staff (No Rank)' },
 ];
 
@@ -277,7 +277,7 @@ export function AdminUsersPage() {
             </div>
             <div>
               <div className="user-stat-val" style={{ color: '#1E40AF' }}>{stats.tsi}</div>
-              <div className="user-stat-lbl">TSI Members</div>
+              <div className="user-stat-lbl">{roleLabel('TSI')} Members</div>
             </div>
           </div>
 
@@ -287,7 +287,7 @@ export function AdminUsersPage() {
             </div>
             <div>
               <div className="user-stat-val" style={{ color: '#6D28D9' }}>{stats.ta}</div>
-              <div className="user-stat-lbl">TA Members</div>
+              <div className="user-stat-lbl">{roleLabel('TA')} Members</div>
             </div>
           </div>
 
@@ -396,7 +396,7 @@ export function AdminUsersPage() {
                 <tr>
                   <th>User</th>
                   <th>Role</th>
-                  <th>Rank (TSI / TA)</th>
+                  <th>Rank ({roleLabel('TSI')} / {roleLabel('TA')})</th>
                   <th>Status</th>
                   <th>Module Access</th>
                   <th>Created</th>
@@ -436,9 +436,9 @@ export function AdminUsersPage() {
                       </td>
                       <td>
                         {u.rank === 'TSI' ? (
-                          <span className="badge-rank-tsi">TSI</span>
+                          <span className="badge-rank-tsi">{roleLabel('TSI')}</span>
                         ) : u.rank === 'TA' ? (
-                          <span className="badge-rank-ta">TA</span>
+                          <span className="badge-rank-ta">{roleLabel('TA')}</span>
                         ) : (
                           <span className="badge-rank-none">—</span>
                         )}

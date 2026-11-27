@@ -509,6 +509,12 @@
     padding: 0;
     gap: 4px;
     flex: unset;
+    /* Without this, a flex child's content-based min-width wins over overflow-x:auto, so a nav
+       bar too wide for the viewport (more likely now that a label like "Vessel Manager/Purchaser
+       Pending" is far longer than the old "TSI/TA Pending") spills past the navbar card instead
+       of scrolling inside it — confirmed live at 1280px wide, the last link got cut off under the
+       user menu rather than being reachable by scroll. */
+    min-width: 0;
     margin-right: auto;
     overflow-x: auto;
     overflow-y: visible;

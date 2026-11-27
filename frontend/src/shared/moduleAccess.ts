@@ -29,5 +29,5 @@ export const MODULE_ACCESS_FIELDS: ModuleAccessField[] = [
   { key: 'canAccessDd', label: 'DD Tracker' },
   { key: 'canAccessVendor', label: 'Vendor Management' },
   { key: 'canAccessPd', label: 'PD Tracker' },
-  { key: 'canAccessPendingItems', label: 'TSI/TA Pending' },
+  { key: 'canAccessPendingItems', label: 'Vessel Manager/Purchaser Pending' },
 ];

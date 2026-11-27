@@ -9,6 +9,7 @@ import type {
   PendingItemsFilterOptions,
   PendingStageBreakdown,
 } from '../../shared';
+import { roleLabel } from '../../shared';
 import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardPage } from './PendingDashboardPage';
 import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
@@ -207,15 +208,15 @@ function renderStatusPill(
 
   let label = s;
   if (stage === 'Requisition') {
-    if (s === 'Pending') label = 'Pending (TSI)';
-    else if (s === 'Approved') label = 'Pending (TA)';
+    if (s === 'Pending') label = `Pending (${roleLabel('TSI')})`;
+    else if (s === 'Approved') label = `Pending (${roleLabel('TA')})`;
   } else if (stage === 'Purchase Order') {
     if (isOpenPo) label = s; // show SmartPAL's own status (usually "Finally Approved") as-is
-    else if (s === 'Pending') label = 'Pending (TA)';
-    else if (s === 'Approved') label = 'Approved (TSI)';
+    else if (s === 'Pending') label = `Pending (${roleLabel('TA')})`;
+    else if (s === 'Approved') label = `Approved (${roleLabel('TSI')})`;
   } else if (stage === 'Invoice') {
-    if (isPending) label = `Pending (${ownerRole})`;
-    else if (isApproved) label = `Approved (${ownerRole})`;
+    if (isPending) label = `Pending (${roleLabel(ownerRole)})`;
+    else if (isApproved) label = `Approved (${roleLabel(ownerRole)})`;
   }
 
   const pillClass = isDisputed ? 'status-disputed' : isOpenPo ? 'status-open-po' : isPending ? 'status-pending' : isApproved ? 'status-approved' : 'status-neutral';
@@ -655,9 +656,9 @@ export function PendingItemsPage() {
     ownerRoleFilter === 'ALL'
       ? 'All Roles'
       : ownerRoleFilter === 'TSI'
-        ? 'TSI Pending'
+        ? `${roleLabel('TSI')} Pending`
         : ownerRoleFilter === 'TA'
-          ? 'TA Pending'
+          ? `${roleLabel('TA')} Pending`
           : ownerRoleFilter === 'Open PO'
             ? 'Open POs'
             : 'Disputed';
@@ -667,7 +668,9 @@ export function PendingItemsPage() {
       <div className="tracker-page-header">
         <div className="tracker-page-header-left">
           <h1 className="tracker-page-title">
-            {activeView === 'dashboard' ? 'TSI / TA Pending Dashboard' : 'TSI / TA Pending Items'}
+            {activeView === 'dashboard'
+              ? `${roleLabel('TSI')} / ${roleLabel('TA')} Pending Dashboard`
+              : `${roleLabel('TSI')} / ${roleLabel('TA')} Pending Items`}
           </h1>
           <div className="tracker-view-tabs">
             <button
@@ -798,7 +801,7 @@ export function PendingItemsPage() {
             className={`pending-role-pill pending-role-pill-tsi ${ownerRoleFilter === 'TSI' ? 'active' : ''}`}
             onClick={() => selectRoleFilter('TSI')}
           >
-            TSI Pending
+            {roleLabel('TSI')} Pending
             <span className="pending-role-pill-count">
               {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'TSI').length
@@ -810,7 +813,7 @@ export function PendingItemsPage() {
             className={`pending-role-pill pending-role-pill-ta ${ownerRoleFilter === 'TA' ? 'active' : ''}`}
             onClick={() => selectRoleFilter('TA')}
           >
-            TA Pending
+            {roleLabel('TA')} Pending
             <span className="pending-role-pill-count">
               {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'TA').length
@@ -883,7 +886,7 @@ export function PendingItemsPage() {
                       </div>
                       <span className="pending-card-owner-name">{owner.ownerName}</span>
                       <span className={`pending-card-role-chip ${isTsi ? 'pending-card-role-chip-tsi' : 'pending-card-role-chip-ta'}`}>
-                        {owner.ownerRole}
+                        {roleLabel(owner.ownerRole)}
                       </span>
                     </div>
 
@@ -1155,7 +1158,7 @@ export function PendingItemsPage() {
                   </thead>
                   <tbody>
                     {vesselGroups.map(([vName, items]) => {
-                      const owners = VESSEL_OWNER_MAP[vName] || { tsi: 'TSI In-Charge', ta: 'TA In-Charge' };
+                      const owners = VESSEL_OWNER_MAP[vName] || { tsi: `${roleLabel('TSI')} In-Charge`, ta: `${roleLabel('TA')} In-Charge` };
                       const maxAgeing = Math.max(...items.map((x) => x.ageingDays ?? 0), 0);
 
                       return items.map((item, idx) => (
@@ -1175,12 +1178,12 @@ export function PendingItemsPage() {
                                   </div>
 
                                   <div className="vessel-spanned-owners">
-                                    <span className="pending-vessel-owner-chip chip-tsi" title={`TSI: ${owners.tsi}`}>
-                                      <span className="chip-prefix">TSI</span>
+                                    <span className="pending-vessel-owner-chip chip-tsi" title={`${roleLabel('TSI')}: ${owners.tsi}`}>
+                                      <span className="chip-prefix">{roleLabel('TSI')}</span>
                                       <span className="chip-name">{owners.tsi}</span>
                                     </span>
-                                    <span className="pending-vessel-owner-chip chip-ta" title={`TA: ${owners.ta}`}>
-                                      <span className="chip-prefix">TA</span>
+                                    <span className="pending-vessel-owner-chip chip-ta" title={`${roleLabel('TA')}: ${owners.ta}`}>
+                                      <span className="chip-prefix">{roleLabel('TA')}</span>
                                       <span className="chip-name">{owners.ta}</span>
                                     </span>
                                   </div>
@@ -1296,10 +1299,10 @@ export function PendingItemsPage() {
                 </svg>
                 <span>
                   {ownerRoleFilter === 'ALL'
-                    ? 'Email All (TSI & TA)'
+                    ? `Email All (${roleLabel('TSI')} & ${roleLabel('TA')})`
                     : ownerRoleFilter === 'TSI'
-                      ? 'Email TSI Summary'
-                      : 'Email TA Summary'}
+                      ? `Email ${roleLabel('TSI')} Summary`
+                      : `Email ${roleLabel('TA')} Summary`}
                 </span>
               </button>
             )}
@@ -1435,7 +1438,7 @@ export function PendingItemsPage() {
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{roleLabel(item.ownerRole)}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1488,7 +1491,7 @@ export function PendingItemsPage() {
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{roleLabel(item.ownerRole)}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1551,7 +1554,7 @@ export function PendingItemsPage() {
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{roleLabel(item.ownerRole)}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { PendingDashboardSummaryResponse } from '../../shared';
+import { roleLabel } from '../../shared';
 import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardTable } from './PendingDashboardTable';
 import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
@@ -72,8 +73,8 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
               <div className="kpi-compact-data">
                 <span className="kpi-compact-num text-fleet">{data.fleetTotals.grandTotal}</span>
                 <div className="kpi-compact-splits">
-                  <span className="compact-split-pill tsi" title="TSI Fleet Pending">TSI <strong>{data.tsiTotals.grandTotal}</strong></span>
-                  <span className="compact-split-pill ta" title="TA Fleet Pending">TA <strong>{data.taTotals.grandTotal}</strong></span>
+                  <span className="compact-split-pill tsi" title={`${roleLabel('TSI')} Fleet Pending`}>{roleLabel('TSI')} <strong>{data.tsiTotals.grandTotal}</strong></span>
+                  <span className="compact-split-pill ta" title={`${roleLabel('TA')} Fleet Pending`}>{roleLabel('TA')} <strong>{data.taTotals.grandTotal}</strong></span>
                 </div>
               </div>
             </div>
@@ -95,8 +96,8 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
               <div className="kpi-compact-data">
                 <span className="kpi-compact-num text-pr">{data.fleetTotals.requisitionTotal}</span>
                 <div className="kpi-compact-splits">
-                  <span className="compact-split-pill tsi" title="TSI Requisitions Pending">TSI <strong>{data.tsiTotals.requisitionTotal}</strong></span>
-                  <span className="compact-split-pill ta" title="TA Requisitions Pending">TA <strong>{data.taTotals.requisitionTotal}</strong></span>
+                  <span className="compact-split-pill tsi" title={`${roleLabel('TSI')} Requisitions Pending`}>{roleLabel('TSI')} <strong>{data.tsiTotals.requisitionTotal}</strong></span>
+                  <span className="compact-split-pill ta" title={`${roleLabel('TA')} Requisitions Pending`}>{roleLabel('TA')} <strong>{data.taTotals.requisitionTotal}</strong></span>
                 </div>
               </div>
             </div>
@@ -118,8 +119,8 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
               <div className="kpi-compact-data">
                 <span className="kpi-compact-num text-po">{data.fleetTotals.poTotal}</span>
                 <div className="kpi-compact-splits">
-                  <span className="compact-split-pill tsi" title="TSI POs Pending">TSI <strong>{data.tsiTotals.poTotal}</strong></span>
-                  <span className="compact-split-pill ta" title="TA POs Pending">TA <strong>{data.taTotals.poTotal}</strong></span>
+                  <span className="compact-split-pill tsi" title={`${roleLabel('TSI')} POs Pending`}>{roleLabel('TSI')} <strong>{data.tsiTotals.poTotal}</strong></span>
+                  <span className="compact-split-pill ta" title={`${roleLabel('TA')} POs Pending`}>{roleLabel('TA')} <strong>{data.taTotals.poTotal}</strong></span>
                 </div>
               </div>
             </div>
@@ -141,8 +142,8 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
               <div className="kpi-compact-data">
                 <span className="kpi-compact-num text-inv">{data.fleetTotals.invoiceTotal}</span>
                 <div className="kpi-compact-splits">
-                  <span className="compact-split-pill tsi" title="TSI Invoices Pending">TSI <strong>{data.tsiTotals.invoiceTotal}</strong></span>
-                  <span className="compact-split-pill ta" title="TA Invoices Pending">TA <strong>{data.taTotals.invoiceTotal}</strong></span>
+                  <span className="compact-split-pill tsi" title={`${roleLabel('TSI')} Invoices Pending`}>{roleLabel('TSI')} <strong>{data.tsiTotals.invoiceTotal}</strong></span>
+                  <span className="compact-split-pill ta" title={`${roleLabel('TA')} Invoices Pending`}>{roleLabel('TA')} <strong>{data.taTotals.invoiceTotal}</strong></span>
                 </div>
               </div>
             </div>
@@ -208,7 +209,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
             className={`pending-role-pill pending-role-pill-tsi ${roleFilter === 'TSI' ? 'active' : ''}`}
             onClick={() => setRoleFilter('TSI')}
           >
-            TSI Pending
+            {roleLabel('TSI')} Pending
             {data && <span className="pending-role-pill-count">{data.tsiTotals.grandTotal}</span>}
           </button>
           <button
@@ -216,7 +217,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
             className={`pending-role-pill pending-role-pill-ta ${roleFilter === 'TA' ? 'active' : ''}`}
             onClick={() => setRoleFilter('TA')}
           >
-            TA Pending
+            {roleLabel('TA')} Pending
             {data && <span className="pending-role-pill-count">{data.taTotals.grandTotal}</span>}
           </button>
         </div>
@@ -228,7 +229,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
             type="button"
             className="btn-tracker-action btn-pending-mail-trigger"
             onClick={() => setIsMailModalOpen(true)}
-            title={`Preview and send dashboard summary email to ${roleFilter === 'ALL' ? 'Fleet (TSI & TA)' : roleFilter}`}
+            title={`Preview and send dashboard summary email to ${roleFilter === 'ALL' ? `Fleet (${roleLabel('TSI')} & ${roleLabel('TA')})` : roleLabel(roleFilter)}`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -236,10 +237,10 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
             </svg>
             <span>
               {roleFilter === 'ALL'
-                ? 'Email All (TSI & TA)'
+                ? `Email All (${roleLabel('TSI')} & ${roleLabel('TA')})`
                 : roleFilter === 'TSI'
-                  ? 'Email TSI Summary'
-                  : 'Email TA Summary'}
+                  ? `Email ${roleLabel('TSI')} Summary`
+                  : `Email ${roleLabel('TA')} Summary`}
             </span>
           </button>
 
@@ -256,7 +257,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
             className="btn-tracker-action btn-tracker-primary"
             onClick={handleExport}
             disabled={isExporting}
-            title="Export TSI & TA Summary tables to Excel"
+            title={`Export ${roleLabel('TSI')} & ${roleLabel('TA')} Summary tables to Excel`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             {isExporting ? 'Exporting…' : 'Export Summary'}
@@ -283,12 +284,12 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
         <div className="tracker-table-card">
           <div className="tracker-loading">
             <div className="tracker-loading-spinner" />
-            <div>Loading TSI/TA Dashboard...</div>
+            <div>Loading {roleLabel('TSI')}/{roleLabel('TA')} Dashboard...</div>
           </div>
         </div>
       ) : summaryQuery.isError ? (
         <div className="tracker-table-card">
-          <div className="tracker-error">Failed to load TSI/TA Dashboard summary.</div>
+          <div className="tracker-error">Failed to load {roleLabel('TSI')}/{roleLabel('TA')} Dashboard summary.</div>
         </div>
       ) : data ? (
         <div className="pending-dashboard-tables-container">
@@ -317,7 +318,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
                     </div>
                     <h3 className="empty-title">No matching pending records found</h3>
                     <p className="empty-desc">
-                      No TSI or TA pending records matched &ldquo;<strong>{searchTerm}</strong>&rdquo;.
+                      No {roleLabel('TSI')} or {roleLabel('TA')} pending records matched &ldquo;<strong>{searchTerm}</strong>&rdquo;.
                     </p>
                     <button
                       type="button"
@@ -335,7 +336,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
               <>
                 {showTsi && (
                   <PendingDashboardTable
-                    title="TSI (Technical Superintendents) Pending Overview"
+                    title={`${roleLabel('TSI')} Pending Overview`}
                     role="TSI"
                     groups={data.tsiGroups}
                     totals={data.tsiTotals}
@@ -347,7 +348,7 @@ export function PendingDashboardPage({ onDrillDown }: PendingDashboardPageProps)
 
                 {showTa && (
                   <PendingDashboardTable
-                    title="TA (Technical Assistants) Pending Overview"
+                    title={`${roleLabel('TA')} Pending Overview`}
                     role="TA"
                     groups={data.taGroups}
                     totals={data.taTotals}

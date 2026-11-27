@@ -1011,9 +1011,13 @@ body:has(.pending-items-page) .page-content {
 }
 
 .kpi-compact-splits {
+  /* Stacked, not side-by-side: the role labels ("Vessel Manager"/"Purchaser") are much longer
+     than the old 2-3 letter codes ("TSI"/"TA") and didn't fit two abreast in these compact
+     4-up KPI cards without truncating/overflowing. */
   display: flex;
-  align-items: center;
-  gap: 5px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
 }
 
 .compact-split-pill {
