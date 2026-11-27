@@ -13,6 +13,7 @@ import { SearchIcon } from '../common/SearchIcon';
 import { PendingDashboardPage } from './PendingDashboardPage';
 import { PendingItemsMailModal } from '../modals/PendingItemsMailModal';
 import { VesselPrMailModal } from '../modals/VesselPrMailModal';
+import { InvoiceDisputeMailModal } from '../modals/InvoiceDisputeMailModal';
 
 import '../../pages/Tracker.css';
 import './PendingItems.css';
@@ -339,6 +340,7 @@ export function PendingItemsPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
   const [mailSuccessMessage, setMailSuccessMessage] = useState<string | null>(null);
+  const [disputeMailInvoiceNo, setDisputeMailInvoiceNo] = useState<string | null>(null);
 
   const [prTab, setPrTab] = useState<'all' | 'critical' | 'ageing_90'>('all');
   const [selectedVesselMail, setSelectedVesselMail] = useState<{
@@ -1434,7 +1436,8 @@ export function PendingItemsPage() {
                           <col style={{ width: 130 }} />
                           <col style={{ width: 100 }} />
                           <col style={{ width: 110 }} />
-                          {ownerRoleFilter === 'Disputed' && <col style={{ width: 280 }} />}
+                          {ownerRoleFilter === 'Disputed' && <col style={{ width: 260 }} />}
+                          {ownerRoleFilter === 'Disputed' && <col style={{ width: 56 }} />}
                         </colgroup>
                         <thead>
                           <tr>
@@ -1446,6 +1449,7 @@ export function PendingItemsPage() {
                             <th onClick={() => handleSort('ageingDays')}>Ageing {sortIndicator('ageingDays')}</th>
                             <th onClick={() => handleSort('referenceDate')}>Date {sortIndicator('referenceDate')}</th>
                             {ownerRoleFilter === 'Disputed' && <th>Dispute Details</th>}
+                            {ownerRoleFilter === 'Disputed' && <th style={{ textAlign: 'center' }}>Mail</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -1482,11 +1486,24 @@ export function PendingItemsPage() {
                                   )}
                                 </td>
                               )}
+                              {ownerRoleFilter === 'Disputed' && (
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    className="dispute-mail-icon-btn"
+                                    title={`Email vendor about ${item.referenceNo ?? 'this invoice'}'s dispute`}
+                                    onClick={() => item.referenceNo && setDisputeMailInvoiceNo(item.referenceNo)}
+                                    disabled={!item.referenceNo}
+                                  >
+                                    <MailIcon />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                           {itemsQuery.data && itemsQuery.data.items.length === 0 && (
                             <tr>
-                              <td colSpan={ownerRoleFilter === 'Disputed' ? 8 : 7} className="pending-items-empty">
+                              <td colSpan={ownerRoleFilter === 'Disputed' ? 9 : 7} className="pending-items-empty">
                                 No invoices match the current filters.
                               </td>
                             </tr>
@@ -1553,6 +1570,17 @@ export function PendingItemsPage() {
           role={ownerRoleFilter}
           stage={stage}
           onClose={() => setIsMailModalOpen(false)}
+          onSuccess={(msg) => {
+            setMailSuccessMessage(msg);
+            setTimeout(() => setMailSuccessMessage(null), 8000);
+          }}
+        />
+      )}
+
+      {disputeMailInvoiceNo && (
+        <InvoiceDisputeMailModal
+          invoiceNo={disputeMailInvoiceNo}
+          onClose={() => setDisputeMailInvoiceNo(null)}
           onSuccess={(msg) => {
             setMailSuccessMessage(msg);
             setTimeout(() => setMailSuccessMessage(null), 8000);

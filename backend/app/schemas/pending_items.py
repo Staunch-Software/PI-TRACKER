@@ -142,6 +142,37 @@ class PreviewPendingSummaryEmailResponse(CamelModel):
     html_body: str
 
 
+class InvoiceDisputeMailPreviewRequest(CamelModel):
+    invoice_no: str
+
+
+class InvoiceDisputeMailPreviewResponse(CamelModel):
+    invoice_no: str
+    vessel_name: str | None
+    vendor_name: str | None
+    subject: str
+    body: str
+    default_to_emails: list[str]
+    vendor_email_found: bool
+    from_mailbox: str
+
+
+class SendInvoiceDisputeMailRequest(CamelModel):
+    invoice_no: str
+    subject: str
+    body: str
+    to_emails: list[str]
+    cc_emails: list[str] | None = None
+
+
+class SendInvoiceDisputeMailResponse(CamelModel):
+    sent: bool
+    recipients: list[str]
+    cc_recipients: list[str] = []
+    subject: str
+    from_mailbox: str
+
+
 class VesselPrReviewEmailRequest(CamelModel):
     vessel_name: str
     pr_type: str = "ageing_90"  # "all" | "critical" | "ageing_90"

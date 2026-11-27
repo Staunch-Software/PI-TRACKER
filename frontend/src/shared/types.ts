@@ -284,6 +284,25 @@ export interface PreviewPendingSummaryEmailResponse {
   htmlBody: string;
 }
 
+export interface InvoiceDisputeMailPreviewResponse {
+  invoiceNo: string;
+  vesselName: string | null;
+  vendorName: string | null;
+  subject: string;
+  body: string;
+  defaultToEmails: string[];
+  vendorEmailFound: boolean;
+  fromMailbox: string;
+}
+
+export interface SendInvoiceDisputeMailResponse {
+  sent: boolean;
+  recipients: string[];
+  ccRecipients: string[];
+  subject: string;
+  fromMailbox: string;
+}
+
 export interface VesselPrReviewEmailRequest {
   vesselName: string;
   prType?: 'all' | 'critical' | 'ageing_90';

@@ -673,6 +673,30 @@ body:has(.pending-items-page) .page-content {
   margin-top: 2px;
 }
 
+.dispute-mail-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dispute-mail-icon-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.dispute-mail-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;

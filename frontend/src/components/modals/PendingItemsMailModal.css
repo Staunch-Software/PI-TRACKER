@@ -354,6 +354,15 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+.pending-mail-textarea-body {
+  height: auto;
+  min-height: 160px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+}
+
 /* Attachment Card */
 .pending-mail-attachment-card {
   display: flex;

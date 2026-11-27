@@ -15,7 +15,7 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 from PIL import Image as PILImage, ImageDraw, ImageFont
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_module_access, require_roles
+from app.api.deps import get_current_user, require_module_access, require_roles
 from app.core.enums import UserRole
 from app.db.session import get_db
 from app.models.excluded_category_po import ExcludedCategoryPo
@@ -24,10 +24,13 @@ from app.models.pr_entry import PrEntry
 from app.models.smartpal_invoice_entry import SmartpalInvoiceEntry
 from app.models.pending_weekly_snapshot import PendingWeeklySnapshot
 from app.models.user import User
+from app.models.vendor_master_entry import VendorMasterEntry
 from app.services.pi_reminder_mailer import send_mail, validate_recipient_emails
 from app.services.po_scraper.scraper import _EXCLUDED_CATEGORIES, _normalize_category
 from app.schemas.common import PaginatedResult
 from app.schemas.pending_items import (
+    InvoiceDisputeMailPreviewRequest,
+    InvoiceDisputeMailPreviewResponse,
     PendingDashboardOwnerGroup,
     PendingDashboardSummaryResponse,
     PendingDashboardTotals,
@@ -39,6 +42,8 @@ from app.schemas.pending_items import (
     PendingStageBreakdown,
     PendingVesselCount,
     PreviewPendingSummaryEmailResponse,
+    SendInvoiceDisputeMailRequest,
+    SendInvoiceDisputeMailResponse,
     SendPendingSummaryEmailRequest,
     SendPendingSummaryEmailResponse,
     VesselPrReviewEmailRequest,
@@ -2301,6 +2306,113 @@ def get_pending_items_filter_options(db: Session = Depends(get_db)) -> PendingIt
         stage=sorted({i.stage for i in items if i.stage}),
         owner_name=sorted({i.owner_name for i in items if i.owner_name}),
         status=sorted({i.status for i in items if i.status}),
+    )
+
+
+def _resolve_vendor_email(vendor_name: str | None, db: Session) -> str | None:
+    """Looks up the vendor's registered email from vendor_master_entries (the nightly SmartPAL
+    vendor list scrape, ~1,098 vendors — see that model's docstring), matched by normalized name
+    since smartpal_invoice_entries.vendor_name is free text copied from the invoice row, not a
+    foreign key. Same normalize-and-compare-in-Python stance as the rest of this module (cheap at
+    this table size) rather than a SQL-side lower()/trim() filter."""
+    if not vendor_name:
+        return None
+    target = vendor_name.strip().casefold()
+    for vn, email in db.query(VendorMasterEntry.vendor_name, VendorMasterEntry.email).all():
+        if (vn or "").strip().casefold() == target and email and email.strip():
+            return email.strip()
+    return None
+
+
+def _get_disputed_invoice_or_404(invoice_no: str, db: Session) -> SmartpalInvoiceEntry:
+    inv = (
+        db.query(SmartpalInvoiceEntry)
+        .filter(SmartpalInvoiceEntry.invoice_no == invoice_no, SmartpalInvoiceEntry.status == _DISPUTED_ROLE)
+        .first()
+    )
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No disputed invoice found for '{invoice_no}'.")
+    return inv
+
+
+def _build_dispute_mail_subject_body(inv: SmartpalInvoiceEntry, sender_name: str) -> tuple[str, str]:
+    subject = f"Dispute on Invoice {inv.invoice_no or ''} — Action Required"
+    remarks = inv.disputed_remarks or "No remarks were provided."
+    body = (
+        f"Dear {inv.vendor_name or 'Vendor'},<br><br>"
+        f"Your invoice <b>{inv.invoice_no or ''}</b>"
+        + (f" for vessel <b>{inv.vessel_name}</b>" if inv.vessel_name else "")
+        + " has been disputed, with the following remark:<br><br>"
+        f"<i>\"{remarks}\"</i><br><br>"
+        "Kindly review and revert to us at the earliest so this can be resolved.<br><br>"
+        "Regards,<br>"
+        f"{sender_name}"
+    )
+    return subject, body
+
+
+@router.post("/invoice-dispute-mail/preview", response_model=InvoiceDisputeMailPreviewResponse)
+def preview_invoice_dispute_mail(
+    payload: InvoiceDisputeMailPreviewRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvoiceDisputeMailPreviewResponse:
+    inv = _get_disputed_invoice_or_404(payload.invoice_no, db)
+    vendor_email = _resolve_vendor_email(inv.vendor_name, db)
+    subject, body = _build_dispute_mail_subject_body(inv, current_user.full_name or current_user.email)
+
+    return InvoiceDisputeMailPreviewResponse(
+        invoice_no=inv.invoice_no or payload.invoice_no,
+        vessel_name=inv.vessel_name,
+        vendor_name=inv.vendor_name,
+        subject=subject,
+        body=body,
+        default_to_emails=[vendor_email] if vendor_email else [],
+        vendor_email_found=vendor_email is not None,
+        from_mailbox=current_user.email,
+    )
+
+
+@router.post("/invoice-dispute-mail/send", response_model=SendInvoiceDisputeMailResponse)
+def send_invoice_dispute_mail(
+    payload: SendInvoiceDisputeMailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_writers),
+) -> SendInvoiceDisputeMailResponse:
+    # Confirms the invoice is still a real, currently-Disputed row before sending — same
+    # defense-in-depth stance as everything else in this module, not strictly needed for mail
+    # sending itself but keeps this endpoint from being usable to spam an arbitrary address with
+    # an arbitrary subject/body unrelated to any real dispute.
+    _get_disputed_invoice_or_404(payload.invoice_no, db)
+
+    recipients = sorted({e.strip() for e in payload.to_emails if e and e.strip()})
+    cc_recipients = sorted({e.strip() for e in (payload.cc_emails or []) if e and e.strip()})
+    if not recipients:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient email provided.")
+    _validate_recipients(recipients, cc_recipients)
+
+    if not payload.subject.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subject cannot be empty.")
+    if not payload.body.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email body cannot be empty.")
+
+    try:
+        send_mail(
+            to_emails=recipients,
+            subject=payload.subject.strip(),
+            html_body=payload.body,
+            from_mailbox=current_user.email,
+            cc_emails=cc_recipients,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send email: {e}") from e
+
+    return SendInvoiceDisputeMailResponse(
+        sent=True,
+        recipients=recipients,
+        cc_recipients=cc_recipients,
+        subject=payload.subject.strip(),
+        from_mailbox=current_user.email,
     )
 
 
