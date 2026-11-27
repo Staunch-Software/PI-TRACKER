@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { SoaLineItem } from '../../shared';
-import { formatAmount, formatDateTime } from '../../lib/format';
+import { formatAmount, formatDate, formatDateTime } from '../../lib/format';
 import { SoaVendorDetailModal } from './SoaVendorDetailModal';
 
 interface VendorGroup {
@@ -58,8 +58,33 @@ function groupByVendor(items: SoaLineItem[]): VendorGroup[] {
     .sort((a, b) => new Date(b.soaReceivedAt).getTime() - new Date(a.soaReceivedAt).getTime());
 }
 
+interface DateGroup {
+  key: string;
+  dateLabel: string;
+  vendorGroups: VendorGroup[];
+}
+
+// Each mail (one row per current SOA document, grouped by vendor above) gets a full-width date
+// header for the calendar day it was received — in the browser's own local time, matching what
+// formatDateTime already shows per row, so a mail just after midnight local time never lands
+// under the wrong day's header. Newest day first, same ordering groupByVendor already sorts by.
+function groupVendorsByDate(vendorGroups: VendorGroup[]): DateGroup[] {
+  const map = new Map<string, VendorGroup[]>();
+  for (const g of vendorGroups) {
+    const d = new Date(g.soaReceivedAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const bucket = map.get(key);
+    if (bucket) bucket.push(g);
+    else map.set(key, [g]);
+  }
+  return Array.from(map.entries())
+    .map(([key, vendors]) => ({ key, dateLabel: formatDate(vendors[0].soaReceivedAt), vendorGroups: vendors }))
+    .sort((a, b) => new Date(b.vendorGroups[0].soaReceivedAt).getTime() - new Date(a.vendorGroups[0].soaReceivedAt).getTime());
+}
+
 export function SoaVendorTable({ items }: Props) {
   const groups = useMemo(() => groupByVendor(items), [items]);
+  const dateGroups = useMemo(() => groupVendorsByDate(groups), [groups]);
   const [selectedVendor, setSelectedVendor] = useState<VendorGroup | null>(null);
 
   if (groups.length === 0) {
@@ -91,45 +116,57 @@ export function SoaVendorTable({ items }: Props) {
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => (
-              <tr key={g.canonicalDomain} onClick={() => setSelectedVendor(g)} style={{ cursor: 'pointer' }}>
-                <td>{g.vendorLabel}</td>
-                <td style={{ textAlign: 'center' }}>
-                  {g.hasAttachment ? (
-                    <div className="attachment-cell soa-attachment-cell-wrap">
-                      <button type="button" className="attachment-view-btn" title="SOA Document Attached" style={{ pointerEvents: 'none' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-                        <span className="attachment-count">1</span>
-                      </button>
-                    </div>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  <span className="pir-status-badge soa-status-badge-info">
-                    {g.items.length} item{g.items.length === 1 ? '' : 's'}
-                  </span>
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  {g.needsTriageCount > 0 ? (
-                    <span className="pir-status-badge soa-status-badge-danger">
-                      {g.needsTriageCount} pending
+            {dateGroups.map((dateGroup) => (
+              <Fragment key={dateGroup.key}>
+                <tr className="soa-date-group-row">
+                  <td colSpan={7}>
+                    <span className="soa-date-group-label">{dateGroup.dateLabel}</span>
+                    <span className="soa-date-group-count">
+                      {dateGroup.vendorGroups.length} mail{dateGroup.vendorGroups.length === 1 ? '' : 's'}
                     </span>
-                  ) : (
-                    <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-                  )}
-                </td>
-                <td>
-                  {Object.entries(g.outstandingByCurrency)
-                    .map(([code, amount]) => `${code} ${formatAmount(amount)}`)
-                    .join(' · ')}
-                </td>
-                <td title={g.soaSubject ?? undefined} style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {g.soaSubject ?? '—'}
-                </td>
-                <td>{formatDateTime(g.soaReceivedAt)}</td>
-              </tr>
+                  </td>
+                </tr>
+                {dateGroup.vendorGroups.map((g) => (
+                  <tr key={g.canonicalDomain} onClick={() => setSelectedVendor(g)} style={{ cursor: 'pointer' }}>
+                    <td>{g.vendorLabel}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {g.hasAttachment ? (
+                        <div className="attachment-cell soa-attachment-cell-wrap">
+                          <button type="button" className="attachment-view-btn" title="SOA Document Attached" style={{ pointerEvents: 'none' }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                            <span className="attachment-count">1</span>
+                          </button>
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="pir-status-badge soa-status-badge-info">
+                        {g.items.length} item{g.items.length === 1 ? '' : 's'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {g.needsTriageCount > 0 ? (
+                        <span className="pir-status-badge soa-status-badge-danger">
+                          {g.needsTriageCount} pending
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      {Object.entries(g.outstandingByCurrency)
+                        .map(([code, amount]) => `${code} ${formatAmount(amount)}`)
+                        .join(' · ')}
+                    </td>
+                    <td title={g.soaSubject ?? undefined} style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {g.soaSubject ?? '—'}
+                    </td>
+                    <td>{formatDateTime(g.soaReceivedAt)}</td>
+                  </tr>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </table>

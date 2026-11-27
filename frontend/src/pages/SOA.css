@@ -620,3 +620,26 @@
     padding: 24px 40px !important;
   }
 }
+
+/* --- Date group header rows in the main vendor/mail table --- */
+.soa-content-pane .pir-table-scroll tr.soa-date-group-row td {
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+  border-bottom: 1px solid #E2E8F0;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  white-space: normal;
+  height: auto;
+  cursor: default;
+}
+.soa-date-group-label {
+  font-weight: 700;
+  color: #111424;
+  font-size: 13px;
+}
+.soa-date-group-count {
+  margin-left: 12px;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+}
