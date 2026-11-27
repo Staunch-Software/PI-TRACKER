@@ -77,20 +77,27 @@ class MsGraphClient:
         return {"Authorization": f"Bearer {self._get_token()}"}
 
     def list_recent_messages(self, mailbox: str, top: int = 25) -> list[dict[str, Any]]:
-        """Newest-first, most recent `top` messages — the ingestion loop dedupes against
-        graph_message_id already in soa_documents/invoice_mail_entries, so re-polling is safe."""
-        resp = requests.get(
-            f"{GRAPH_BASE}/users/{mailbox}/messages",
-            headers=self._headers(),
-            params={
-                "$top": top,
-                "$orderby": "receivedDateTime desc",
-                "$select": "id,internetMessageId,subject,from,receivedDateTime,hasAttachments,body",
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json().get("value", [])
+        """Newest-first, up to `top` messages — paginates via @odata.nextLink since Graph caps
+        how many it returns per request regardless of $top, so a `top` larger than one page (used
+        by backfill.py for a historical catch-up beyond the regular timer's small window) still
+        needs multiple requests to actually reach. The ingestion loop dedupes against
+        graph_message_id already in soa_documents/invoice_mail_entries, so re-polling (at any
+        `top`) is always safe."""
+        messages: list[dict[str, Any]] = []
+        url = f"{GRAPH_BASE}/users/{mailbox}/messages"
+        params: dict[str, Any] | None = {
+            "$top": min(top, 1000),
+            "$orderby": "receivedDateTime desc",
+            "$select": "id,internetMessageId,subject,from,receivedDateTime,hasAttachments,body",
+        }
+        while url and len(messages) < top:
+            resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            messages.extend(data.get("value", []))
+            url = data.get("@odata.nextLink")
+            params = None  # nextLink already encodes $top/$orderby/$select
+        return messages[:top]
 
     def list_attachments(self, mailbox: str, message_id: str) -> list[dict[str, Any]]:
         resp = requests.get(
