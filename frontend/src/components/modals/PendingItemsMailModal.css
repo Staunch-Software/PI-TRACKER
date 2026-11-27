@@ -354,13 +354,55 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.pending-mail-textarea-body {
-  height: auto;
+/* Rich-text (WYSIWYG) body editor — the Purchase team edits formatted text directly, never raw
+   HTML tags, so a mis-click can't break the email's markup (see InvoiceDisputeMailModal). */
+.pending-mail-rte {
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
+.pending-mail-rte-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.pending-mail-rte-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pending-mail-rte-btn:hover {
+  background: #E2E8F0;
+  border-color: #CBD5E1;
+}
+
+.pending-mail-rte-body {
   min-height: 160px;
+  max-height: 320px;
+  overflow-y: auto;
   padding: 10px 12px;
+  font-size: 13.5px;
   line-height: 1.5;
-  font-family: inherit;
-  resize: vertical;
+  color: #0F172A;
+  outline: none;
+}
+
+.pending-mail-rte-body:focus {
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.12);
 }
 
 /* Attachment Card */

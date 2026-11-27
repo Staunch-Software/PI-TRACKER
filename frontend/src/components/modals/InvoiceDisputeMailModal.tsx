@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api';
 import type { InvoiceDisputeMailPreviewResponse, SendInvoiceDisputeMailResponse } from '../../shared';
@@ -75,6 +75,34 @@ function EditIcon() {
   );
 }
 
+function BoldIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 4h8a4 4 0 0 1 0 8H6z" />
+      <path d="M6 12h9a4 4 0 0 1 0 8H6z" />
+    </svg>
+  );
+}
+
+function ItalicIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="19" y1="4" x2="10" y2="4" />
+      <line x1="14" y1="20" x2="5" y2="20" />
+      <line x1="15" y1="4" x2="9" y2="20" />
+    </svg>
+  );
+}
+
+function UnderlineIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3v7a6 6 0 0 0 12 0V3" />
+      <line x1="4" y1="21" x2="20" y2="21" />
+    </svg>
+  );
+}
+
 export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -84,6 +112,8 @@ export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props
   const [ccInput, setCcInput] = useState('');
   const [activeTab, setActiveTab] = useState<'details' | 'preview'>('details');
   const [sendError, setSendError] = useState<string | null>(null);
+  const bodyEditableRef = useRef<HTMLDivElement>(null);
+  const bodyInitializedRef = useRef(false);
 
   const { data: previewData, isLoading, error: fetchError } = useQuery({
     queryKey: ['invoice-dispute-mail-preview', invoiceNo],
@@ -99,8 +129,31 @@ export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props
       setSubject(previewData.subject);
       setBody(previewData.body);
       setToEmails(previewData.defaultToEmails);
+      bodyInitializedRef.current = false;
     }
   }, [previewData]);
+
+  // The content-editable div owns its own DOM content while the Purchase team is typing — this
+  // only pushes `body` into it ONCE, right after the preview loads. Re-syncing on every keystroke
+  // (via `dangerouslySetInnerHTML` or resetting innerHTML in this effect) would fight the
+  // browser's own cursor position and undo history.
+  useEffect(() => {
+    if (!bodyInitializedRef.current && bodyEditableRef.current) {
+      bodyEditableRef.current.innerHTML = body;
+      bodyInitializedRef.current = true;
+    }
+  }, [body]);
+
+  function handleBodyInput(e: FormEvent<HTMLDivElement>) {
+    setBody(e.currentTarget.innerHTML);
+  }
+
+  function execFormatCommand(command: string) {
+    document.execCommand(command, false);
+    if (bodyEditableRef.current) {
+      setBody(bodyEditableRef.current.innerHTML);
+    }
+  }
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -324,15 +377,46 @@ export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props
 
                     <div className="pending-mail-field-row">
                       <label className="pending-mail-field-label">
-                        <span>Body (HTML):</span>
+                        <span>Body:</span>
                       </label>
-                      <textarea
-                        className="pending-mail-text-input pending-mail-textarea-body"
-                        value={body}
-                        onChange={(e) => setBody(e.target.value)}
-                        placeholder="Enter email body"
-                        required
-                      />
+                      <div className="pending-mail-rte">
+                        <div className="pending-mail-rte-toolbar">
+                          <button
+                            type="button"
+                            className="pending-mail-rte-btn"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => execFormatCommand('bold')}
+                            title="Bold"
+                          >
+                            <BoldIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="pending-mail-rte-btn"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => execFormatCommand('italic')}
+                            title="Italic"
+                          >
+                            <ItalicIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="pending-mail-rte-btn"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => execFormatCommand('underline')}
+                            title="Underline"
+                          >
+                            <UnderlineIcon />
+                          </button>
+                        </div>
+                        <div
+                          ref={bodyEditableRef}
+                          className="pending-mail-rte-body"
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={handleBodyInput}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -368,7 +452,11 @@ export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props
                   Cancel
                 </button>
 
-                <button type="submit" className="pending-mail-btn-send" disabled={sendMutation.isPending || toEmails.length === 0}>
+                <button
+                  type="submit"
+                  className="pending-mail-btn-send"
+                  disabled={sendMutation.isPending || toEmails.length === 0 || !body.trim()}
+                >
                   <SendIcon />
                   <span>{sendMutation.isPending ? 'Sending Email…' : 'Send Email Now'}</span>
                 </button>

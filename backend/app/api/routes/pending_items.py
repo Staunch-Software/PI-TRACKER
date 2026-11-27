@@ -2335,7 +2335,10 @@ def _get_disputed_invoice_or_404(invoice_no: str, db: Session) -> SmartpalInvoic
     return inv
 
 
-def _build_dispute_mail_subject_body(inv: SmartpalInvoiceEntry, sender_name: str) -> tuple[str, str]:
+def _build_dispute_mail_subject_body(inv: SmartpalInvoiceEntry) -> tuple[str, str]:
+    # Sign-off is always "Purchase Team" regardless of which logged-in user sends it — confirmed
+    # with the user 2026-11-27. The From address still reflects the actual sender's mailbox; only
+    # the visible signature is fixed.
     subject = f"Dispute on Invoice {inv.invoice_no or ''} — Action Required"
     remarks = inv.disputed_remarks or "No remarks were provided."
     body = (
@@ -2346,7 +2349,7 @@ def _build_dispute_mail_subject_body(inv: SmartpalInvoiceEntry, sender_name: str
         f"<i>\"{remarks}\"</i><br><br>"
         "Kindly review and revert to us at the earliest so this can be resolved.<br><br>"
         "Regards,<br>"
-        f"{sender_name}"
+        "Purchase Team"
     )
     return subject, body
 
@@ -2359,7 +2362,7 @@ def preview_invoice_dispute_mail(
 ) -> InvoiceDisputeMailPreviewResponse:
     inv = _get_disputed_invoice_or_404(payload.invoice_no, db)
     vendor_email = _resolve_vendor_email(inv.vendor_name, db)
-    subject, body = _build_dispute_mail_subject_body(inv, current_user.full_name or current_user.email)
+    subject, body = _build_dispute_mail_subject_body(inv)
 
     return InvoiceDisputeMailPreviewResponse(
         invoice_no=inv.invoice_no or payload.invoice_no,
