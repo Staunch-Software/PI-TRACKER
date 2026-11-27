@@ -243,6 +243,22 @@ def _row_value(row: list[str], col_idx: int, claimed: set[int]) -> str:
     return ""
 
 
+def _looks_like_repeated_header(row: list[str], column_map: dict[int, str]) -> bool:
+    """True when this data row, read through the SAME column positions as the real header,
+    would itself qualify as a header by the exact criteria _detect_header uses (an
+    invoice_number-shaped cell AND an amount/remaining_amount-shaped cell) — i.e. this is the
+    header row repeating partway through a long export (a page-break artifact in some vendor
+    Excel/PDF exports — confirmed live), not real data. Checking the same column positions (not
+    scanning the whole row) avoids a real invoice number coincidentally containing a header
+    keyword as a substring."""
+    fields_found = {
+        field_name
+        for col_idx, field_name in column_map.items()
+        if col_idx < len(row) and _match_field(row[col_idx])
+    }
+    return "invoice_number" in fields_found and bool(fields_found & _MIN_HEADER_COLUMNS_FOR_AMOUNT)
+
+
 def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> list[ExtractedLineItem]:
     # Normalized name -> canonical DB spelling, so a match is always reported in the fleet's own
     # casing regardless of how a vendor's source text happened to write it.
@@ -259,7 +275,13 @@ def extract_line_items(tables: list[Table], known_vessel_names: list[str]) -> li
         for row in table.rows[header_idx + 1:]:
             if not any(c.strip() for c in row):
                 continue
-            if row and _TOTALS_ROW_RE.match(row[0] or ""):
+            # Checked across every cell, not just row[0] — a totals row's "Total" label can sit
+            # in any column depending on the vendor's layout (confirmed live: a vendor whose
+            # invoice-number column is blank on the totals row let the column-alignment fallback
+            # below steal "Total" from a different column into invoice_number instead).
+            if any(_TOTALS_ROW_RE.match(cell or "") for cell in row):
+                continue
+            if _looks_like_repeated_header(row, column_map):
                 continue
 
             claimed: set[int] = set()
