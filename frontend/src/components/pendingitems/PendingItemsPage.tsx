@@ -1459,7 +1459,9 @@ export function PendingItemsPage() {
                         </colgroup>
                         <thead>
                           <tr>
-                            <th onClick={() => handleSort('referenceNo')}>Invoice No. {sortIndicator('referenceNo')}</th>
+                            <th onClick={() => handleSort('referenceNo')}>
+                              {ownerRoleFilter === 'Disputed' ? 'Vendor Invoice No.' : 'Invoice No.'} {sortIndicator('referenceNo')}
+                            </th>
                             <th onClick={() => handleSort('vesselName')}>Vessel {sortIndicator('vesselName')}</th>
                             <th onClick={() => handleSort('vendor')}>Vendor {sortIndicator('vendor')}</th>
                             <th onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
@@ -1473,7 +1475,9 @@ export function PendingItemsPage() {
                         <tbody>
                           {(itemsQuery.data?.items ?? []).map((item, idx) => (
                             <tr key={`${item.referenceNo}-${idx}`}>
-                              <td className="pr-reference-no-cell">{item.referenceNo ?? '—'}</td>
+                              <td className="pr-reference-no-cell">
+                                {ownerRoleFilter === 'Disputed' ? item.vendorInvoiceNo ?? item.referenceNo ?? '—' : item.referenceNo ?? '—'}
+                              </td>
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>

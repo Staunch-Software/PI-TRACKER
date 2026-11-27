@@ -365,6 +365,7 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
                 disputed_by=inv.disputed_by if is_disputed else None,
                 disputed_at=inv.disputed_at if is_disputed else None,
                 disputed_remarks=inv.disputed_remarks if is_disputed else None,
+                vendor_invoice_no=inv.vendor_invoice_no if is_disputed else None,
             )
         )
 

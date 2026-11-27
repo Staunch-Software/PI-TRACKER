@@ -168,6 +168,7 @@ export interface PendingItem {
   disputedBy?: string | null;
   disputedAt?: string | null;
   disputedRemarks?: string | null;
+  vendorInvoiceNo?: string | null;
 }
 
 export interface PendingItemsFilterOptions {

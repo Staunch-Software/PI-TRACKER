@@ -23,6 +23,12 @@ class PendingItemOut(CamelModel):
     disputed_by: str | None = None
     disputed_at: datetime | None = None
     disputed_remarks: str | None = None
+    # Only populated for Invoice-stage rows whose status is "Disputed" (confirmed with the user
+    # 2026-11-27 the Disputed table should show the VENDOR's own invoice number, not SmartPAL's
+    # internal one, since that's what the Purchase team actually references when chasing a vendor).
+    # reference_no stays SmartPAL's internal invoice_no for every Invoice-stage row regardless —
+    # it's still the key the dispute-mail endpoints look the invoice up by.
+    vendor_invoice_no: str | None = None
 
 
 class PendingItemsFilterOptions(CamelModel):
