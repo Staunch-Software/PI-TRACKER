@@ -1,3 +1,4 @@
+import { Fragment, useMemo } from 'react';
 import type { SoaLineItem } from '../../shared';
 import { formatAmount, formatDate } from '../../lib/format';
 import { SoaMatchBadge } from './SoaMatchBadge';
@@ -8,7 +9,55 @@ interface Props {
   onClose: () => void;
 }
 
+const NO_DATE_KEY = '__no_date__';
+
+interface DateGroup {
+  key: string;
+  invoiceDate: string | null;
+  items: SoaLineItem[];
+  subtotalByCurrency: Record<string, number>;
+}
+
+// Oldest invoice date first — an unpaid-invoice follow-up list reads as an aging report, where
+// the longest-outstanding items are the ones that most need chasing. Items with no recognized
+// invoice date (a vendor layout that doesn't name one per line, or an unparsed placeholder) sort
+// last under their own "No Date" group rather than being guessed into any date bucket.
+function groupByInvoiceDate(items: SoaLineItem[]): DateGroup[] {
+  const map = new Map<string, SoaLineItem[]>();
+  for (const item of items) {
+    const key = item.invoiceDate ?? NO_DATE_KEY;
+    const bucket = map.get(key);
+    if (bucket) bucket.push(item);
+    else map.set(key, [item]);
+  }
+
+  const groups = Array.from(map.entries()).map(([key, groupItems]) => {
+    const subtotalByCurrency: Record<string, number> = {};
+    for (const item of groupItems) {
+      const amount = item.remainingAmount ?? item.amount;
+      if (amount !== null) {
+        const n = typeof amount === 'string' ? parseFloat(amount) : amount;
+        const currency = item.currency ?? '—';
+        subtotalByCurrency[currency] = (subtotalByCurrency[currency] ?? 0) + n;
+      }
+    }
+    return {
+      key,
+      invoiceDate: key === NO_DATE_KEY ? null : key,
+      items: groupItems.sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber)),
+      subtotalByCurrency,
+    };
+  });
+
+  return groups.sort((a, b) => {
+    if (a.invoiceDate === null) return 1;
+    if (b.invoiceDate === null) return -1;
+    return a.invoiceDate.localeCompare(b.invoiceDate);
+  });
+}
+
 export function SoaVendorDetailModal({ vendorLabel, items, onClose }: Props) {
+  const groups = useMemo(() => groupByInvoiceDate(items), [items]);
   return (
     <div className="modal-overlay soa-modal-overlay" onClick={onClose}>
       <div className="modal-panel soa-modal-panel" onClick={(e) => e.stopPropagation()}>
@@ -41,18 +90,37 @@ export function SoaVendorDetailModal({ vendorLabel, items, onClose }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td style={{ paddingLeft: '32px', fontWeight: 500 }}>{item.invoiceNumber}</td>
-                    <td>{item.vesselName ?? item.vesselNameRaw ?? '—'}</td>
-                    <td>{formatDate(item.invoiceDate)}</td>
-                    <td style={{ fontWeight: 500 }}>{formatAmount(item.amount)}</td>
-                    <td style={{ fontWeight: 500 }}>{formatAmount(item.remainingAmount)}</td>
-                    <td><span className="soa-currency-badge">{item.currency ?? '—'}</span></td>
-                    <td style={{ paddingRight: '32px', whiteSpace: 'nowrap', overflow: 'visible', textOverflow: 'clip' }}>
-                      <SoaMatchBadge matchSource={item.matchSource} matchStatusLabel={item.matchStatusLabel} />
-                    </td>
-                  </tr>
+                {groups.map((group) => (
+                  <Fragment key={group.key}>
+                    <tr className="soa-date-group-row">
+                      <td colSpan={7}>
+                        <span className="soa-date-group-label">
+                          {group.invoiceDate === null ? 'No Invoice Date' : formatDate(group.invoiceDate)}
+                        </span>
+                        <span className="soa-date-group-count">
+                          {group.items.length} item{group.items.length === 1 ? '' : 's'}
+                        </span>
+                        <span className="soa-date-group-subtotal">
+                          {Object.entries(group.subtotalByCurrency)
+                            .map(([code, amount]) => `${code} ${formatAmount(amount)}`)
+                            .join(' · ')}
+                        </span>
+                      </td>
+                    </tr>
+                    {group.items.map((item) => (
+                      <tr key={item.id}>
+                        <td style={{ paddingLeft: '32px', fontWeight: 500 }}>{item.invoiceNumber}</td>
+                        <td>{item.vesselName ?? item.vesselNameRaw ?? '—'}</td>
+                        <td>{formatDate(item.invoiceDate)}</td>
+                        <td style={{ fontWeight: 500 }}>{formatAmount(item.amount)}</td>
+                        <td style={{ fontWeight: 500 }}>{formatAmount(item.remainingAmount)}</td>
+                        <td><span className="soa-currency-badge">{item.currency ?? '—'}</span></td>
+                        <td style={{ paddingRight: '32px', whiteSpace: 'nowrap', overflow: 'visible', textOverflow: 'clip' }}>
+                          <SoaMatchBadge matchSource={item.matchSource} matchStatusLabel={item.matchStatusLabel} />
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
