@@ -452,6 +452,11 @@ export function PendingItemsPage() {
     if (next !== 'Requisition') {
       setPrTab('all');
     }
+    // Disputed only exists on Invoice, Open PO only on Purchase Order — reset away from either so
+    // a stale selection doesn't silently carry over to a stage where its pill isn't even shown.
+    if ((ownerRoleFilter === 'Disputed' && next !== 'Invoice') || (ownerRoleFilter === 'Open PO' && next !== 'Purchase Order')) {
+      setOwnerRoleFilter('ALL');
+    }
   }
 
   function selectRoleFilter(next: OwnerRoleFilter) {
@@ -748,30 +753,26 @@ export function PendingItemsPage() {
                 : taForCurrentStage}
             </span>
           </button>
-          <button
-            type="button"
-            className={`pending-role-pill pending-role-pill-disputed ${ownerRoleFilter === 'Disputed' ? 'active' : ''}`}
-            onClick={() => selectRoleFilter('Disputed')}
-          >
-            Disputed
-            <span className="pending-role-pill-count">
-              {stage === 'Requisition' && prTab === 'ageing_90'
-                ? activePrList.filter((x) => x.ownerRole === 'Disputed').length
-                : disputedForCurrentStage}
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`pending-role-pill pending-role-pill-openpo ${ownerRoleFilter === 'Open PO' ? 'active' : ''}`}
-            onClick={() => selectRoleFilter('Open PO')}
-          >
-            Open PO
-            <span className="pending-role-pill-count">
-              {stage === 'Requisition' && prTab === 'ageing_90'
-                ? activePrList.filter((x) => x.ownerRole === 'Open PO').length
-                : openPoForCurrentStage}
-            </span>
-          </button>
+          {stage === 'Invoice' && (
+            <button
+              type="button"
+              className={`pending-role-pill pending-role-pill-disputed ${ownerRoleFilter === 'Disputed' ? 'active' : ''}`}
+              onClick={() => selectRoleFilter('Disputed')}
+            >
+              Disputed
+              <span className="pending-role-pill-count">{disputedForCurrentStage}</span>
+            </button>
+          )}
+          {stage === 'Purchase Order' && (
+            <button
+              type="button"
+              className={`pending-role-pill pending-role-pill-openpo ${ownerRoleFilter === 'Open PO' ? 'active' : ''}`}
+              onClick={() => selectRoleFilter('Open PO')}
+            >
+              Open PO
+              <span className="pending-role-pill-count">{openPoForCurrentStage}</span>
+            </button>
+          )}
         </div>
 
         {(stage !== 'Requisition' || prTab !== 'ageing_90') && (
