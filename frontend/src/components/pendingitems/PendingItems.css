@@ -225,6 +225,19 @@ body:has(.pending-items-page) .page-content {
   color: #b91c1c;
 }
 
+.pending-role-pill-openpo.active {
+  background: #ffffff;
+  color: #0e7490;
+  border-color: #0891b2;
+  box-shadow: 0 1px 3px rgba(8, 145, 178, 0.2);
+  font-weight: 700;
+}
+
+.pending-role-pill-openpo.active .pending-role-pill-count {
+  background: rgba(8, 145, 178, 0.12);
+  color: #0e7490;
+}
+
 .pending-breakdown-meta {
   display: flex;
   align-items: center;
@@ -657,6 +670,11 @@ body:has(.pending-items-page) .page-content {
   cursor: help;
 }
 
+.pending-status-pill.status-open-po {
+  background: #cffafe;
+  color: #0e7490;
+}
+
 .dispute-details-cell {
   font-size: 12px;
   line-height: 1.4;
@@ -727,6 +745,10 @@ body:has(.pending-items-page) .page-content {
 
 .owner-role-badge-text.role-disputed {
   color: #b91c1c;
+}
+
+.owner-role-badge-text.role-openpo {
+  color: #0e7490;
 }
 
 .ageing-chip {

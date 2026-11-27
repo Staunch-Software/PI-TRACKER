@@ -83,6 +83,11 @@ class PoEntry(Base):
     priority: Mapped[str | None] = mapped_column(Text, nullable=True)
     critical: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
+    # True while this PO is on SmartPAL's own "Open POs" tab (Purchase/POOverview, a status
+    # independent of approved_status — mostly "Finally Approved" POs not yet invoiced/closed, see
+    # po_scraper._run_open_po). Refreshed wholesale every scrape run, not merely set-and-forget.
+    is_open_po: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
     raw_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     first_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -307,6 +307,44 @@ def _run_pr(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "errors": errors}
 
 
+def _po_values_from_row(r: dict) -> dict:
+    """Shared field mapping for a single PO Overview grid row, used by both _run_po (the "All" tab,
+    FROM_DATE-bounded) and _run_open_po (the "Open POs" tab, unbounded) — same row shape either
+    way, confirmed live 2026-11-27 (identical key set from both tabs)."""
+    requisition_no = (r.get("reqNo") or "").strip() or None
+    if not requisition_no and r.get("reqNos"):
+        requisition_no = str(r["reqNos"]).split(",")[0].strip() or None
+
+    return {
+        "smartpal_id": r.get("id"),
+        "requisition_no": requisition_no,
+        "title": r.get("title"),
+        "vessel_name": r.get("vessel"),
+        "vendor": r.get("vendor"),
+        "req_category": r.get("reqCategory"),
+        "po_type": r.get("poType"),
+        "base_amount": _num(r.get("pO_Amount")),
+        "base_currency": r.get("baseCurrency"),
+        "approved_status": r.get("approvedStatus"),
+        "invoice_status": r.get("invoiceStatus"),
+        "po_sent": _bool_yn(r.get("poSent")) if not isinstance(r.get("poSent"), bool) else r.get("poSent"),
+        "created_date": _parse_date(r.get("createdDate")),
+        "approved_date": _parse_date(r.get("approvedDate")),
+        "confirmed_date": _parse_date(r.get("confirmedDate")),
+        "schd_del_port": r.get("schd_Del_port"),
+        "expected_delivery_date": _parse_date(r.get("schd_Del_Date")),
+        "agent_name": r.get("agentName"),
+        "warehouse_name": r.get("warehouseName"),
+        "grn_nos": r.get("grnNos"),
+        "do_nos": r.get("doNos"),
+        "remarks": r.get("remarks"),
+        "pending_days": r.get("pendingDays"),
+        "priority": r.get("priority"),
+        "critical": _bool_yn(r.get("critical")),
+        "raw_json": r,
+    }
+
+
 def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict:
     rows = _fetch_all_rows_or_abort(page, settings.po_overview_url, to_date or date.today(), from_date, "PO")
     if rows is None:
@@ -324,38 +362,7 @@ def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict
             _record_excluded_category_po(db, po_no, r.get("reqCategory"))
             continue
 
-        requisition_no = (r.get("reqNo") or "").strip() or None
-        if not requisition_no and r.get("reqNos"):
-            requisition_no = str(r["reqNos"]).split(",")[0].strip() or None
-
-        values = {
-            "smartpal_id": r.get("id"),
-            "requisition_no": requisition_no,
-            "title": r.get("title"),
-            "vessel_name": r.get("vessel"),
-            "vendor": r.get("vendor"),
-            "req_category": r.get("reqCategory"),
-            "po_type": r.get("poType"),
-            "base_amount": _num(r.get("pO_Amount")),
-            "base_currency": r.get("baseCurrency"),
-            "approved_status": r.get("approvedStatus"),
-            "invoice_status": r.get("invoiceStatus"),
-            "po_sent": _bool_yn(r.get("poSent")) if not isinstance(r.get("poSent"), bool) else r.get("poSent"),
-            "created_date": _parse_date(r.get("createdDate")),
-            "approved_date": _parse_date(r.get("approvedDate")),
-            "confirmed_date": _parse_date(r.get("confirmedDate")),
-            "schd_del_port": r.get("schd_Del_port"),
-            "expected_delivery_date": _parse_date(r.get("schd_Del_Date")),
-            "agent_name": r.get("agentName"),
-            "warehouse_name": r.get("warehouseName"),
-            "grn_nos": r.get("grnNos"),
-            "do_nos": r.get("doNos"),
-            "remarks": r.get("remarks"),
-            "pending_days": r.get("pendingDays"),
-            "priority": r.get("priority"),
-            "critical": _bool_yn(r.get("critical")),
-            "raw_json": r,
-        }
+        values = _po_values_from_row(r)
 
         try:
             existing = db.query(PoEntry).filter(PoEntry.po_no == po_no).first()
@@ -375,6 +382,147 @@ def _run_po(page, db, from_date: date = FROM_DATE, to_date: date = None) -> dict
             log.error(f"[PO SAVE]  Failed to upsert PO {po_no!r}: {e}")
 
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "errors": errors}
+
+
+def _capture_open_po_request(page, url: str) -> tuple[dict, dict] | None:
+    """Navigates to the PO Overview grid and clicks through to its real "Open POs" tab (under the
+    "More" dropdown), capturing the genuine gridServerOperations POST the same way
+    _capture_grid_request does for the "All" tab. Confirmed live 2026-11-27: this tab POSTs
+    approvalFlag="50"/chatStatus="ALL"/isDateFilter="N" — none of these are stable/documented
+    values, just whatever a real click produces. isDateFilter="N" means SmartPAL ignores
+    fromDate/toDate entirely for this tab, which is exactly what's wanted: "Open POs" is a
+    current-state view (confirmed with the user 2026-11-27 it should cover every currently open PO
+    regardless of when it was created), not a FROM_DATE-bounded history like the "All" tab."""
+    captured: dict = {}
+
+    def on_request(req):
+        if req.method == "POST" and "ServiceRouter/POST" in req.url and "gridServerOperations" in (req.post_data or ""):
+            captured["headers"] = req.headers
+            captured["body"] = req.post_data
+
+    page.on("request", on_request)
+    page.goto(url, wait_until="load", timeout=60000)
+    page.wait_for_timeout(3000)
+
+    if "login" in page.url.lower() or "SIGN IN" in (page.content() or ""):
+        page.remove_listener("request", on_request)
+        raise RuntimeError("Session expired / not authenticated — SmartPAL bounced to the login page.")
+
+    try:
+        page.locator("b:text-is('More')").first.click(timeout=10000)
+        page.wait_for_timeout(1000)
+        page.locator("b:text-is('Open POs')").first.click(timeout=10000)
+    except Exception as e:
+        log.warning(f"[CLICK]    Could not click through to the 'Open POs' tab on {url}: {e}")
+    page.wait_for_timeout(4000)
+    page.remove_listener("request", on_request)
+
+    if "body" not in captured:
+        return None
+
+    return captured["headers"], _json.loads(captured["body"])
+
+
+def _fetch_open_po_rows(page, url: str) -> list[dict]:
+    """Captures the real "Open POs" tab request, then pages through the rest by replaying the
+    exact same headers/body with only gridServerOperations.page changed — same pagination approach
+    as _fetch_all_rows, but deliberately does NOT override fromDate/toDate: the captured body
+    already carries isDateFilter="N", so SmartPAL ignores those bounds on its own."""
+    captured = _capture_open_po_request(page, url)
+    if captured is None:
+        raise RuntimeError(f"No gridServerOperations request captured for the Open POs tab on {url}.")
+    headers, body = captured
+    hdrs = {k: v for k, v in headers.items() if k in _GRID_HEADER_KEYS}
+
+    rows: list[dict] = []
+    page_num = 1
+    while True:
+        body["gridServerOperations"] = {"filters": None, "page": page_num, "pageSize": _PAGE_SIZE}
+        result = page.evaluate(_FETCH_JS, [body, hdrs])
+        if result["status"] != 200:
+            raise RuntimeError(f"Open POs grid fetch failed (page {page_num}, status {result['status']}): {result['text'][:300]}")
+        batch = _json.loads(result["text"])
+        if not isinstance(batch, list):
+            raise RuntimeError(f"Unexpected Open POs grid response shape (page {page_num}): {result['text'][:300]}")
+        rows.extend(batch)
+        total_count = batch[0]["totalCount"] if batch else 0
+        if len(batch) < _PAGE_SIZE or len(rows) >= total_count:
+            break
+        page_num += 1
+
+    return rows
+
+
+def _fetch_open_po_rows_or_abort(page, url: str) -> list[dict] | None:
+    """Same 0-row safety net as _fetch_all_rows_or_abort — see that function's docstring."""
+    rows = _fetch_open_po_rows(page, url)
+    if rows:
+        return rows
+    log.warning("[OPEN PO]  0 rows returned — almost certainly a page-load race, not reality. Retrying once.")
+    rows = _fetch_open_po_rows(page, url)
+    if rows:
+        return rows
+    log.error("[OPEN PO]  Still 0 rows after retry — aborting this entity's scrape without touching existing data.")
+    return None
+
+
+def _run_open_po(page, db) -> dict:
+    """Refreshes po_entries.is_open_po from SmartPAL's own "Open POs" tab — every po_no currently
+    returned is flagged True (inserting a lightweight PO row if one doesn't already exist, since
+    this tab isn't bounded to FROM_DATE), and every po_no previously flagged True but no longer
+    returned is reset to False. Deliberately a full refresh every run rather than additive, so a PO
+    that closes/gets invoiced stops showing as "Open" on the very next scrape."""
+    rows = _fetch_open_po_rows_or_abort(page, settings.po_overview_url)
+    if rows is None:
+        return {"inserted": 0, "updated": 0, "unflagged": 0, "skipped": 0, "errors": 0}
+    log.info(f"[OPEN PO]  {len(rows)} open PO row(s) returned.")
+
+    inserted = updated = skipped = errors = 0
+    fresh_po_nos: set[str] = set()
+    for r in rows:
+        po_no = (r.get("poNo") or "").strip() or None
+        if not po_no:
+            continue
+        category_norm = _normalize_category(r.get("reqCategory"))
+        if category_norm in _EXCLUDED_CATEGORIES:
+            skipped += 1
+            _record_excluded_category_po(db, po_no, r.get("reqCategory"))
+            continue
+
+        fresh_po_nos.add(po_no)
+        values = _po_values_from_row(r)
+        values["is_open_po"] = True
+
+        try:
+            existing = db.query(PoEntry).filter(PoEntry.po_no == po_no).first()
+            now = datetime.now(timezone.utc)
+            if existing:
+                for field, value in values.items():
+                    setattr(existing, field, value)
+                existing.last_scraped_at = now
+                updated += 1
+            else:
+                db.add(PoEntry(po_no=po_no, last_scraped_at=now, **values))
+                inserted += 1
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            errors += 1
+            log.error(f"[OPEN PO SAVE] Failed to upsert PO {po_no!r}: {e}")
+
+    unflagged = 0
+    try:
+        query = db.query(PoEntry).filter(PoEntry.is_open_po.is_(True))
+        if fresh_po_nos:
+            query = query.filter(PoEntry.po_no.notin_(fresh_po_nos))
+        unflagged = query.update({"is_open_po": False}, synchronize_session=False)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        errors += 1
+        log.error(f"[OPEN PO]  Failed to reset stale is_open_po flags: {e}")
+
+    return {"inserted": inserted, "updated": updated, "unflagged": unflagged, "skipped": skipped, "errors": errors}
 
 
 def _is_category_prefixed(prefix: str, category: str | None) -> bool:
@@ -760,7 +908,7 @@ def run() -> None:
         run_automated_login()
 
     db = SessionLocal()
-    pr_counters = po_counters = dd_sync_counters = None
+    pr_counters = po_counters = open_po_counters = dd_sync_counters = None
     try:
         try:
             with sync_playwright() as p:
@@ -768,6 +916,7 @@ def run() -> None:
                 context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
                 pr_counters = _run_pr(context.new_page(), db)
                 po_counters = _run_po(context.new_page(), db)
+                open_po_counters = _run_open_po(context.new_page(), db)
                 browser.close()
         except RuntimeError as e:
             if "expired" not in str(e).lower() and "not authenticated" not in str(e).lower():
@@ -779,6 +928,7 @@ def run() -> None:
                 context = browser.new_context(storage_state=str(MARIAPPS_AUTH_JSON), viewport={"width": 1600, "height": 1000})
                 pr_counters = _run_pr(context.new_page(), db)
                 po_counters = _run_po(context.new_page(), db)
+                open_po_counters = _run_open_po(context.new_page(), db)
                 browser.close()
 
         dd_sync_counters = _sync_dd_tracker_entries(db)
@@ -796,6 +946,7 @@ def run() -> None:
     log.info("=" * 60)
     log.info(f"  PR scrape complete — {pr_counters}")
     log.info(f"  PO scrape complete — {po_counters}")
+    log.info(f"  Open PO flag refresh complete — {open_po_counters}")
     log.info(f"  DD Tracker auto-sync complete — {dd_sync_counters}")
     log.info(f"  DD PO Items scrape complete — {po_items_counters}")
     log.info("=" * 60)

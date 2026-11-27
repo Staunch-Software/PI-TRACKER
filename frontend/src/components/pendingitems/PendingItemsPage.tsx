@@ -107,7 +107,7 @@ type SortColumn = 'referenceNo' | 'title' | 'vesselName' | 'vendor' | 'status' |
 const STAGES = ['Requisition', 'Purchase Order', 'Invoice'] as const;
 type Stage = (typeof STAGES)[number];
 
-type OwnerRoleFilter = 'ALL' | 'TSI' | 'TA' | 'Disputed';
+type OwnerRoleFilter = 'ALL' | 'TSI' | 'TA' | 'Disputed' | 'Open PO';
 
 interface PendingItemFilters {
   search: string;
@@ -203,20 +203,22 @@ function renderStatusPill(
   const isPending = lower.includes('pending');
   const isApproved = lower.includes('approved');
   const isDisputed = lower === 'disputed';
+  const isOpenPo = ownerRole === 'Open PO';
 
   let label = s;
   if (stage === 'Requisition') {
     if (s === 'Pending') label = 'Pending (TSI)';
     else if (s === 'Approved') label = 'Pending (TA)';
   } else if (stage === 'Purchase Order') {
-    if (s === 'Pending') label = 'Pending (TA)';
+    if (isOpenPo) label = s; // show SmartPAL's own status (usually "Finally Approved") as-is
+    else if (s === 'Pending') label = 'Pending (TA)';
     else if (s === 'Approved') label = 'Approved (TSI)';
   } else if (stage === 'Invoice') {
     if (isPending) label = `Pending (${ownerRole})`;
     else if (isApproved) label = `Approved (${ownerRole})`;
   }
 
-  const pillClass = isDisputed ? 'status-disputed' : isPending ? 'status-pending' : isApproved ? 'status-approved' : 'status-neutral';
+  const pillClass = isDisputed ? 'status-disputed' : isOpenPo ? 'status-open-po' : isPending ? 'status-pending' : isApproved ? 'status-approved' : 'status-neutral';
 
   let title: string | undefined;
   if (isDisputed && dispute && (dispute.disputedBy || dispute.disputedRemarks)) {
@@ -510,7 +512,7 @@ export function PendingItemsPage() {
     placeholderData: keepPreviousData,
   });
 
-  function countFor(s: Stage, role: 'TSI' | 'TA' | 'Disputed'): number {
+  function countFor(s: Stage, role: 'TSI' | 'TA' | 'Disputed' | 'Open PO'): number {
     return countsQuery.data?.find((c) => c.stage === s && c.ownerRole === role)?.count ?? 0;
   }
 
@@ -578,6 +580,7 @@ export function PendingItemsPage() {
   const tsiForCurrentStage = countFor(stage, 'TSI');
   const taForCurrentStage = countFor(stage, 'TA');
   const disputedForCurrentStage = countFor(stage, 'Disputed');
+  const openPoForCurrentStage = countFor(stage, 'Open PO');
 
   const activeRoleLabel =
     ownerRoleFilter === 'ALL'
@@ -586,7 +589,9 @@ export function PendingItemsPage() {
         ? 'TSI Pending'
         : ownerRoleFilter === 'TA'
           ? 'TA Pending'
-          : 'Disputed';
+          : ownerRoleFilter === 'Open PO'
+            ? 'Open POs'
+            : 'Disputed';
 
   return (
     <div className="tracker-page pending-items-page">
@@ -753,6 +758,18 @@ export function PendingItemsPage() {
               {stage === 'Requisition' && prTab === 'ageing_90'
                 ? activePrList.filter((x) => x.ownerRole === 'Disputed').length
                 : disputedForCurrentStage}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`pending-role-pill pending-role-pill-openpo ${ownerRoleFilter === 'Open PO' ? 'active' : ''}`}
+            onClick={() => selectRoleFilter('Open PO')}
+          >
+            Open PO
+            <span className="pending-role-pill-count">
+              {stage === 'Requisition' && prTab === 'ageing_90'
+                ? activePrList.filter((x) => x.ownerRole === 'Open PO').length
+                : openPoForCurrentStage}
             </span>
           </button>
         </div>
@@ -1201,7 +1218,7 @@ export function PendingItemsPage() {
 
             <div className="tracker-toolbar-spacer" />
 
-            {ownerRoleFilter !== 'Disputed' && (
+            {ownerRoleFilter !== 'Disputed' && ownerRoleFilter !== 'Open PO' && (
               <button
                 type="button"
                 className="btn-tracker-action btn-pending-mail-trigger"
@@ -1353,7 +1370,7 @@ export function PendingItemsPage() {
                               <td className="vessel-name-cell">{item.vesselName ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1406,7 +1423,7 @@ export function PendingItemsPage() {
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1460,7 +1477,7 @@ export function PendingItemsPage() {
                               <td>{item.vendor ?? '—'}</td>
                               <td>{renderStatusPill(stage, item.status, item.ownerRole, { disputedBy: item.disputedBy, disputedAt: item.disputedAt, disputedRemarks: item.disputedRemarks })}</td>
                               <td className="owner-cell">
-                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : 'role-disputed'}`}>{item.ownerRole}</span>
+                                <span className={`owner-role-badge-text ${item.ownerRole === 'TSI' ? 'role-tsi' : item.ownerRole === 'TA' ? 'role-ta' : item.ownerRole === 'Open PO' ? 'role-openpo' : 'role-disputed'}`}>{item.ownerRole}</span>
                                 {item.ownerName ?? '—'}
                               </td>
                               <td>
@@ -1592,7 +1609,7 @@ export function PendingItemsPage() {
         <VesselPrMailModal
           vesselName={selectedVesselMail.vesselName}
           prType={selectedVesselMail.prType}
-          role={ownerRoleFilter === 'Disputed' ? 'ALL' : ownerRoleFilter}
+          role={ownerRoleFilter === 'TSI' || ownerRoleFilter === 'TA' ? ownerRoleFilter : 'ALL'}
           onClose={() => setSelectedVesselMail(null)}
           onSuccess={(msg) => {
             setMailSuccessMessage(msg);

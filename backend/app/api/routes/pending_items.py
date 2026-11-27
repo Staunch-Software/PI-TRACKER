@@ -53,11 +53,14 @@ from app.schemas.pending_items import (
 
 _STAGES = ("Requisition", "Purchase Order", "Invoice")
 _OWNER_ROLES = ("TSI", "TA")
-# "Disputed" is a separate bucket, not folded into either team's normal pending queue — confirmed
-# with the user 2026-11-26. Kept out of _OWNER_ROLES (used for the TSI/TA-only counts tab loop and
-# the vessel-trend dashboard summary) and handled as its own addition wherever needed.
+# "Disputed" (Invoice stage) and "Open PO" (Purchase Order stage) are each their own separate
+# bucket, not folded into either team's normal pending queue — confirmed with the user 2026-11-26
+# (Disputed) and 2026-11-27 (Open PO). Kept out of _OWNER_ROLES (used for the TSI/TA-only counts
+# tab loop and the vessel-trend dashboard summary) and handled as their own addition wherever
+# needed.
 _DISPUTED_ROLE = "Disputed"
-_ALL_OWNER_ROLES_WITH_DISPUTED = _OWNER_ROLES + (_DISPUTED_ROLE,)
+_OPEN_PO_ROLE = "Open PO"
+_ALL_OWNER_ROLES_WITH_DISPUTED = _OWNER_ROLES + (_DISPUTED_ROLE, _OPEN_PO_ROLE)
 
 router = APIRouter(
     prefix="/pending-items",
@@ -233,12 +236,51 @@ def _compute_pending_items(db: Session) -> list[PendingItemOut]:
         )
 
     # Purchase Order: Pending -> TA's job; Approved -> TSI's job. Finally Approved excluded.
+    #
+    # Open PO is its own separate bucket (confirmed with the user 2026-11-27, same stance as
+    # Disputed invoices below) — SmartPAL's own "Open POs" tab status is independent of
+    # approved_status (po_scraper._run_open_po refreshes po_entries.is_open_po every scrape run;
+    # these are mostly "Finally Approved" POs not yet invoiced/closed, which the TSI/TA
+    # Pending/Approved query below would otherwise exclude entirely — see _APPROVED_STATUSES).
+    # Collected first so its po_nos can be excluded from the normal TSI/TA loop, avoiding a PO
+    # that's somehow both "Open" and still mid-approval showing up twice.
+    open_po_nos: set[str] = set()
+    open_pos = db.query(PoEntry).filter(PoEntry.is_open_po.is_(True)).all()
+    for po in open_pos:
+        if _normalize_category(po.req_category) in _EXCLUDED_CATEGORIES:
+            continue
+        _, owner_name = _owner(po.vessel_name, "TA")
+        if owner_name is None:
+            continue
+        open_po_nos.add(po.po_no)
+        reference_date = po.approved_date or po.created_date
+        items.append(
+            PendingItemOut(
+                stage="Purchase Order",
+                reference_no=po.po_no,
+                title=po.title,
+                vessel_name=po.vessel_name.strip().upper() if po.vessel_name else None,
+                vendor=po.vendor,
+                status=po.approved_status,
+                owner_role=_OPEN_PO_ROLE,
+                owner_name=owner_name,
+                ageing_days=_ageing(reference_date),
+                reference_date=reference_date,
+                priority=po.priority,
+                critical=po.critical,
+                department=None,
+                req_category=po.req_category,
+            )
+        )
+
     pos = (
         db.query(PoEntry)
         .filter(PoEntry.approved_status.in_(_PENDING_STATUSES | _APPROVED_STATUSES))
         .all()
     )
     for po in pos:
+        if po.po_no in open_po_nos:
+            continue
         if _normalize_category(po.req_category) in _EXCLUDED_CATEGORIES:
             continue
         is_pending = po.approved_status in _PENDING_STATUSES
