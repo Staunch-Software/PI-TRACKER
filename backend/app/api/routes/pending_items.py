@@ -53,6 +53,10 @@ from app.schemas.pending_items import (
 
 _STAGES = ("Requisition", "Purchase Order", "Invoice")
 _OWNER_ROLES = ("TSI", "TA")
+# Display-only names for the internal 'TSI'/'TA' role keys (kept as-is everywhere else - query
+# params, User.rank, and every internal comparison in this module still use 'TSI'/'TA'). This is
+# what a human actually reads in a generated Excel report or email body.
+ROLE_DISPLAY_NAMES = {"TSI": "Vessel Manager", "TA": "Purchaser"}
 # "Disputed" (Invoice stage) and "Open PO" (Purchase Order stage) are each their own separate
 # bucket, not folded into either team's normal pending queue — confirmed with the user 2026-11-26
 # (Disputed) and 2026-11-27 (Open PO). Kept out of _OWNER_ROLES (used for the TSI/TA-only counts
@@ -1033,12 +1037,12 @@ def _build_dashboard_summary_workbook(db: Session, role: str = "ALL") -> Workboo
     workbook = Workbook()
     sheets_to_build: list[tuple[str, str, list[PendingDashboardOwnerGroup], PendingDashboardTotals, str]] = []
     if target_role == "TSI":
-        sheets_to_build.append(("TSI Pending Summary", "TSI", tsi_groups, tsi_totals, "1E3A8A"))
+        sheets_to_build.append((f"{ROLE_DISPLAY_NAMES['TSI']} Pending Summary", "TSI", tsi_groups, tsi_totals, "1E3A8A"))
     elif target_role == "TA":
-        sheets_to_build.append(("TA Pending Summary", "TA", ta_groups, ta_totals, "581C87"))
+        sheets_to_build.append((f"{ROLE_DISPLAY_NAMES['TA']} Pending Summary", "TA", ta_groups, ta_totals, "581C87"))
     else:
-        sheets_to_build.append(("TSI Pending Summary", "TSI", tsi_groups, tsi_totals, "1E3A8A"))
-        sheets_to_build.append(("TA Pending Summary", "TA", ta_groups, ta_totals, "581C87"))
+        sheets_to_build.append((f"{ROLE_DISPLAY_NAMES['TSI']} Pending Summary", "TSI", tsi_groups, tsi_totals, "1E3A8A"))
+        sheets_to_build.append((f"{ROLE_DISPLAY_NAMES['TA']} Pending Summary", "TA", ta_groups, ta_totals, "581C87"))
 
     first_sheet = True
     date_str = datetime.now().strftime("%d %b %Y")
@@ -1067,9 +1071,9 @@ def _build_dashboard_summary_workbook(db: Session, role: str = "ALL") -> Workboo
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=TOTAL_COLS)
         ws.row_dimensions[1].height = 36
         banner_title = (
-            "TSI (TECHNICAL SUPERINTENDENTS) PENDING & 5-WEEK TREND OVERVIEW"
+            f"{ROLE_DISPLAY_NAMES['TSI'].upper()} PENDING & 5-WEEK TREND OVERVIEW"
             if role_label == "TSI"
-            else "TA (TECHNICAL ASSISTANTS) PENDING & 5-WEEK TREND OVERVIEW"
+            else f"{ROLE_DISPLAY_NAMES['TA'].upper()} PENDING & 5-WEEK TREND OVERVIEW"
         )
         ws.cell(row=1, column=1, value=banner_title)
         _style_range(
@@ -1104,8 +1108,9 @@ def _build_dashboard_summary_workbook(db: Session, role: str = "ALL") -> Workboo
             "0 (Unchanged)"
         )
 
+        role_label_display = ROLE_DISPLAY_NAMES.get(role_label, role_label)
         kpis = [
-            (f"TOTAL {role_label} PENDING", totals.grand_total, 1, 2, hdr_bg),
+            (f"TOTAL {role_label_display.upper()} PENDING", totals.grand_total, 1, 2, hdr_bg),
             ("REQUISITIONS", totals.requisition_total, 3, 3, "2563EB"),
             ("PURCHASE ORDERS", totals.po_total, 4, 4, "D97706"),
             ("INVOICES", totals.invoice_total, 5, 5, "059669"),
@@ -1159,7 +1164,7 @@ def _build_dashboard_summary_workbook(db: Session, role: str = "ALL") -> Workboo
         # 5. Column Headers (Row 8)
         ws.row_dimensions[8].height = 24
         col_headers = [
-            f"Owner ({role_label})",
+            f"Owner ({role_label_display})",
             "Vessel Name",
             "Requisitions",
             "Purchase Orders",
@@ -1281,7 +1286,7 @@ def _build_dashboard_summary_workbook(db: Session, role: str = "ALL") -> Workboo
 
         w_str_f = [str(x) if x is not None else "–" for x in w_pts_f]
         grand_vals = [
-            f"FLEET {role_label} TOTAL",
+            f"FLEET {role_label_display.upper()} TOTAL",
             "All Vessels Assigned",
             totals.requisition_total,
             totals.po_total,
@@ -1385,7 +1390,7 @@ def _build_dashboard_html_summary(
     fleet_totals: PendingDashboardTotals,
     week_labels: list[str],
     role_label: str = "ALL",
-    filename: str = "TSI_TA_Pending_Dashboard_Summary.xlsx",
+    filename: str = "Vessel_Manager_Purchaser_Pending_Dashboard_Summary.xlsx",
     attachment_filenames: list[str] | None = None,
 ) -> str:
     date_str = datetime.now().strftime("%d %b %Y")
@@ -1395,24 +1400,24 @@ def _build_dashboard_html_summary(
 
     if clean_role == "TSI":
         active_totals = tsi_totals
-        banner_title = "TSI (Technical Superintendents) Pending & 5-Week Trend Overview"
+        banner_title = f"{ROLE_DISPLAY_NAMES['TSI']} Pending & 5-Week Trend Overview"
         banner_bg = "linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%)"
         accent_color = "#1E3A8A"
-        sections = [("TSI (Technical Superintendents) Pending Overview", "TSI", tsi_groups, tsi_totals, "#1E3A8A")]
+        sections = [(f"{ROLE_DISPLAY_NAMES['TSI']} Pending Overview", "TSI", tsi_groups, tsi_totals, "#1E3A8A")]
     elif clean_role == "TA":
         active_totals = ta_totals
-        banner_title = "TA (Technical Assistants) Pending & 5-Week Trend Overview"
+        banner_title = f"{ROLE_DISPLAY_NAMES['TA']} Pending & 5-Week Trend Overview"
         banner_bg = "linear-gradient(135deg, #581C87 0%, #0F172A 100%)"
         accent_color = "#581C87"
-        sections = [("TA (Technical Assistants) Pending Overview", "TA", ta_groups, ta_totals, "#581C87")]
+        sections = [(f"{ROLE_DISPLAY_NAMES['TA']} Pending Overview", "TA", ta_groups, ta_totals, "#581C87")]
     else:
         active_totals = fleet_totals
         banner_title = "Fleet Pending Dashboard & 5-Week Trend Overview"
         banner_bg = "linear-gradient(135deg, #0F2942 0%, #0F172A 100%)"
         accent_color = "#0F4C81"
         sections = [
-            ("TSI (Technical Superintendents) Pending Overview", "TSI", tsi_groups, tsi_totals, "#1E3A8A"),
-            ("TA (Technical Assistants) Pending Overview", "TA", ta_groups, ta_totals, "#581C87"),
+            (f"{ROLE_DISPLAY_NAMES['TSI']} Pending Overview", "TSI", tsi_groups, tsi_totals, "#1E3A8A"),
+            (f"{ROLE_DISPLAY_NAMES['TA']} Pending Overview", "TA", ta_groups, ta_totals, "#581C87"),
         ]
 
     # KPI 5: trend status
@@ -1635,9 +1640,9 @@ def export_pending_items_dashboard_summary(
     buffer.seek(0)
 
     if target_role == "TSI":
-        filename = "TSI_Pending_Dashboard_Summary.xlsx"
+        filename = f"{ROLE_DISPLAY_NAMES['TSI'].replace(' ', '_')}_Pending_Dashboard_Summary.xlsx"
     elif target_role == "TA":
-        filename = "TA_Pending_Dashboard_Summary.xlsx"
+        filename = f"{ROLE_DISPLAY_NAMES['TA'].replace(' ', '_')}_Pending_Dashboard_Summary.xlsx"
     else:
         filename = "Fleet_Pending_Dashboard_Summary.xlsx"
 
@@ -1688,7 +1693,7 @@ def preview_pending_items_dashboard_summary_email(
 
     role_filter = [target_role] if target_role in ("TSI", "TA") else None
     items_for_role = items if not role_filter else [i for i in items if i.owner_role == target_role]
-    role_suffix = target_role if target_role in ("TSI", "TA") else "All"
+    role_suffix = ROLE_DISPLAY_NAMES[target_role].replace(" ", "_") if target_role in ("TSI", "TA") else "All"
 
     req_filename = f"Requisition_{role_suffix}_Pending_Ageing.xlsx"
     po_filename = f"Purchase_Order_{role_suffix}_Pending_Ageing.xlsx"
@@ -1724,9 +1729,9 @@ def preview_pending_items_dashboard_summary_email(
 
     date_str = datetime.now().strftime("%d %b %Y")
     if target_role == "TSI":
-        default_subject = f"TSI Pending Dashboard & Weekly Trend Summary ({date_str})"
+        default_subject = f"{ROLE_DISPLAY_NAMES['TSI']} Pending Dashboard & Weekly Trend Summary ({date_str})"
     elif target_role == "TA":
-        default_subject = f"TA Pending Dashboard & Weekly Trend Summary ({date_str})"
+        default_subject = f"{ROLE_DISPLAY_NAMES['TA']} Pending Dashboard & Weekly Trend Summary ({date_str})"
     else:
         default_subject = f"Fleet Pending Dashboard & Weekly Trend Summary ({date_str})"
 
@@ -1787,7 +1792,7 @@ def send_pending_items_dashboard_summary_email(
 
     role_filter = [target_role] if target_role in ("TSI", "TA") else None
     items_for_role = items if not role_filter else [i for i in items if i.owner_role == target_role]
-    role_suffix = target_role if target_role in ("TSI", "TA") else "All"
+    role_suffix = ROLE_DISPLAY_NAMES[target_role].replace(" ", "_") if target_role in ("TSI", "TA") else "All"
 
     req_filename = f"Requisition_{role_suffix}_Pending_Ageing.xlsx"
     po_filename = f"Purchase_Order_{role_suffix}_Pending_Ageing.xlsx"
@@ -1858,7 +1863,7 @@ def send_pending_items_dashboard_summary_email(
     if not recipients:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No active recipient emails provided or found for '{target_role}'.",
+            detail=f"No active recipient emails provided or found for '{ROLE_DISPLAY_NAMES.get(target_role, target_role)}'.",
         )
 
     _validate_recipients(recipients, cc_recipients)
@@ -1867,9 +1872,9 @@ def send_pending_items_dashboard_summary_email(
     if payload.subject and payload.subject.strip():
         subject = payload.subject.strip()
     elif target_role == "TSI":
-        subject = f"TSI Pending Dashboard & Weekly Trend Summary ({date_str})"
+        subject = f"{ROLE_DISPLAY_NAMES['TSI']} Pending Dashboard & Weekly Trend Summary ({date_str})"
     elif target_role == "TA":
-        subject = f"TA Pending Dashboard & Weekly Trend Summary ({date_str})"
+        subject = f"{ROLE_DISPLAY_NAMES['TA']} Pending Dashboard & Weekly Trend Summary ({date_str})"
     else:
         subject = f"Fleet Pending Dashboard & Weekly Trend Summary ({date_str})"
 
@@ -2640,11 +2645,12 @@ def _build_pending_items_ageing_workbook(
     # Subtitle metadata & active filters
     clean_roles = [r.strip().upper() for r in (role_filter or []) if r and r.strip().upper() != "ALL"]
     if clean_roles:
-        role_label = f"{clean_roles[0]} Pending"
-        role_banner_prefix = f"{clean_roles[0]} PENDING ITEMS"
+        clean_role_display = ROLE_DISPLAY_NAMES.get(clean_roles[0], clean_roles[0])
+        role_label = f"{clean_role_display} Pending"
+        role_banner_prefix = f"{clean_role_display.upper()} PENDING ITEMS"
     else:
-        role_label = "All Pending (TSI & TA)"
-        role_banner_prefix = "TSI / TA PENDING ITEMS"
+        role_label = f"All Pending ({ROLE_DISPLAY_NAMES['TSI']} & {ROLE_DISPLAY_NAMES['TA']})"
+        role_banner_prefix = f"{ROLE_DISPLAY_NAMES['TSI'].upper()} / {ROLE_DISPLAY_NAMES['TA'].upper()} PENDING ITEMS"
 
     meta_parts: list[str] = []
     if stage_filter:
@@ -2797,7 +2803,8 @@ def _build_pending_items_ageing_workbook(
                 # 1. Block Header Banner (Prominently Highlighted!)
                 ws.row_dimensions[curr_r].height = 28
                 ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols)
-                block_title = f"  ■  {v_name}   |   {role_key} IN-CHARGE: {owner_name}   |   {len(b_items)} Item(s) Pending"
+                role_key_display = ROLE_DISPLAY_NAMES.get(role_key, role_key)
+                block_title = f"  ■  {v_name}   |   {role_key_display.upper()} IN-CHARGE: {owner_name}   |   {len(b_items)} Item(s) Pending"
                 ws.cell(row=curr_r, column=1, value=block_title)
 
                 # Rich vibrant distinctive highlights: Sapphire Blue for TSI, Royal Amethyst Purple for TA
@@ -2892,7 +2899,7 @@ def _build_pending_items_ageing_workbook(
                 # 4. Block Subtotal Row
                 ws.row_dimensions[curr_r].height = 20
                 ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=num_detail_cols - 2)
-                ws.cell(row=curr_r, column=1, value=f"   Subtotal {v_name} ({role_key} - {owner_name})")
+                ws.cell(row=curr_r, column=1, value=f"   Subtotal {v_name} ({role_key_display} - {owner_name})")
                 style_range(ws, 1, curr_r, num_detail_cols - 2, curr_r, fill=PatternFill("solid", fgColor="F1F5F9"), font=font_block_tot, alignment=align_left, border=border_block_tot)
 
                 ws.merge_cells(start_row=curr_r, start_column=num_detail_cols - 1, end_row=curr_r, end_column=num_detail_cols)
@@ -3164,18 +3171,19 @@ def _build_pending_items_ageing_workbook(
     ws_main.views.sheetView[0].showGridLines = True
 
     single_role = clean_roles[0] if len(clean_roles) == 1 and clean_roles[0] in ("TSI", "TA") else None
+    single_role_display = ROLE_DISPLAY_NAMES.get(single_role, single_role)
     TOTAL_COLS = 6 if single_role else 15
 
     # 1. Main Title Banner
     stage_upper = " / ".join(stage_filter).upper() if stage_filter else ""
     if stage_upper and single_role:
-        summary_main_title = f"{stage_upper} ({single_role} PENDING) — VESSEL AGEING MATRIX"
+        summary_main_title = f"{stage_upper} ({single_role_display.upper()} PENDING) — VESSEL AGEING MATRIX"
     elif stage_upper:
         summary_main_title = f"{stage_upper} (ALL PENDING) — VESSEL AGEING MATRIX"
     elif single_role:
-        summary_main_title = f"{single_role} PENDING ITEMS — VESSEL AGEING MATRIX"
+        summary_main_title = f"{single_role_display.upper()} PENDING ITEMS — VESSEL AGEING MATRIX"
     else:
-        summary_main_title = "TSI / TA PENDING ITEMS — VESSEL AGEING MATRIX"
+        summary_main_title = f"{ROLE_DISPLAY_NAMES['TSI'].upper()} / {ROLE_DISPLAY_NAMES['TA'].upper()} PENDING ITEMS — VESSEL AGEING MATRIX"
 
     title_bg = "1E3A8A" if single_role == "TSI" else ("581C87" if single_role == "TA" else NAVY_TOP)
     fill_summary_title = PatternFill("solid", fgColor=title_bg)
@@ -3209,14 +3217,14 @@ def _build_pending_items_ageing_workbook(
 
     if single_role == "TSI":
         kpi_defs = [
-            ("TOTAL TSI PENDING", len(items), "FFFFFF", "1E3A8A", 1, 2, "All Details"),
+            (f"TOTAL {ROLE_DISPLAY_NAMES['TSI'].upper()} PENDING", len(items), "FFFFFF", "1E3A8A", 1, 2, "All Details"),
             ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Above 90 Days"),
             ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "30 - 90 Days"),
             ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 5, 6, "Below 30 Days"),
         ]
     elif single_role == "TA":
         kpi_defs = [
-            ("TOTAL TA PENDING", len(items), "FFFFFF", "581C87", 1, 2, "All Details"),
+            (f"TOTAL {ROLE_DISPLAY_NAMES['TA'].upper()} PENDING", len(items), "FFFFFF", "581C87", 1, 2, "All Details"),
             ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Above 90 Days"),
             ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "30 - 90 Days"),
             ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", "6D28D9", 5, 6, "Below 30 Days"),
@@ -3291,44 +3299,47 @@ def _build_pending_items_ageing_workbook(
     # 5. Table Header Tier 2 (Column Headers) — High-contrast bold white text, NO hyperlinks
     ws_main.row_dimensions[8].height = 24
 
+    # Column widths widened below wherever "TSI"/"TA" became the much longer "Vessel
+    # Manager"/"Purchaser" labels, so the new text doesn't overflow/truncate in Excel - the old
+    # widths (e.g. 10-18) were sized for the short 2-3 letter codes.
     if single_role == "TSI":
         tier2_cols = [
             ("Vessel Name", 24, align_left, "1E293B", 9.5),
-            ("TSI In-charge", 18, align_center, "1E3A8A", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TSI']} In-charge", 26, align_center, "1E3A8A", 9.5),
             ("90+", 16, align_center, "E11D48", 9.5),
             ("30-90", 16, align_center, "D97706", 9.5),
             ("<30", 16, align_center, "2563EB", 9.5),
-            ("TSI Total", 16, align_center, "1E3A8A", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TSI']} Total", 22, align_center, "1E3A8A", 9.5),
         ]
     elif single_role == "TA":
         tier2_cols = [
             ("Vessel Name", 24, align_left, "1E293B", 9.5),
-            ("TA In-charge", 18, align_center, "581C87", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TA']} In-charge", 21, align_center, "581C87", 9.5),
             ("90+", 16, align_center, "E11D48", 9.5),
             ("30-90", 16, align_center, "D97706", 9.5),
             ("<30", 16, align_center, "7C3AED", 9.5),
-            ("TA Total", 16, align_center, "581C87", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TA']} Total", 17, align_center, "581C87", 9.5),
         ]
     else:
         tier2_cols = [
             ("Vessel Name", 22, align_left, "1E293B", 9.5),
-            ("TSI In-charge", 16, align_center, "1E3A8A", 9.5),
-            ("TA In-charge", 16, align_center, "581C87", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TSI']} In-charge", 26, align_center, "1E3A8A", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TA']} In-charge", 21, align_center, "581C87", 9.5),
             # 90+ Days
-            ("TSI", 10, align_center, "E11D48", 9.5),
-            ("TA", 10, align_center, "C026D3", 9.5),
+            (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "E11D48", 9.5),
+            (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "C026D3", 9.5),
             ("Total", 11, align_center, "BE123C", 9.5),
             # 30 to 90 Days
-            ("TSI", 10, align_center, "D97706", 9.5),
-            ("TA", 10, align_center, "8B5CF6", 9.5),
+            (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "D97706", 9.5),
+            (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "8B5CF6", 9.5),
             ("Total", 11, align_center, "B45309", 9.5),
             # Below 30 Days
-            ("TSI", 10, align_center, "2563EB", 9.5),
-            ("TA", 10, align_center, "7C3AED", 9.5),
+            (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "2563EB", 9.5),
+            (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "7C3AED", 9.5),
             ("Total", 11, align_center, "1D4ED8", 9.5),
             # Total Pending
-            ("TSI Total", 12, align_center, "1E3A8A", 9.5),
-            ("TA Total", 12, align_center, "581C87", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TSI']} Total", 22, align_center, "1E3A8A", 9.5),
+            (f"{ROLE_DISPLAY_NAMES['TA']} Total", 17, align_center, "581C87", 9.5),
             ("Fleet Total", 13, align_center, "0F172A", 10.0),
         ]
 
@@ -3569,11 +3580,11 @@ def _build_pending_items_ageing_workbook(
 
         # 1. Main Title Banner
         if stage_upper and single_role:
-            summary_vendor_title = f"{stage_upper} ({single_role} PENDING) — VENDOR AGEING MATRIX"
+            summary_vendor_title = f"{stage_upper} ({single_role_display.upper()} PENDING) — VENDOR AGEING MATRIX"
         elif stage_upper:
             summary_vendor_title = f"{stage_upper} (ALL PENDING) — VENDOR AGEING MATRIX"
         elif single_role:
-            summary_vendor_title = f"{single_role} PENDING ITEMS — VENDOR AGEING MATRIX"
+            summary_vendor_title = f"{single_role_display.upper()} PENDING ITEMS — VENDOR AGEING MATRIX"
         else:
             summary_vendor_title = "INVOICE PENDING ITEMS — VENDOR AGEING MATRIX"
 
@@ -3639,14 +3650,14 @@ def _build_pending_items_ageing_workbook(
 
         if single_role == "TSI":
             kpi_vendor_defs = [
-                ("TOTAL TSI INVOICES", len(items), "FFFFFF", "1E3A8A", 1, 2, "Vendor - All Details"),
+                (f"TOTAL {ROLE_DISPLAY_NAMES['TSI'].upper()} INVOICES", len(items), "FFFFFF", "1E3A8A", 1, 2, "Vendor - All Details"),
                 ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Vendor - Above 90"),
                 ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "Vendor - 30 to 90"),
                 ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", COLOR_0_30_HDR, 5, 6, "Vendor - Below 30"),
             ]
         elif single_role == "TA":
             kpi_vendor_defs = [
-                ("TOTAL TA INVOICES", len(items), "FFFFFF", "581C87", 1, 2, "Vendor - All Details"),
+                (f"TOTAL {ROLE_DISPLAY_NAMES['TA'].upper()} INVOICES", len(items), "FFFFFF", "581C87", 1, 2, "Vendor - All Details"),
                 ("90+ DAYS (CRITICAL)", len(items_90_plus), "FFFFFF", COLOR_90_PLUS_HDR, 3, 3, "Vendor - Above 90"),
                 ("30 TO 90 DAYS (ATTENTION)", len(items_30_90), "FFFFFF", COLOR_30_90_HDR, 4, 4, "Vendor - 30 to 90"),
                 ("BELOW 30 DAYS (NORMAL)", len(items_0_30), "FFFFFF", "6D28D9", 5, 6, "Vendor - Below 30"),
@@ -3728,7 +3739,7 @@ def _build_pending_items_ageing_workbook(
                 ("90+", 16, align_center, "E11D48", 9.5),
                 ("30-90", 16, align_center, "D97706", 9.5),
                 ("<30", 16, align_center, "2563EB", 9.5),
-                ("TSI Total", 16, align_center, "1E3A8A", 9.5),
+                (f"{ROLE_DISPLAY_NAMES['TSI']} Total", 22, align_center, "1E3A8A", 9.5),
             ]
         elif single_role == "TA":
             v_tier2_cols = [
@@ -3737,27 +3748,27 @@ def _build_pending_items_ageing_workbook(
                 ("90+", 16, align_center, "E11D48", 9.5),
                 ("30-90", 16, align_center, "D97706", 9.5),
                 ("<30", 16, align_center, "7C3AED", 9.5),
-                ("TA Total", 16, align_center, "581C87", 9.5),
+                (f"{ROLE_DISPLAY_NAMES['TA']} Total", 17, align_center, "581C87", 9.5),
             ]
         else:
             v_tier2_cols = [
                 ("Sl No.", 8, align_center, "1E293B", 9.5),
                 ("Vendor Name", 40, align_left, "1E293B", 9.5),
                 # 90+ Days
-                ("TSI", 10, align_center, "E11D48", 9.5),
-                ("TA", 10, align_center, "C026D3", 9.5),
+                (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "E11D48", 9.5),
+                (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "C026D3", 9.5),
                 ("Total", 11, align_center, "BE123C", 9.5),
                 # 30 to 90 Days
-                ("TSI", 10, align_center, "D97706", 9.5),
-                ("TA", 10, align_center, "8B5CF6", 9.5),
+                (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "D97706", 9.5),
+                (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "8B5CF6", 9.5),
                 ("Total", 11, align_center, "B45309", 9.5),
                 # Below 30 Days
-                ("TSI", 10, align_center, "2563EB", 9.5),
-                ("TA", 10, align_center, "7C3AED", 9.5),
+                (ROLE_DISPLAY_NAMES["TSI"], 16, align_center, "2563EB", 9.5),
+                (ROLE_DISPLAY_NAMES["TA"], 12, align_center, "7C3AED", 9.5),
                 ("Total", 11, align_center, "1D4ED8", 9.5),
                 # Total Pending
-                ("TSI Total", 12, align_center, "1E3A8A", 9.5),
-                ("TA Total", 12, align_center, "581C87", 9.5),
+                (f"{ROLE_DISPLAY_NAMES['TSI']} Total", 22, align_center, "1E3A8A", 9.5),
+                (f"{ROLE_DISPLAY_NAMES['TA']} Total", 17, align_center, "581C87", 9.5),
                 ("Grand Total", 13, align_center, "0F172A", 10.0),
             ]
 
@@ -4038,7 +4049,7 @@ def _build_pending_items_html_summary(
     tot_90_plus = len([i for i in scoped_items if _bucket(i.ageing_days) == "90_plus"])
 
     theme_bg = "#1E3A8A" if role_norm == "TSI" else ("#581C87" if role_norm == "TA" else "#0F2942")
-    role_title = f"{role_norm} PENDING ITEMS — VESSEL AGEING MATRIX"
+    role_title = f"{ROLE_DISPLAY_NAMES.get(role_norm, role_norm).upper()} PENDING ITEMS — VESSEL AGEING MATRIX"
     if stage_label:
         role_title += f" ({_html_escape(str(stage_label.upper()), quote=True)})"
 
@@ -4101,15 +4112,15 @@ def _build_pending_items_html_summary(
     fleet_sums = defaultdict(int)
 
     if role_norm == "TSI":
-        html += """
+        html += f"""
             <thead>
               <tr style="background-color: #1E293B; color: #FFFFFF; font-size: 11px; text-transform: uppercase;">
                 <th style="padding: 10px 12px; text-align: left; border: 1px solid #CBD5E1;">Vessel Name</th>
-                <th style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">TSI In-Charge</th>
+                <th style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']} In-Charge</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #BE123C; border: 1px solid #CBD5E1;">90+ Days</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #B45309; border: 1px solid #CBD5E1;">30 to 90 Days</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #1E40AF; border: 1px solid #CBD5E1;">Below 30 Days</th>
-                <th style="padding: 10px 12px; text-align: center; background-color: #1E3A8A; border: 1px solid #CBD5E1;">TSI Total</th>
+                <th style="padding: 10px 12px; text-align: center; background-color: #1E3A8A; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']} Total</th>
               </tr>
             </thead>
             <tbody>
@@ -4142,8 +4153,8 @@ def _build_pending_items_html_summary(
             </tbody>
             <tfoot>
               <tr style="background-color: #E2E8F0; font-weight: 700; color: #0F172A;">
-                <td style="padding: 10px 12px; border: 1px solid #CBD5E1;">TSI FLEET TOTAL</td>
-                <td style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">All TSI</td>
+                <td style="padding: 10px 12px; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI'].upper()} FLEET TOTAL</td>
+                <td style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">All {ROLE_DISPLAY_NAMES['TSI']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #BE123C; border: 1px solid #CBD5E1;">{fleet_sums['90']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #B45309; border: 1px solid #CBD5E1;">{fleet_sums['30_90']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #1E40AF; border: 1px solid #CBD5E1;">{fleet_sums['0_30']}</td>
@@ -4153,15 +4164,15 @@ def _build_pending_items_html_summary(
         """
 
     elif role_norm == "TA":
-        html += """
+        html += f"""
             <thead>
               <tr style="background-color: #1E293B; color: #FFFFFF; font-size: 11px; text-transform: uppercase;">
                 <th style="padding: 10px 12px; text-align: left; border: 1px solid #CBD5E1;">Vessel Name</th>
-                <th style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">TA In-Charge</th>
+                <th style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']} In-Charge</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #BE123C; border: 1px solid #CBD5E1;">90+ Days</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #B45309; border: 1px solid #CBD5E1;">30 to 90 Days</th>
                 <th style="padding: 10px 12px; text-align: center; background-color: #6D28D9; border: 1px solid #CBD5E1;">Below 30 Days</th>
-                <th style="padding: 10px 12px; text-align: center; background-color: #581C87; border: 1px solid #CBD5E1;">TA Total</th>
+                <th style="padding: 10px 12px; text-align: center; background-color: #581C87; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']} Total</th>
               </tr>
             </thead>
             <tbody>
@@ -4194,8 +4205,8 @@ def _build_pending_items_html_summary(
             </tbody>
             <tfoot>
               <tr style="background-color: #E2E8F0; font-weight: 700; color: #0F172A;">
-                <td style="padding: 10px 12px; border: 1px solid #CBD5E1;">TA FLEET TOTAL</td>
-                <td style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">All TA</td>
+                <td style="padding: 10px 12px; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA'].upper()} FLEET TOTAL</td>
+                <td style="padding: 10px 12px; text-align: center; border: 1px solid #CBD5E1;">All {ROLE_DISPLAY_NAMES['TA']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #BE123C; border: 1px solid #CBD5E1;">{fleet_sums['90']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #B45309; border: 1px solid #CBD5E1;">{fleet_sums['30_90']}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #6D28D9; border: 1px solid #CBD5E1;">{fleet_sums['0_30']}</td>
@@ -4205,29 +4216,29 @@ def _build_pending_items_html_summary(
         """
 
     else:  # ALL
-        html += """
+        html += f"""
             <thead>
               <tr style="background-color: #1E293B; color: #FFFFFF; font-size: 10.5px; text-transform: uppercase;">
                 <th rowspan="2" style="padding: 8px 10px; text-align: left; border: 1px solid #CBD5E1;">Vessel Name</th>
-                <th rowspan="2" style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">TSI In-Charge</th>
-                <th rowspan="2" style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">TA In-Charge</th>
+                <th rowspan="2" style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']} In-Charge</th>
+                <th rowspan="2" style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']} In-Charge</th>
                 <th colspan="3" style="padding: 6px 8px; text-align: center; background-color: #BE123C; border: 1px solid #CBD5E1;">90+ Days</th>
                 <th colspan="3" style="padding: 6px 8px; text-align: center; background-color: #B45309; border: 1px solid #CBD5E1;">30 to 90 Days</th>
                 <th colspan="3" style="padding: 6px 8px; text-align: center; background-color: #1E40AF; border: 1px solid #CBD5E1;">Below 30 Days</th>
                 <th colspan="3" style="padding: 6px 8px; text-align: center; background-color: #0F2942; border: 1px solid #CBD5E1;">Total Pending</th>
               </tr>
               <tr style="background-color: #334155; color: #FFFFFF; font-size: 9.5px; text-transform: uppercase;">
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TSI</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TA</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']}</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']}</th>
                 <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">Tot</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TSI</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TA</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']}</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']}</th>
                 <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">Tot</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TSI</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TA</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']}</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']}</th>
                 <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">Tot</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TSI</th>
-                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">TA</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TSI']}</th>
+                <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">{ROLE_DISPLAY_NAMES['TA']}</th>
                 <th style="padding: 5px; text-align: center; border: 1px solid #CBD5E1;">Fleet</th>
               </tr>
             </thead>
@@ -4294,8 +4305,8 @@ def _build_pending_items_html_summary(
             <tfoot>
               <tr style="background-color: #E2E8F0; font-weight: 700; color: #0F172A; font-size: 11px;">
                 <td style="padding: 8px 10px; border: 1px solid #CBD5E1;">FLEET TOTAL</td>
-                <td style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">All TSI</td>
-                <td style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">All TA</td>
+                <td style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">All {ROLE_DISPLAY_NAMES['TSI']}</td>
+                <td style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">All {ROLE_DISPLAY_NAMES['TA']}</td>
                 <td style="padding: 8px 5px; text-align: center; color: #E11D48; border: 1px solid #CBD5E1;">{fleet_sums['90_tsi']}</td>
                 <td style="padding: 8px 5px; text-align: center; color: #C026D3; border: 1px solid #CBD5E1;">{fleet_sums['90_ta']}</td>
                 <td style="padding: 8px 5px; text-align: center; color: #BE123C; font-weight: 800; border: 1px solid #CBD5E1;">{fleet_sums['90_tot']}</td>
@@ -4359,12 +4370,13 @@ def preview_pending_items_summary_email(
     else:
         stage_clean = None
 
+    target_role_display = ROLE_DISPLAY_NAMES.get(target_role, target_role)
     if stage_clean and target_role != "ALL":
-        attachment_filename = f"{stage_clean.replace(' ', '_')}_{target_role}_Pending_Ageing.xlsx"
+        attachment_filename = f"{stage_clean.replace(' ', '_')}_{target_role_display.replace(' ', '_')}_Pending_Ageing.xlsx"
     elif stage_clean:
         attachment_filename = f"{stage_clean.replace(' ', '_')}_All_Pending_Ageing.xlsx"
     elif target_role != "ALL":
-        attachment_filename = f"Fleet_{target_role}_Pending_Ageing.xlsx"
+        attachment_filename = f"Fleet_{target_role_display.replace(' ', '_')}_Pending_Ageing.xlsx"
     else:
         attachment_filename = "Fleet_All_Pending_Ageing.xlsx"
 
@@ -4391,9 +4403,9 @@ def preview_pending_items_summary_email(
 
     date_str = datetime.now().strftime("%d %b %Y")
     if stage_clean:
-        default_subject = f"{stage_clean} - {target_role} Pending Ageing Summary ({date_str})"
+        default_subject = f"{stage_clean} - {target_role_display} Pending Ageing Summary ({date_str})"
     else:
-        default_subject = f"Fleet {target_role} Pending Ageing Summary ({date_str})"
+        default_subject = f"Fleet {target_role_display} Pending Ageing Summary ({date_str})"
 
     from_mailbox = "data@ozellar.com"
 
@@ -4444,12 +4456,13 @@ def send_pending_items_summary_email(
     buffer.seek(0)
     attachment_bytes = buffer.getvalue()
 
+    target_role_display = ROLE_DISPLAY_NAMES.get(target_role, target_role)
     if stage_clean and target_role != "ALL":
-        attachment_filename = f"{stage_clean.replace(' ', '_')}_{target_role}_Pending_Ageing.xlsx"
+        attachment_filename = f"{stage_clean.replace(' ', '_')}_{target_role_display.replace(' ', '_')}_Pending_Ageing.xlsx"
     elif stage_clean:
         attachment_filename = f"{stage_clean.replace(' ', '_')}_All_Pending_Ageing.xlsx"
     elif target_role != "ALL":
-        attachment_filename = f"Fleet_{target_role}_Pending_Ageing.xlsx"
+        attachment_filename = f"Fleet_{target_role_display.replace(' ', '_')}_Pending_Ageing.xlsx"
     else:
         attachment_filename = "Fleet_All_Pending_Ageing.xlsx"
 
@@ -4488,7 +4501,7 @@ def send_pending_items_summary_email(
     if not recipients:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No active recipient emails provided or found for '{target_role}'.",
+            detail=f"No active recipient emails provided or found for '{ROLE_DISPLAY_NAMES.get(target_role, target_role)}'.",
         )
 
     _validate_recipients(recipients, cc_recipients)
@@ -4498,9 +4511,9 @@ def send_pending_items_summary_email(
     if payload.subject and payload.subject.strip():
         subject = payload.subject.strip()
     elif stage_clean:
-        subject = f"{stage_clean} - {target_role} Pending Ageing Summary ({date_str})"
+        subject = f"{stage_clean} - {target_role_display} Pending Ageing Summary ({date_str})"
     else:
-        subject = f"Fleet {target_role} Pending Ageing Summary ({date_str})"
+        subject = f"Fleet {target_role_display} Pending Ageing Summary ({date_str})"
 
     from_mailbox = "data@ozellar.com"
 
