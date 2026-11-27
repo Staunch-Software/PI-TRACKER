@@ -27,7 +27,11 @@ body:has(.pending-items-page) .page-content {
 
 .pending-items-page .tracker-toolbar {
   position: relative;
-  z-index: 10;
+  /* Must out-rank .pending-items-table th's sticky z-index (10) — at an equal z-index the later
+     DOM sibling (the table) wins the tie and its sticky header paints over the toolbar's open
+     filter dropdowns (confirmed live 2026-11-27: the vessel dropdown rendered behind the table
+     header). */
+  z-index: 30;
   margin: 0 28px 12px;
 }
 
@@ -515,6 +519,52 @@ body:has(.pending-items-page) .page-content {
   background: #eff6ff;
   color: #2563eb;
   font-weight: 600;
+}
+
+.toolbar-dropdown-menu-actions {
+  display: flex;
+  gap: 4px;
+  padding: 2px 2px 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.toolbar-dropdown-menu-action-btn {
+  flex: 1;
+  border: none;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolbar-dropdown-menu-action-btn:hover {
+  background: #e2e8f0;
+}
+
+.toolbar-dropdown-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.toolbar-dropdown-checkbox-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.toolbar-dropdown-checkbox-item input[type='checkbox'] {
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 /* Active Filters Row */

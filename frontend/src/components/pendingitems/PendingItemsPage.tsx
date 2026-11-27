@@ -314,6 +314,70 @@ function Dropdown({ label, value, options, onChange }: DropdownProps) {
   );
 }
 
+interface MultiSelectDropdownProps {
+  label: string;
+  values: string[];
+  options: { label: string; value: string }[];
+  onChange: (vals: string[]) => void;
+}
+
+function MultiSelectDropdown({ label, values, options, onChange }: MultiSelectDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [open]);
+
+  const hasValue = values.length > 0;
+  const displayLabel = values.length === 0 ? label : values.length === 1 ? values[0] : `${values.length} selected`;
+
+  function toggle(val: string) {
+    onChange(values.includes(val) ? values.filter((v) => v !== val) : [...values, val]);
+  }
+
+  return (
+    <div className="toolbar-dropdown" ref={ref}>
+      <button
+        type="button"
+        className={`toolbar-dropdown-btn ${hasValue ? 'has-value' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        <span>{displayLabel}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div className="toolbar-dropdown-menu">
+          <div className="toolbar-dropdown-menu-actions">
+            <button type="button" className="toolbar-dropdown-menu-action-btn" onClick={() => onChange(options.map((o) => o.value))}>
+              Select all
+            </button>
+            <button type="button" className="toolbar-dropdown-menu-action-btn" onClick={() => onChange([])}>
+              Clear
+            </button>
+          </div>
+          {options.map((opt) => (
+            <label key={opt.value} className="toolbar-dropdown-checkbox-item">
+              <input type="checkbox" checked={values.includes(opt.value)} onChange={() => toggle(opt.value)} />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PendingItemsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeView = searchParams.get('view') === 'items' ? 'items' : 'dashboard';
@@ -975,11 +1039,11 @@ export function PendingItemsPage() {
               />
             </div>
 
-            <Dropdown
+            <MultiSelectDropdown
               label="All vessels"
-              value={filters.vesselName[0] || ''}
+              values={filters.vesselName}
               options={vesselOptions}
-              onChange={(val) => updateFilters({ vesselName: val ? [val] : [] })}
+              onChange={(vals) => updateFilters({ vesselName: vals })}
             />
 
             <Dropdown
@@ -1196,11 +1260,11 @@ export function PendingItemsPage() {
               />
             </div>
 
-            <Dropdown
+            <MultiSelectDropdown
               label="All vessels"
-              value={filters.vesselName[0] || ''}
+              values={filters.vesselName}
               options={vesselOptions}
-              onChange={(val) => updateFilters({ vesselName: val ? [val] : [] })}
+              onChange={(vals) => updateFilters({ vesselName: vals })}
             />
 
             <Dropdown
