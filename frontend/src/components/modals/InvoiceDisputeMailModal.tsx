@@ -134,15 +134,21 @@ export function InvoiceDisputeMailModal({ invoiceNo, onClose, onSuccess }: Props
   }, [previewData]);
 
   // The content-editable div owns its own DOM content while the Purchase team is typing — this
-  // only pushes `body` into it ONCE, right after the preview loads. Re-syncing on every keystroke
-  // (via `dangerouslySetInnerHTML` or resetting innerHTML in this effect) would fight the
-  // browser's own cursor position and undo history.
+  // only pushes `body` into it ONCE per mount, right after the preview loads. Re-syncing on every
+  // keystroke (via `dangerouslySetInnerHTML` or resetting innerHTML in this effect) would fight the
+  // browser's own cursor position and undo history. The "Preview" tab unmounts this div entirely
+  // (it's a separate JSX branch), so switching back to "Email Details" remounts a fresh, empty div —
+  // resetting the flag whenever the details tab isn't active makes the next mount re-sync from `body`.
   useEffect(() => {
+    if (activeTab !== 'details') {
+      bodyInitializedRef.current = false;
+      return;
+    }
     if (!bodyInitializedRef.current && bodyEditableRef.current) {
       bodyEditableRef.current.innerHTML = body;
       bodyInitializedRef.current = true;
     }
-  }, [body]);
+  }, [activeTab, body]);
 
   function handleBodyInput(e: FormEvent<HTMLDivElement>) {
     setBody(e.currentTarget.innerHTML);
