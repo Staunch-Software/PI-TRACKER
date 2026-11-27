@@ -109,7 +109,16 @@ def ingest_soa_mailbox(
             )
             continue
 
-        message: GraphMessage = client.get_message(mailbox, raw)
+        try:
+            message: GraphMessage = client.get_message(mailbox, raw)
+        except Exception:
+            # A message can 404 here even though it was just listed above — deleted/moved
+            # between the list call and this fetch (confirmed live during a historical backfill
+            # scanning deep into a mailbox's history, far more likely to hit a since-removed
+            # message than the regular small poll). Skip it rather than aborting every remaining
+            # (older) message in this mailbox's batch.
+            log.exception("Failed to fetch message %s from %s — skipping", raw["id"], mailbox)
+            continue
         sender_domain = extract_domain(message.sender_email)
         if not sender_domain:
             log.warning("Skipping message %s — no sender email/domain", message.id)
@@ -246,7 +255,13 @@ def ingest_invoice_mailbox(db: Session, client: MsGraphClient, mailbox: str, ves
             log.debug("Skipping message %s — subject doesn't look like an invoice: %r", raw["id"], subject)
             continue
 
-        message: GraphMessage = client.get_message(mailbox, raw)
+        try:
+            message: GraphMessage = client.get_message(mailbox, raw)
+        except Exception:
+            # See ingest_soa_mailbox's identical try/except for why this can 404 even though the
+            # message was just listed above.
+            log.exception("Failed to fetch message %s from %s — skipping", raw["id"], mailbox)
+            continue
         sender_domain = extract_domain(message.sender_email)
 
         try:
