@@ -2382,11 +2382,17 @@ def _build_dispute_mail_subject_body(inv: SmartpalInvoiceEntry) -> tuple[str, st
     # Sign-off is always "Purchase Team" regardless of which logged-in user sends it — confirmed
     # with the user 2026-11-27. The From address still reflects the actual sender's mailbox; only
     # the visible signature is fixed.
-    subject = f"Dispute on Invoice {inv.invoice_no or ''} — Action Required"
+    #
+    # The vendor only recognizes their OWN invoice number, not SmartPAL's internal one — confirmed
+    # with the user 2026-11-27 (same reasoning as the Disputed table's "Vendor Invoice No." column,
+    # which this mirrors). Falls back to SmartPAL's own number only on the rare row where
+    # vendor_invoice_no wasn't scraped/populated.
+    display_invoice_no = inv.vendor_invoice_no or inv.invoice_no or ""
+    subject = f"Dispute on Invoice {display_invoice_no} — Action Required"
     remarks = inv.disputed_remarks or "No remarks were provided."
     body = (
         f"Dear {inv.vendor_name or 'Vendor'},<br><br>"
-        f"Your invoice <b>{inv.invoice_no or ''}</b>"
+        f"Your invoice <b>{display_invoice_no}</b>"
         + (f" for vessel <b>{inv.vessel_name}</b>" if inv.vessel_name else "")
         + " has been disputed, with the following remark:<br><br>"
         f"<i>\"{remarks}\"</i><br><br>"
